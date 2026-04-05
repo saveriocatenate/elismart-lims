@@ -54,7 +54,6 @@ The system is a Laboratory Information Management System (LIMS) structured aroun
 - **Experiment**: An actual instance of a protocol run on the lab bench, with metadata (date, operator, sample).
 - **MeasurementPair**: A single replicate measurement with raw signals, mean, %CV, and %Recovery calculated from the raw values.
 - **ReagentBatch**: Tracks reagent lot numbers for full traceability across experiments.
-- **Trial**: Groups measurements within an experiment (e.g., calibration curve points, QC samples).
 
 ### Layer Structure
 

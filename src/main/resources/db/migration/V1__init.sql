@@ -49,7 +49,6 @@ CREATE TABLE used_reagent_batch (
 CREATE TABLE measurement_pair (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     experiment_id BIGINT NOT NULL,
-    measurement_id BIGINT,
     pair_type VARCHAR(50) NOT NULL,
     concentration_nominal DOUBLE,
     signal_1 DOUBLE,

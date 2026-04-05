@@ -21,7 +21,6 @@ erDiagram
     MEASUREMENT_PAIR {
         Long id PK
         Long experiment_id FK
-        Long measurement_id FK "links to MEASUREMENT"
         String type "CALIBRATION, CONTROL, SAMPLE"
         Double concentration_nominal "X value"
         Double signal_1 "Raw OD 1"
