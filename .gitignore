@@ -22,3 +22,46 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# Maven build output
+target/
+*.orig
+
+# IDE
+.idea/
+*.iml
+
+# Environment & credentials
+openrouter.env
+.claude/settings.json
+
+# H2 Database (file-based persistence, local only)
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+.env
+*.env
+
+# Streamlit
+.streamlit/
+
+# IDE run configurations
+.run/
+
+# Postman collections
+postman/
+.postman/
+
+# OS
+.DS_Store
+Thumbs.db
