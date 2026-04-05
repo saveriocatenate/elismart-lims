@@ -1,0 +1,78 @@
+package it.elismart_lims.exception;
+
+import it.elismart_lims.controller.ProtocolController;
+import it.elismart_lims.dto.ProtocolRequest;
+import it.elismart_lims.exception.model.ProtocolMismatchException;
+import it.elismart_lims.exception.model.ResourceNotFoundException;
+import it.elismart_lims.service.ProtocolService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+/**
+ * Unit tests for {@link GlobalExceptionHandler}.
+ * Tests the error response format by triggering exceptions through controller endpoints.
+ */
+@WebMvcTest(ProtocolController.class)
+class GlobalExceptionHandlerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockitoBean
+    private ProtocolService protocolService;
+
+    @Test
+    void resourceNotFoundException_shouldReturn404WithJsonBody() throws Exception {
+        when(protocolService.getById(1L)).thenThrow(new ResourceNotFoundException("Protocol not found"));
+
+        mockMvc.perform(get("/api/protocols/1"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.message").value("Protocol not found"))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    void protocolMismatchException_shouldReturn400WithJsonBody() throws Exception {
+        when(protocolService.create(any())).thenThrow(new ProtocolMismatchException("Missing reagents"));
+
+        var request = new ProtocolRequest("Test", 7, 3, 15.0, 10.0);
+
+        mockMvc.perform(post("/api/protocols")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Missing reagents"))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    void validationError_shouldReturn400WithFieldErrors() throws Exception {
+        var request = new ProtocolRequest("", 7, 3, 15.0, 10.0);
+
+        mockMvc.perform(post("/api/protocols")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").exists())
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+}

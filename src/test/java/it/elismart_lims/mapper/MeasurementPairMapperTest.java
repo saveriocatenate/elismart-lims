@@ -1,0 +1,96 @@
+package it.elismart_lims.mapper;
+
+import it.elismart_lims.dto.MeasurementPairRequest;
+import it.elismart_lims.model.Experiment;
+import it.elismart_lims.model.MeasurementPair;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Unit tests for {@link MeasurementPairMapper}.
+ */
+class MeasurementPairMapperTest {
+
+    @Test
+    void toEntity_shouldMapRequestToEntity() {
+        var request = new MeasurementPairRequest("CALIBRATION", 100.0, 0.45, 0.47, 0.46, 3.04, 98.5, false);
+
+        var entity = MeasurementPairMapper.toEntity(request);
+
+        assertThat(entity.getPairType()).isEqualTo("CALIBRATION");
+        assertThat(entity.getSignal1()).isEqualTo(0.45);
+        assertThat(entity.getIsOutlier()).isFalse();
+    }
+
+    @Test
+    void toEntity_withExperiment_shouldLinkExperiment() {
+        var request = new MeasurementPairRequest("CALIBRATION", 100.0, 0.45, 0.47, 0.46, 3.04, 98.5, false);
+        var experiment = Experiment.builder().id(1L).build();
+
+        var entity = MeasurementPairMapper.toEntity(request, experiment);
+
+        assertThat(entity.getExperiment()).isEqualTo(experiment);
+    }
+
+    @Test
+    void toEntity_shouldDefaultIsOutlierToFalse_whenNull() {
+        var request = new MeasurementPairRequest("CALIBRATION", 100.0, 0.45, 0.47, 0.46, 3.04, 98.5, null);
+
+        var entity = MeasurementPairMapper.toEntity(request);
+
+        assertThat(entity.getIsOutlier()).isFalse();
+    }
+
+    @Test
+    void toResponse_shouldMapEntityToResponse() {
+        var entity = MeasurementPair.builder()
+                .id(1L)
+                .pairType("CONTROL")
+                .concentrationNominal(50.0)
+                .signal1(0.30)
+                .signal2(0.32)
+                .signalMean(0.31)
+                .cvPct(4.5)
+                .recoveryPct(95.0)
+                .isOutlier(false)
+                .build();
+
+        var response = MeasurementPairMapper.toResponse(entity);
+
+        assertThat(response.id()).isEqualTo(1L);
+        assertThat(response.pairType()).isEqualTo("CONTROL");
+        assertThat(response.signalMean()).isEqualTo(0.31);
+    }
+
+    @Test
+    void toEntityList_shouldMapMultipleRequests() {
+        var requests = List.of(
+                new MeasurementPairRequest("CALIBRATION", 100.0, 0.45, 0.47, 0.46, 3.04, 98.5, false),
+                new MeasurementPairRequest("CONTROL", 50.0, 0.30, 0.32, 0.31, 4.5, 95.0, false)
+        );
+        var experiment = Experiment.builder().id(1L).build();
+
+        var entities = MeasurementPairMapper.toEntityList(requests, experiment);
+
+        assertThat(entities).hasSize(2);
+        assertThat(entities.get(0).getExperiment()).isEqualTo(experiment);
+        assertThat(entities.get(1).getExperiment()).isEqualTo(experiment);
+    }
+
+    @Test
+    void toResponseList_shouldMapMultipleEntities() {
+        var entities = List.of(
+                MeasurementPair.builder().id(1L).pairType("CALIBRATION").isOutlier(false).build(),
+                MeasurementPair.builder().id(2L).pairType("CONTROL").isOutlier(false).build()
+        );
+
+        var responses = MeasurementPairMapper.toResponseList(entities);
+
+        assertThat(responses).hasSize(2);
+        assertThat(responses.get(0).pairType()).isEqualTo("CALIBRATION");
+        assertThat(responses.get(1).pairType()).isEqualTo("CONTROL");
+    }
+}

@@ -1,0 +1,88 @@
+package it.elismart_lims.util;
+
+import it.elismart_lims.dto.ExperimentSearchRequest;
+import it.elismart_lims.model.Experiment;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.data.jpa.domain.Specification;
+
+import java.time.LocalDateTime;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.stream.Stream;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Unit tests for {@link ExperimentSpecifications}.
+ */
+class ExperimentSpecificationsTest {
+
+    @Test
+    void constructor_shouldThrowException() throws Exception {
+        Constructor<ExperimentSpecifications> constructor = ExperimentSpecifications.class.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        try {
+            constructor.newInstance();
+            throw new AssertionError("Expected UnsupportedOperationException");
+        } catch (InvocationTargetException e) {
+            assertThat(e.getCause()).isInstanceOf(UnsupportedOperationException.class);
+            assertThat(e.getCause().getMessage()).contains("Utility class");
+        }
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @MethodSource("specificationFilterCases")
+    void buildSpecification_shouldReturnNonNullSpec(
+            String testDescription,
+            ExperimentSearchRequest request) {
+
+        Specification<Experiment> spec = ExperimentSpecifications.buildSpecification(request);
+
+        assertThat(spec).isNotNull();
+    }
+
+    private static Stream<Arguments> specificationFilterCases() {
+        LocalDateTime exact = LocalDateTime.of(2026, 4, 5, 10, 0);
+        LocalDateTime from  = LocalDateTime.of(2026, 4, 1,  0, 0);
+        LocalDateTime to    = LocalDateTime.of(2026, 4, 30, 23, 59);
+
+        return Stream.of(
+                Arguments.of("all null → empty predicate",
+                        new ExperimentSearchRequest(null,  null,  null, null, null,  0, 20)),
+
+                Arguments.of("non-blank name filter",
+                        new ExperimentSearchRequest("Run", null,  null, null, null,  0, 20)),
+
+                Arguments.of("blank name → ignored",
+                        new ExperimentSearchRequest("   ", null,  null, null, null,  0, 20)),
+
+                Arguments.of("non-blank status filter",
+                        new ExperimentSearchRequest(null,  null,  null, null, "OK",  0, 20)),
+
+                Arguments.of("blank status → ignored",
+                        new ExperimentSearchRequest(null,  null,  null, null, "   ", 0, 20)),
+
+                Arguments.of("exact date filter",
+                        new ExperimentSearchRequest(null,  exact, null, null, null,  0, 20)),
+
+                Arguments.of("dateFrom only",
+                        new ExperimentSearchRequest(null,  null,  from, null, null,  0, 20)),
+
+                Arguments.of("dateTo only",
+                        new ExperimentSearchRequest(null,  null,  null, to,   null,  0, 20)),
+
+                Arguments.of("dateFrom + dateTo range",
+                        new ExperimentSearchRequest(null,  null,  from, to,   null,  0, 20)),
+
+                Arguments.of("combined name + range + status",
+                        new ExperimentSearchRequest("Run", null,  from, to,   "OK",  0, 20)),
+
+                Arguments.of("exact date overrides dateFrom + dateTo",
+                        new ExperimentSearchRequest(null,  exact, from, to,   null,  0, 20))
+        );
+    }
+}
