@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * An actual instance of a protocol run on the lab bench, with metadata
@@ -33,4 +35,12 @@ public class Experiment {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "protocol_id", nullable = false)
     private Protocol protocol;
+
+    @OneToMany(mappedBy = "experiment", cascade = CascadeType.ALL)
+    @Builder.Default
+    private List<UsedReagentBatch> usedReagentBatches = new ArrayList<>();
+
+    @OneToMany(mappedBy = "experiment", cascade = CascadeType.ALL)
+    @Builder.Default
+    private List<MeasurementPair> measurementPairs = new ArrayList<>();
 }

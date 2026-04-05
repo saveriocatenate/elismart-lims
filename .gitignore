@@ -33,7 +33,7 @@ target/
 
 # Environment & credentials
 openrouter.env
-.claude/settings.json
+.claude/
 
 # H2 Database (file-based persistence, local only)
 data/

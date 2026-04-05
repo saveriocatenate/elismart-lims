@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 EliSmart database: a LIMS schema featuring hierarchical Protocols (defining curve-type, recovery/CV limits, and required reagents via bridge tables) and Experiments. It tracks MeasurementPairs (replicates) with raw signals, mean, %CV, and %Recovery, linked to specific Reagent Batches for full lot-traceability.
+
 ## Tech Stack
 
 - Backend: Java 21, Spring Boot 3.4.1 (Maven)
@@ -27,8 +28,10 @@ Source `openrouter.env` before running the application to load environment varia
 - **Naming**: - Java: PascalCase for classes (ExperimentService), camelCase for variables and methods. Python: snake_case for scripts and functions. Database: snake_case for table and column naming (managed via Flyway migrations).
 - **Architecture**: Standard Spring Boot Layered Architecture: Controller → Service → Repository → Entity.
 - **Single Responsibility Principle**: Each service owns exactly one domain. If TrialService needs to read experiment data, it calls ExperimentService methods — it never injects ExperimentRepository directly. Only the owning service injects its repository.
-- **DTO mapping via Mappers**: All DTO ↔ Entity construction and response mapping lives in dedicated Mapper classes under `mapper/`. Service orchestration methods must not contain builder() chains. Create a new Mapper whenever a DTO conversion is needed. Mapper classes must be static utility classes: all methods are `static`, the class is `final`, the private constructor throws `UnsupportedOperationException`. Mappers are never injected via `@Component` or `@RequiredArgsConstructor` — call them as `MapperName.method()`.
-- **No nested classes/records**: Never use nested classes or records. Extract every class and record to its own file. DTO sub-records (e.g., `ExperimentResponse.VariableSummary`) become standalone files (e.g., `ExperimentVariableSummary.java`). Exception classes live in `exception/model/`, **never** nested inside Service classes.
+- **DTO pattern**: Request DTOs are plain Java records. Response DTOs are records with a **manual static Builder inner class** — `public static final class Builder` with `withXxx()` setters, a `build()` method, and a static `builder()` factory. No Lombok on DTOs.
+- **DTO mapping via Mappers**: All DTO ↔ Entity construction and response mapping lives in dedicated Mapper classes under `mapper/`. Service orchestration methods must not contain builder() chains or `new` ResponseDTO constructor calls. Mappers use `ResponseDTO.builder().withXxx(val).build()`. Mapper classes must be static utility classes: all methods are `static`, the class is `final`, the private constructor throws `UnsupportedOperationException`. Mappers are never injected via `@Component` — call them as `MapperName.method()`.
+- **Service mapping**: Every service public method returns DTOs (Response), never entities. Controllers call service methods and wrap results in `ResponseEntity`. All mapping (entity→DTO, DTO→entity) happens in the service layer via Mapper classes.
+- **No orphan builder classes for records**: Builder inner classes go inside the record itself, not in separate files. Exception classes live in `exception/model/`, **never** nested inside Service classes.
 - **Data Transfer**: Strict use of DTOs for communication between Backend and Frontend.
 - **Boilerplate**: Use Lombok (@Data, @Builder, @NoArgsConstructor, @AllArgsConstructor) to keep code clean.
 - **Commit Messages**: Follow Conventional Commits (e.g., feat: implement excel parsing, fix: h2 connection string).
@@ -40,9 +43,12 @@ Source `openrouter.env` before running the application to load environment varia
 - Documentation: `documentation/` (per-entity API contracts, ER diagrams)
 - Database Migrations: `src/main/resources/db/migration/`
 - JPA Entities: `src/main/java/it/elismart_lims/model/`
+- Repositories: `src/main/java/it/elismart_lims/repository/`
 - Business Logic: `src/main/java/it/elismart_lims/service/`
 - REST API Endpoints: `src/main/java/it/elismart_lims/controller/`
 - DTOs: `src/main/java/it/elismart_lims/dto/`
+- Mappers: `src/main/java/it/elismart_lims/mapper/`
+- Exception Handling: `src/main/java/it/elismart_lims/exception/`
 - Unit/Integration Tests: `src/test/java/` (JUnit 5 + Mockito)
 
 ## Architecture Notes
@@ -69,10 +75,10 @@ The frontend (Streamlit) communicates exclusively via REST/JSON DTOs. No server-
 ### Request Flow
 
 1. Streamlit sends HTTP request → Spring Boot Controller deserializes JSON into DTO
-2. Controller delegates to Service (no logic in controllers)
+2. Controller delegates to Service — calls a service method that already returns a Response DTO
 3. Service uses Mapper to convert DTO → Entity, applies business rules, persists via Repository
 4. Service uses Mapper to convert Entity → DTO, returns to Controller
-5. Controller serializes DTO to JSON response
+5. Controller wraps Response DTO in `ResponseEntity` — no mapping in controllers
 
 ### Database Schema Management
 
@@ -99,4 +105,11 @@ Backend port: `8080`. Frontend reads `backend_url` from `secrets.toml` or defaul
 
 ## Project Status
 
-Skeleton (empty shell) created: Spring Boot entry point, health endpoint, Flyway baseline, Streamlit welcome page. No domain logic implemented yet.
+Base REST API layer implemented for Protocol, ReagentCatalog, and Experiment entities.
+- Controllers: Protocol (GET by ID, POST), ReagentCatalog (GET all, GET by ID, POST), Experiment (GET by ID, POST)
+- Experiment POST validates mandatory reagent batches against protocol requirements
+- GlobalExceptionHandler maps ResourceNotFoundException, ProtocolMismatchException, and validation errors to JSON
+- Flyway V1 defines the full schema (6 tables)
+- Streamlit frontend shows welcome page with backend health check
+- No domain logic for MeasurementPair CRUD, ProtocolReagentSpec CRUD, or UsedReagentBatch CRUD yet
+- No tests written beyond the initial smoke tests
