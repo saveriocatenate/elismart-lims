@@ -1,3 +1,12 @@
+"""
+Add Protocol page.
+
+Allows the user to define a new assay protocol: calibration/control pair counts,
+CV and error limits, and the list of required reagents from the catalog.
+New reagents can be created inline and are linked to the protocol automatically.
+API: GET /api/reagent-catalogs, POST /api/protocols,
+     POST /api/reagent-catalogs (inline), POST /api/protocol-reagent-specs
+"""
 import os
 import base64
 import requests
@@ -128,7 +137,7 @@ with st.form("protocol_form"):
                 }
                 resp = requests.post(f"{BACKEND_URL}/api/protocols", json=protocol_payload, timeout=10)
                 if resp.status_code != 201:
-                    detail = resp.json().get("detail", resp.text)
+                    detail = resp.json().get("message", resp.text)
                     st.error(f"Failed to create protocol ({resp.status_code}): {detail}")
                 else:
                     protocol_id = resp.json()["id"]

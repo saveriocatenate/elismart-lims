@@ -1,3 +1,11 @@
+"""
+Experiment Details page.
+
+Read-only view of a single experiment: metadata (name, protocol, date, status),
+measurement pairs table, and used reagent batches table.
+The experiment ID is passed via st.session_state["selected_exp_id"].
+API: GET /api/experiments/{id}
+"""
 import os
 import base64
 import requests

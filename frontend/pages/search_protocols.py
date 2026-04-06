@@ -1,3 +1,8 @@
+"""
+Search Protocols page (deferred).
+
+Placeholder page — protocol search functionality is planned but not yet implemented.
+"""
 import os
 import base64
 import streamlit as st

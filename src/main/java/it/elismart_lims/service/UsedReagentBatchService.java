@@ -6,6 +6,7 @@ import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.UsedReagentBatch;
 import it.elismart_lims.repository.UsedReagentBatchRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +15,7 @@ import java.util.List;
 /**
  * Business logic for UsedReagentBatch operations.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UsedReagentBatchService {
@@ -44,7 +46,8 @@ public class UsedReagentBatchService {
      */
     @Transactional
     public List<UsedReagentBatch> createAllForExperiment(List<UsedReagentBatchRequest> requests, Experiment experiment) {
-        return requests.stream()
+        log.debug("Creating {} reagent batch(es) for experiment id: {}", requests.size(), experiment.getId());
+        List<UsedReagentBatch> saved = requests.stream()
                 .map(req -> {
                     var reagent = reagentCatalogService.getEntityById(req.reagentId());
                     return usedReagentBatchRepository.save(
@@ -56,5 +59,7 @@ public class UsedReagentBatchService {
                                     .build());
                 })
                 .toList();
+        log.debug("Saved {} reagent batch(es) for experiment id: {}", saved.size(), experiment.getId());
+        return saved;
     }
 }

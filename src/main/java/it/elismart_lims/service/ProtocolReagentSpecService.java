@@ -9,6 +9,7 @@ import it.elismart_lims.repository.ProtocolReagentSpecRepository;
 import it.elismart_lims.repository.ProtocolRepository;
 import it.elismart_lims.repository.ReagentCatalogRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 /**
  * Business logic for ProtocolReagentSpec operations.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProtocolReagentSpecService {
@@ -62,6 +64,8 @@ public class ProtocolReagentSpecService {
      */
     @Transactional
     public ProtocolReagentSpecResponse create(ProtocolReagentSpecRequest request) {
+        log.info("Linking reagent id: {} to protocol id: {} (mandatory={})",
+                request.reagentId(), request.protocolId(), request.isMandatory());
         var protocol = protocolRepository.findById(request.protocolId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Protocol not found with id: " + request.protocolId()));
@@ -74,6 +78,7 @@ public class ProtocolReagentSpecService {
                         .reagent(reagent)
                         .isMandatory(request.isMandatory())
                         .build());
+        log.info("ProtocolReagentSpec created with id: {}", saved.getId());
         return ProtocolReagentSpecMapper.toResponse(saved);
     }
 }

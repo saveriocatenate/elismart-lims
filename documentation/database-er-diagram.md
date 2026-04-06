@@ -16,12 +16,15 @@ erDiagram
         Integer num_control_pairs "Expected N pairs for controls"
         Double max_cv_allowed "Max %CV between replicates"
         Double max_error_allowed "Max %Recovery error"
+        Timestamp created_at "Set by JPA auditing"
+        Timestamp updated_at "Set by JPA auditing"
+        String created_by "Set by JPA auditing"
     }
 
     MEASUREMENT_PAIR {
         Long id PK
         Long experiment_id FK
-        String type "CALIBRATION, CONTROL, SAMPLE"
+        String pair_type "CALIBRATION, CONTROL"
         Double concentration_nominal "X value"
         Double signal_1 "Raw OD 1"
         Double signal_2 "Raw OD 2"
@@ -29,6 +32,9 @@ erDiagram
         Double cv_pct "Precision (StdDev/Mean)"
         Double recovery_pct "Accuracy"
         Boolean is_outlier "Manually or automatically flagged"
+        Timestamp created_at "Set by JPA auditing"
+        Timestamp updated_at "Set by JPA auditing"
+        String created_by "Set by JPA auditing"
     }
 
     EXPERIMENT {
@@ -37,6 +43,9 @@ erDiagram
         LocalDateTime date
         String status "OK, KO, VALIDATION_ERROR"
         Long protocol_id FK
+        Timestamp created_at "Set by JPA auditing"
+        Timestamp updated_at "Set by JPA auditing"
+        String created_by "Set by JPA auditing"
     }
 
     REAGENT_CATALOG {
@@ -44,6 +53,9 @@ erDiagram
         String name "e.g., Anti-IgG Antibody"
         String manufacturer
         String description
+        Timestamp created_at "Set by JPA auditing"
+        Timestamp updated_at "Set by JPA auditing"
+        String created_by "Set by JPA auditing"
     }
     
     PROTOCOL_REAGENT_SPEC {
@@ -51,6 +63,9 @@ erDiagram
         Long protocol_id FK
         Long reagent_id FK
         Boolean is_mandatory
+        Timestamp created_at "Set by JPA auditing"
+        Timestamp updated_at "Set by JPA auditing"
+        String created_by "Set by JPA auditing"
     }
     
     USED_REAGENT_BATCH {
@@ -59,4 +74,7 @@ erDiagram
         Long reagent_id FK
         String lot_number "Specific batch used"
         LocalDate expiry_date
+        Timestamp created_at "Set by JPA auditing"
+        Timestamp updated_at "Set by JPA auditing"
+        String created_by "Set by JPA auditing"
     }

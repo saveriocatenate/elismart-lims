@@ -27,6 +27,9 @@ public class ReagentCatalogController {
 
     /**
      * Get all reagent catalogs with pagination.
+     *
+     * @param pageable pagination and sorting parameters (default page size: 20)
+     * @return 200 OK with a paginated list of ReagentCatalogResponse DTOs
      */
     @GetMapping
     public ResponseEntity<Page<ReagentCatalogResponse>> getAll(
@@ -36,6 +39,9 @@ public class ReagentCatalogController {
 
     /**
      * Get a reagent catalog by ID.
+     *
+     * @param id the reagent catalog ID
+     * @return 200 OK with the ReagentCatalogResponse, or 404 if not found
      */
     @GetMapping("/{id}")
     public ResponseEntity<ReagentCatalogResponse> getById(@PathVariable Long id) {
@@ -44,7 +50,10 @@ public class ReagentCatalogController {
     }
 
     /**
-     * Create a new reagent catalog.
+     * Create a new reagent catalog entry.
+     *
+     * @param request the validated reagent creation payload
+     * @return 201 Created with the ReagentCatalogResponse
      */
     @PostMapping
     public ResponseEntity<ReagentCatalogResponse> create(
@@ -54,7 +63,10 @@ public class ReagentCatalogController {
     }
 
     /**
-     * Delete a reagent catalog by ID.
+     * Delete a reagent catalog entry by ID.
+     *
+     * @param id the reagent catalog ID
+     * @return 204 No Content on success, or 404 if not found
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {

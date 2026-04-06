@@ -15,6 +15,7 @@ import it.elismart_lims.model.UsedReagentBatch;
 import it.elismart_lims.repository.ExperimentRepository;
 import it.elismart_lims.util.ExperimentSpecifications;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
  * Business logic for Experiment operations.
  * Delegates to other services for cross-domain data access (never injects other repositories).
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ExperimentService {
@@ -52,9 +54,15 @@ public class ExperimentService {
     /**
      * Create a new experiment with its reagent batches and measurement pairs atomically.
      * Validates that all mandatory reagents for the protocol are covered by the provided batches.
+     *
+     * @param request the experiment creation payload
+     * @return the created ExperimentResponse DTO
+     * @throws it.elismart_lims.exception.model.ResourceNotFoundException if the referenced protocol does not exist
+     * @throws ProtocolMismatchException if mandatory reagents are missing from the provided batches
      */
     @Transactional
     public ExperimentResponse create(ExperimentRequest request) {
+        log.info("Creating experiment '{}' for protocol id: {}", request.name(), request.protocolId());
         var protocol = protocolService.getEntityById(request.protocolId());
 
         validateReagentBatches(request.usedReagentBatches(), protocol.getId());
@@ -70,6 +78,7 @@ public class ExperimentService {
         measurementPairService.saveAll(pairs);
         experiment.setMeasurementPairs(pairs);
 
+        log.info("Experiment created with id: {}", experiment.getId());
         return ExperimentMapper.toResponse(experiment);
     }
 
@@ -88,6 +97,8 @@ public class ExperimentService {
         Set<Long> mandatoryReagentIds = protocolReagentSpecService.getMandatoryReagentIds(protocolId);
 
         if (!batchReagentIds.containsAll(mandatoryReagentIds)) {
+            log.warn("Reagent validation failed for protocol id: {}. Missing reagent IDs: {}",
+                    protocolId, mandatoryReagentIds);
             throw new ProtocolMismatchException(
                     "Experiment must include all mandatory reagents defined by the protocol. " +
                     "Missing reagent IDs: " + mandatoryReagentIds +
@@ -97,17 +108,25 @@ public class ExperimentService {
 
     /**
      * Delete an experiment by its ID, cascading to associated reagent batches and measurement pairs.
+     *
+     * @param id the experiment ID
+     * @throws it.elismart_lims.exception.model.ResourceNotFoundException if no experiment exists with the given ID
      */
     @Transactional
     public void delete(Long id) {
+        log.info("Deleting experiment id: {}", id);
         if (!experimentRepository.existsById(id)) {
             throw new ResourceNotFoundException("Experiment not found with id: " + id);
         }
         experimentRepository.deleteById(id);
+        log.info("Experiment deleted id: {}", id);
     }
 
     /**
      * Search experiments with optional filters and pagination.
+     *
+     * @param request the search criteria and pagination parameters
+     * @return a paginated {@link ExperimentPage} matching the filters
      */
     @Transactional(readOnly = true)
     public ExperimentPage search(ExperimentSearchRequest request) {

@@ -1,3 +1,16 @@
+"""
+Compare Experiments page.
+
+Side-by-side comparison of 2–4 experiments with four lockable sections:
+  A) Reagent Lots — highlights lot differences and missing reagents
+  B) Calibration Pairs — tabular view with per-column %CV flagging
+  C) Control Pairs — tabular view with per-column %CV flagging
+  D) Calibration Curve — interactive Plotly chart (linear or log X-axis)
+Also embeds an AI analysis panel that calls the Gemini endpoint.
+Can be reached directly or pre-loaded with IDs from the search page via
+st.session_state["compare_exp_ids"].
+API: GET /api/experiments/{id}, POST /api/ai/analyze
+"""
 import os
 import base64
 import requests
@@ -529,3 +542,58 @@ _render_section(
     experiments,
     x_log,
 )
+
+# ---------------------------------------------------------------------------
+# AI Analysis — Gemini
+# ---------------------------------------------------------------------------
+
+st.markdown("---")
+st.subheader("AI Analysis")
+
+with st.expander("Ask the AI Analyst", expanded=False):
+    user_question = st.text_area(
+        "Your question for the AI analyst",
+        placeholder=(
+            "e.g. Why did the low control fail in experiments 2 and 3? "
+            "Is there a trend in IC50 values across runs?"
+        ),
+        height=120,
+        key="gemini_question",
+    )
+    additional_info = st.text_area(
+        "Additional context (optional)",
+        placeholder="e.g. Reagent lot A1 was newly opened on 01/04. Lab temperature was 4°C above normal.",
+        height=80,
+        key="gemini_context",
+    )
+    run_analysis = st.button("Analyze with Gemini AI", type="primary", key="gemini_run")
+
+if run_analysis:
+    if not (st.session_state.get("gemini_question") or "").strip():
+        st.warning("Please enter a question before running the analysis.")
+    else:
+        combined_question = st.session_state["gemini_question"]
+        extra = (st.session_state.get("gemini_context") or "").strip()
+        if extra:
+            combined_question += "\n\nAdditional context: " + extra
+
+        exp_ids = [exp["id"] for exp in experiments]
+        with st.spinner("Gemini is analyzing the experiments…"):
+            try:
+                resp = requests.post(
+                    f"{BACKEND_URL}/api/ai/analyze",
+                    json={"experimentIds": exp_ids, "userQuestion": combined_question},
+                    timeout=60,
+                )
+                if resp.status_code == 200:
+                    st.session_state["gemini_analysis"] = resp.json().get("analysis", "")
+                else:
+                    st.error(
+                        f"AI analysis failed (HTTP {resp.status_code}): {resp.text[:300]}"
+                    )
+            except requests.exceptions.RequestException as e:
+                st.error(f"Request to backend failed: {e}")
+
+if st.session_state.get("gemini_analysis"):
+    st.markdown("**Analysis Result:**")
+    st.info(st.session_state["gemini_analysis"])

@@ -1,3 +1,10 @@
+"""
+EliSmart LIMS — Dashboard (entry point).
+
+Checks backend health on load and provides navigation buttons to all main pages.
+Auth gate: validates username + bcrypt-hashed password from secrets.toml or environment variables.
+API: GET /api/health
+"""
 import os
 import base64
 import bcrypt

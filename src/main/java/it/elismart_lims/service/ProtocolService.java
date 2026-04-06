@@ -7,12 +7,14 @@ import java.util.List;
 import it.elismart_lims.model.Protocol;
 import it.elismart_lims.repository.ProtocolRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Business logic for Protocol operations.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProtocolService {
@@ -55,20 +57,45 @@ public class ProtocolService {
 
     /**
      * Create a new protocol.
+     *
+     * @param protocol the entity to persist
+     * @return the created ProtocolResponse DTO
      */
     @Transactional
     public ProtocolResponse create(Protocol protocol) {
-        return ProtocolMapper.toResponse(protocolRepository.save(protocol));
+        log.info("Creating protocol: {}", protocol.getName());
+        ProtocolResponse response = ProtocolMapper.toResponse(protocolRepository.save(protocol));
+        log.info("Protocol created with id: {}", response.id());
+        return response;
+    }
+
+    /**
+     * Find a protocol response by its unique name.
+     *
+     * @param name the protocol name
+     * @return the ProtocolResponse DTO
+     * @throws ResourceNotFoundException if no protocol exists with the given name
+     */
+    @Transactional(readOnly = true)
+    public ProtocolResponse getByName(String name) {
+        var protocol = protocolRepository.findByName(name)
+                .orElseThrow(() -> new ResourceNotFoundException("Protocol not found with name: " + name));
+        return ProtocolMapper.toResponse(protocol);
     }
 
     /**
      * Delete a protocol by its ID.
+     *
+     * @param id the protocol ID
+     * @throws ResourceNotFoundException if no protocol exists with the given ID
      */
     @Transactional
     public void delete(Long id) {
+        log.info("Deleting protocol id: {}", id);
         if (!protocolRepository.existsById(id)) {
             throw new ResourceNotFoundException("Protocol not found with id: " + id);
         }
         protocolRepository.deleteById(id);
+        log.info("Protocol deleted id: {}", id);
     }
 }

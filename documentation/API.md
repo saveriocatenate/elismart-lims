@@ -11,6 +11,7 @@ REST API endpoints exposed by the EliSmart LIMS backend.
 | Reagent Catalog | [API-reagent-catalog.md](API-reagent-catalog.md) | `/api/reagent-catalogs` |
 | Protocol Reagent Spec | [API-protocol-reagent-spec.md](API-protocol-reagent-spec.md) | `/api/protocol-reagent-specs` |
 | Experiment | [API-experiment.md](API-experiment.md) | `/api/experiments` |
+| AI Analysis (Gemini) | [API-ai.md](API-ai.md) | `/api/ai` |
 
 ## Database
 

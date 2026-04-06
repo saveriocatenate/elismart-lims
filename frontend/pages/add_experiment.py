@@ -1,3 +1,13 @@
+"""
+Add Experiment page.
+
+Creates a new experiment by selecting a protocol, filling in reagent batch lot numbers,
+and entering calibration and control measurement pair values read from the ELISA machine.
+The number of calibration/control pair rows is driven by the selected protocol definition.
+Mandatory reagents must have a lot number before submission.
+API: GET /api/protocols, GET /api/protocols/{id}, GET /api/protocol-reagent-specs,
+     POST /api/experiments
+"""
 import os
 import base64
 import datetime
@@ -156,10 +166,10 @@ with st.form("experiment_form"):
 
     # --- Calibration Pairs table ---
     st.subheader(f"Calibration Pairs ({num_cal})")
-    st.caption("Conc. Nominal | Signal 1 | Signal 2")
-    cal_concs, cal_s1, cal_s2 = [], [], []
+    st.caption("Conc. Nominal | Signal 1 | Signal 2 | Signal Mean")
+    cal_concs, cal_s1, cal_s2, cal_sm = [], [], [], []
     for i in range(num_cal):
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         cal_concs.append(
             c1.number_input("Conc. nominal", key=f"cal_conc_{i}", value=0.0, step=0.001,
                             format="%.4f", label_visibility="collapsed")
@@ -172,15 +182,19 @@ with st.form("experiment_form"):
             c3.number_input("Signal 2", key=f"cal_s2_{i}", value=0.0, step=0.001,
                             format="%.4f", label_visibility="collapsed")
         )
+        cal_sm.append(
+            c4.number_input("Signal Mean", key=f"cal_sm_{i}", value=0.0, step=0.001,
+                            format="%.4f", label_visibility="collapsed")
+        )
 
     st.markdown("---")
 
     # --- Control Pairs table ---
     st.subheader(f"Control Pairs ({num_ctrl})")
-    st.caption("Conc. Nominal | Signal 1 | Signal 2")
-    ctrl_concs, ctrl_s1, ctrl_s2 = [], [], []
+    st.caption("Conc. Nominal | Signal 1 | Signal 2 | Signal Mean")
+    ctrl_concs, ctrl_s1, ctrl_s2, ctrl_sm = [], [], [], []
     for i in range(num_ctrl):
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         ctrl_concs.append(
             c1.number_input("Conc. nominal", key=f"ctrl_conc_{i}", value=0.0, step=0.001,
                             format="%.4f", label_visibility="collapsed")
@@ -191,6 +205,10 @@ with st.form("experiment_form"):
         )
         ctrl_s2.append(
             c3.number_input("Signal 2", key=f"ctrl_s2_{i}", value=0.0, step=0.001,
+                            format="%.4f", label_visibility="collapsed")
+        )
+        ctrl_sm.append(
+            c4.number_input("Signal Mean", key=f"ctrl_sm_{i}", value=0.0, step=0.001,
                             format="%.4f", label_visibility="collapsed")
         )
 
@@ -225,25 +243,24 @@ if submitted:
             entry["expiryDate"] = expiry_dates[i].isoformat()
         used_batches.append(entry)
 
-    # Build measurementPairs
-    def _pairs(pair_type, concs, s1_list, s2_list):
+    # Build measurementPairs — all values are read directly from the ELISA machine output
+    def _pairs(pair_type, concs, s1_list, s2_list, sm_list):
         pairs = []
-        for conc, s1, s2 in zip(concs, s1_list, s2_list):
-            mean = round((s1 + s2) / 2, 6) if s1 or s2 else None
+        for conc, s1, s2, sm in zip(concs, s1_list, s2_list, sm_list):
             pairs.append({
                 "pairType": pair_type,
                 "concentrationNominal": conc if conc != 0.0 else None,
                 "signal1": s1,
                 "signal2": s2,
-                "signalMean": mean,
+                "signalMean": sm if sm != 0.0 else None,
                 "cvPct": None,
                 "recoveryPct": None,
                 "isOutlier": False,
             })
         return pairs
 
-    measurement_pairs = _pairs("CALIBRATION", cal_concs, cal_s1, cal_s2) + \
-                        _pairs("CONTROL", ctrl_concs, ctrl_s1, ctrl_s2)
+    measurement_pairs = _pairs("CALIBRATION", cal_concs, cal_s1, cal_s2, cal_sm) + \
+                        _pairs("CONTROL", ctrl_concs, ctrl_s1, ctrl_s2, ctrl_sm)
 
     exp_datetime = datetime.datetime.combine(exp_date, exp_time).isoformat()
 

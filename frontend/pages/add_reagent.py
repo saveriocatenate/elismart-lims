@@ -1,3 +1,9 @@
+"""
+Add Reagent page.
+
+Simple form to add a single reagent to the catalog (name, manufacturer, optional description).
+API: POST /api/reagent-catalogs
+"""
 import os
 import base64
 import requests
@@ -68,7 +74,7 @@ with st.form("reagent_form"):
                     data = resp.json()
                     st.success(f"Reagent added — ID {data['id']}")
                 else:
-                    detail = resp.json().get("detail", resp.text)
+                    detail = resp.json().get("message", resp.text)
                     st.error(f"Failed ({resp.status_code}): {detail}")
             except requests.exceptions.RequestException as e:
                 st.error(f"Request failed: {e}")

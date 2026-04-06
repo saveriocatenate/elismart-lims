@@ -6,6 +6,8 @@ import lombok.*;
 /**
  * Bridge entity linking a protocol to a reagent, specifying whether
  * that reagent is mandatory for experiments using the protocol.
+ *
+ * <p>Audit columns are inherited from {@link Auditable}.</p>
  */
 @Entity
 @Table(name = "protocol_reagent_spec",
@@ -14,7 +16,8 @@ import lombok.*;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProtocolReagentSpec {
+@EqualsAndHashCode(callSuper = false)
+public class ProtocolReagentSpec extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -28,6 +31,7 @@ public class ProtocolReagentSpec {
     @JoinColumn(name = "reagent_id", nullable = false)
     private ReagentCatalog reagent;
 
+    /** Whether this reagent is required for all experiments using the parent protocol. */
     @Column(name = "is_mandatory", nullable = false)
     private Boolean isMandatory;
 }

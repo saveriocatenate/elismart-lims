@@ -1,3 +1,12 @@
+"""
+Search Experiments page.
+
+Provides filter-based search with pagination. Each result row has a Details button
+and a checkbox for multi-experiment comparison (up to 4 at a time).
+Selecting 2+ experiments enables the Compare Selected button, which navigates to
+the comparison page with the selected IDs pre-loaded.
+API: POST /api/experiments/search
+"""
 import os
 import base64
 import requests

@@ -17,24 +17,24 @@ EliSmart database: a LIMS schema featuring hierarchical Protocols (defining curv
 
 ## Environment Setup
 
-Configuration is stored in `openrouter.env`:
-- `ANTHROPIC_BASE_URL` — points to `https://openrouter.ai/api`
-- `ANTHROPIC_API_KEY` — OpenRouter API key
-- `ANTHROPIC_MODEL` — model identifier
+**Backend** environment variables (set in shell or via `.env` file sourced before startup):
+- `GEMINI_API_KEY` — Google Gemini API key (required for `/api/ai/analyze`)
+- `GEMINI_BASE_URL` — override Gemini base URL (optional, defaults to `https://generativelanguage.googleapis.com`)
+- `GEMINI_MODEL` — override Gemini model (optional, defaults to `gemini-1.5-flash`)
 
-Source `openrouter.env` before running the application to load environment variables.
+See `.env.example` for the full list of variables and expected formats.
 
-Frontend credentials live in `frontend/.streamlit/secrets.toml` (never committed). It contains `login_user`, `login_pass`, and `backend_url`.
+**Frontend** credentials live in `frontend/.streamlit/secrets.toml` (never committed). It contains `login_user`, `login_pass` (bcrypt hash), and `backend_url`.
 
 ## Development Conventions
 
 - **Naming**: Java: PascalCase for classes, camelCase for variables and methods. Python: snake_case for scripts and functions. Database: snake_case for table and column naming (managed via Flyway migrations).
 - **Architecture**: Standard Spring Boot Layered Architecture: Controller → Service → Repository → Entity.
 - **Single Responsibility Principle**: Each service owns exactly one domain. If TrialService needs to read experiment data, it calls ExperimentService methods — it never injects ExperimentRepository directly. Only the owning service injects its repository.
-- **DTO pattern**: Request DTOs are plain Java records. Response DTOs are records with a **manual static Builder inner class** — `public static final class Builder` with `withXxx()` setters, a `build()` method, and a static `builder()` factory. No Lombok on DTOs.
-- **DTO mapping via Mappers**: All DTO ↔ Entity construction and response mapping lives in dedicated Mapper classes under `mapper/`. Service orchestration methods must not contain builder() chains or `new` ResponseDTO constructor calls. Mappers use `ResponseDTO.builder().withXxx(val).build()`. Mapper classes must be static utility classes: all methods are `static`, the class is `final`, the private constructor throws `UnsupportedOperationException`. Mappers are never injected via `@Component` — call them as `MapperName.method()`.
+- **DTO pattern**: Request DTOs are plain Java records (no Lombok). Response DTOs are Java records annotated with Lombok `@Builder` — no manual builder inner class. Call them as `ResponseDTO.builder().fieldName(val).build()` (no `withXxx` prefix).
+- **DTO mapping via Mappers**: All DTO ↔ Entity construction and response mapping lives in dedicated Mapper classes under `mapper/`. Service orchestration methods must not contain builder() chains or `new` ResponseDTO constructor calls. Mappers use `ResponseDTO.builder().fieldName(val).build()`. Mapper classes must be static utility classes: all methods are `static`, the class is `final`, the private constructor throws `UnsupportedOperationException`. Mappers are never injected via `@Component` — call them as `MapperName.method()`.
 - **Service mapping**: Every service public method returns DTOs (Response), never entities. Controllers call service methods and wrap results in `ResponseEntity`. All mapping (entity→DTO, DTO→entity) happens in the service layer via Mapper classes.
-- **No orphan builder classes for records**: Builder inner classes go inside the record itself, not in separate files. Exception classes live in `exception/model/`, **never** nested inside Service classes.
+- **Audit trail**: All entities extend `Auditable` (`@MappedSuperclass`), which provides `createdAt`, `updatedAt`, and `createdBy` columns populated automatically by Spring Data JPA auditing. Never set these fields manually.
 - **Data Transfer**: Strict use of DTOs for communication between Backend and Frontend.
 - **Boilerplate**: Use Lombok (@Data, @Builder, @NoArgsConstructor, @AllArgsConstructor) to keep code clean.
 - **Commit Messages**: Follow Conventional Commits (e.g., feat: implement excel parsing, fix: h2 connection string).
@@ -53,7 +53,7 @@ Frontend credentials live in `frontend/.streamlit/secrets.toml` (never committed
 - DTOs: `src/main/java/it/elismart_lims/dto/`
 - Mappers: `src/main/java/it/elismart_lims/mapper/`
 - Exception Handling: `src/main/java/it/elismart_lims/exception/`
-- Unit/Integration Tests: `src/test/java/` (JUnit 5 + Mockito, 80 tests)
+- Unit/Integration Tests: `src/test/java/` (JUnit 5 + Mockito, 99 tests)
 - Frontend: `frontend/app.py` (dashboard) + `frontend/pages/` (sub-pages)
 - Frontend Config: `frontend/.streamlit/secrets.toml` (gitignored, contains `login_user`, `login_pass`, `backend_url`)
 - Frontend Dependencies: `frontend/requirements.txt`
@@ -118,18 +118,26 @@ Frontend auth: every page checks `st.session_state["authenticated"]` on load. If
 
 ## Project Status
 
-Backend REST API implemented with full CRUD for Protocol, ReagentCatalog, and Experiment. Frontend multi-page app with auth gate deployed to production-ready state.
+Backend REST API implemented with full CRUD for Protocol, ReagentCatalog, Experiment, and ProtocolReagentSpec. AI analysis via Google Gemini. Frontend multi-page app with auth gate.
 
-- **Controllers**: Protocol (GET by ID, POST, DELETE), ReagentCatalog (GET all paged, GET by ID, POST, DELETE), Experiment (GET by ID, POST, DELETE, POST /search)
+- **Controllers**: 
+  - Health (GET /api/health)
+  - Protocol (GET all, GET by ID, POST, DELETE)
+  - ReagentCatalog (GET all paged, GET by ID, POST, DELETE)
+  - ProtocolReagentSpec (GET by protocolId, POST)
+  - Experiment (GET by ID, POST, DELETE, POST /search)
+  - AI/Gemini (POST /api/ai/analyze)
 - **Experiment POST**: validates mandatory reagent batches against protocol requirements
-- **GlobalExceptionHandler**: maps ResourceNotFoundException, ProtocolMismatchException, and validation errors to JSON
-- **Flyway V1**: defines the full schema (6 tables)
-- **Frontend**: 6 Streamlit pages with shared header (logo), sidebar (logout), and login gate
-  - `app.py`: Dashboard with health check + 4 navigation buttons
-  - `pages/add_protocol.py`: Protocol creation form
+- **GlobalExceptionHandler**: maps ResourceNotFoundException, ProtocolMismatchException, GeminiServiceException, IllegalArgumentException, and validation errors to JSON
+- **Flyway V1–V3**: full schema (6 tables) + enum constraints + audit columns
+- **Frontend**: 8 Streamlit pages with shared header (logo), sidebar (logout), and login gate
+  - `app.py`: Dashboard with health check + navigation buttons
+  - `pages/add_protocol.py`: Protocol creation form with inline reagent linking
   - `pages/add_reagent.py`: Reagent catalog form
-  - `pages/search_experiments.py`: Filtered search with pagination and Details links
+  - `pages/add_experiment.py`: Experiment creation form with reagent batches and measurement pairs
+  - `pages/search_experiments.py`: Filtered search with pagination, Details links, and multi-select for comparison
   - `pages/experiment_details.py`: Read-only experiment view (metadata, pairs, batches)
+  - `pages/compare_experiments.py`: Side-by-side comparison with lockable sections and Gemini AI analysis
   - `pages/search_protocols.py`: Placeholder (deferred)
-- **Tests**: 80 passing JUnit tests across controllers, services, mappers, utils, and exceptions
-- **Remaining**: Protocol search UI, MeasurementPair CRUD service/endpoint, ProtocolReagentSpec CRUD, UsedReagentBatch CRUD
+- **Tests**: 99 passing JUnit tests across controllers, services, mappers, utils, and exceptions
+- **Remaining**: Protocol search UI, MeasurementPair CRUD endpoint, UsedReagentBatch CRUD endpoint

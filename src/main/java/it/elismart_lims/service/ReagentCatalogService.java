@@ -6,6 +6,7 @@ import it.elismart_lims.mapper.ReagentCatalogMapper;
 import it.elismart_lims.model.ReagentCatalog;
 import it.elismart_lims.repository.ReagentCatalogRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Business logic for ReagentCatalog operations.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReagentCatalogService {
@@ -64,7 +66,10 @@ public class ReagentCatalogService {
      */
     @Transactional
     public ReagentCatalog create(ReagentCatalog reagentCatalog) {
-        return reagentCatalogRepository.save(reagentCatalog);
+        log.info("Creating reagent catalog: {}", reagentCatalog.getName());
+        ReagentCatalog saved = reagentCatalogRepository.save(reagentCatalog);
+        log.info("Reagent catalog created with id: {}", saved.getId());
+        return saved;
     }
 
     /**
@@ -75,9 +80,11 @@ public class ReagentCatalogService {
      */
     @Transactional
     public void delete(Long id) {
+        log.info("Deleting reagent catalog id: {}", id);
         if (!reagentCatalogRepository.existsById(id)) {
             throw new ResourceNotFoundException("Reagent catalog not found with id: " + id);
         }
         reagentCatalogRepository.deleteById(id);
+        log.info("Reagent catalog deleted id: {}", id);
     }
 }

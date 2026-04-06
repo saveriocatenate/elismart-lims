@@ -15,6 +15,11 @@ import java.util.Map;
 @RequestMapping("/api/health")
 public class HealthController {
 
+    /**
+     * Returns the backend status and current timestamp.
+     *
+     * @return 200 OK with {@code {"status":"UP","timestamp":"..."}}
+     */
     @GetMapping
     public ResponseEntity<Map<String, Object>> health() {
         return ResponseEntity.ok(Map.of(

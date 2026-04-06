@@ -1,20 +1,13 @@
+# Base configuration — datasource and h2 settings are in profile-specific files.
+# Run with --spring.profiles.active=dev (default) or --spring.profiles.active=prod.
 spring:
   application:
     name: elismart-lims
 
-  datasource:
-    url: jdbc:h2:file:./data/elismart_db;AUTO_SERVER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+  profiles:
+    default: dev
 
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: validate
     show-sql: false
@@ -25,3 +18,8 @@ spring:
 
 server:
   port: 8080
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+  model: ${GEMINI_MODEL:gemini-1.5-flash}
