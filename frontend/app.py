@@ -1,5 +1,6 @@
 import os
 import base64
+import bcrypt
 import requests
 import streamlit as st
 
@@ -17,6 +18,11 @@ BACKEND_URL = _resolve_backend_url()
 
 
 def _get_creds():
+    """Return (username, bcrypt_hash) from secrets or environment variables.
+
+    secrets.toml must store ``login_pass`` as a bcrypt hash, not plaintext.
+    Generate one with:  python -c "import bcrypt; print(bcrypt.hashpw(b'yourpassword', bcrypt.gensalt()).decode())"
+    """
     try:
         u = st.secrets.get("login_user", "")
         p = st.secrets.get("login_pass", "")
@@ -35,7 +41,11 @@ def _check_auth():
         user = st.text_input("Username", autocomplete="username", label_visibility="collapsed")
         pwd = st.text_input("Password", type="password", autocomplete="current-password", label_visibility="collapsed")
         if st.form_submit_button("🔑 Accedi", use_container_width=True):
-            if user == expected_user and pwd == expected_pass:
+            try:
+                password_matches = bcrypt.checkpw(pwd.encode("utf-8"), expected_pass.encode("utf-8"))
+            except Exception:
+                password_matches = False
+            if user == expected_user and password_matches:
                 st.session_state["authenticated"] = True
                 st.rerun()
             st.error("Credenziali non valide")
@@ -130,3 +140,7 @@ col3, col4 = st.columns(2)
 with col3:
     if st.button("🔬 Add Experiment", use_container_width=True, type="primary"):
         st.switch_page("pages/add_experiment.py")
+
+st.markdown("---")
+if st.button("⚖️ Compare Experiments", use_container_width=True):
+    st.switch_page("pages/compare_experiments.py")

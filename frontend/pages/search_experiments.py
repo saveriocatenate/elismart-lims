@@ -99,18 +99,45 @@ if results:
         st.info("No experiments found.")
     else:
         st.caption(f"{total} total — page {cur_page + 1} of {total_pages or 1}")
+
+        # Derive the set of currently-checked IDs from checkbox widget state keys.
+        # We cap at 4; checkboxes beyond the cap are disabled when unchecked.
+        checked_ids: list[int] = [
+            exp["id"] for exp in content
+            if st.session_state.get(f"chk_{exp['id']}", False)
+        ]
+        at_max = len(checked_ids) >= 4
+
         for exp in content:
             with st.container(border=True):
-                c1, c2, c3, c4 = st.columns([3, 2, 1, 1])
+                c0, c1, c2, c3, c4, c5 = st.columns([0.5, 3, 2, 1, 1, 1])
+                exp_id = exp["id"]
+                is_checked = st.session_state.get(f"chk_{exp_id}", False)
+                c0.checkbox(
+                    "",
+                    value=is_checked,
+                    key=f"chk_{exp_id}",
+                    disabled=at_max and not is_checked,
+                )
                 c1.markdown(f"**{exp.get('name')}**")
                 c2.caption(exp.get("date", "").replace("T", " ") if exp.get("date") else "")
                 c3.markdown(f"🏷️ {exp.get('protocolName', '—')}")
                 status = exp.get("status", "")
                 emoji = "✅" if status == "OK" else "🔴" if status == "KO" else ""
                 c4.caption(f"{emoji} {status}")
-                if c4.button("Details", key=f"detail_{exp['id']}", use_container_width=True):
-                    st.session_state["selected_exp_id"] = exp["id"]
+                if c5.button("Details", key=f"detail_{exp_id}", use_container_width=True):
+                    st.session_state["selected_exp_id"] = exp_id
                     st.switch_page("pages/experiment_details.py")
+
+        if len(checked_ids) >= 2:
+            st.markdown("---")
+            st.caption(f"{len(checked_ids)} experiment(s) selected (max 4)")
+            if st.button("⚖️ Compare Selected", use_container_width=True, type="primary"):
+                st.session_state["compare_exp_ids"] = checked_ids
+                # Clear checkboxes
+                for exp in content:
+                    st.session_state.pop(f"chk_{exp['id']}", None)
+                st.switch_page("pages/compare_experiments.py")
 
         if total_pages > 1:
             st.markdown("---")
