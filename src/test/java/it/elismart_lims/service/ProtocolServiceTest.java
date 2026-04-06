@@ -123,4 +123,24 @@ class ProtocolServiceTest {
                 .hasMessageContaining("Protocol not found with id: 1");
         verify(protocolRepository, never()).deleteById(1L);
     }
+
+    @Test
+    void getByName_shouldReturnProtocol_whenNameExists() {
+        when(protocolRepository.findByName("IgG Test")).thenReturn(Optional.of(protocol));
+
+        var result = protocolService.getByName("IgG Test");
+
+        assertThat(result.name()).isEqualTo("IgG Test");
+        assertThat(result.maxCvAllowed()).isEqualTo(15.0);
+        verify(protocolRepository, times(1)).findByName("IgG Test");
+    }
+
+    @Test
+    void getByName_shouldThrow_whenNameNotFound() {
+        when(protocolRepository.findByName("Unknown")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> protocolService.getByName("Unknown"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Protocol not found with name: Unknown");
+    }
 }

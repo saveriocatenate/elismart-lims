@@ -3,6 +3,7 @@ package it.elismart_lims.service;
 import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.Experiment;
+import it.elismart_lims.model.ExperimentStatus;
 import it.elismart_lims.model.ReagentCatalog;
 import it.elismart_lims.model.UsedReagentBatch;
 import it.elismart_lims.repository.UsedReagentBatchRepository;
@@ -62,7 +63,7 @@ class UsedReagentBatchServiceTest {
                 .id(1L)
                 .name("Test Experiment")
                 .date(LocalDateTime.of(2026, 4, 5, 10, 0))
-                .status("COMPLETED")
+                .status(ExperimentStatus.COMPLETED)
                 .build();
     }
 

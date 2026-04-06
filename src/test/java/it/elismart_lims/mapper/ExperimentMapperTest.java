@@ -3,6 +3,7 @@ package it.elismart_lims.mapper;
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.model.Experiment;
+import it.elismart_lims.model.ExperimentStatus;
 import it.elismart_lims.model.Protocol;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +24,7 @@ class ExperimentMapperTest {
                 "Run 2026-04-05",
                 LocalDateTime.of(2026, 4, 5, 10, 0),
                 1L,
-                "OK",
+                ExperimentStatus.OK,
                 List.of(new UsedReagentBatchRequest(1L, "LOT-001", null)),
                 List.of());
 
@@ -31,7 +32,7 @@ class ExperimentMapperTest {
 
         assertThat(entity.getName()).isEqualTo("Run 2026-04-05");
         assertThat(entity.getProtocol()).isEqualTo(protocol);
-        assertThat(entity.getStatus()).isEqualTo("OK");
+        assertThat(entity.getStatus()).isEqualTo(ExperimentStatus.OK);
     }
 
     @Test
@@ -41,7 +42,7 @@ class ExperimentMapperTest {
                 .id(1L)
                 .name("Run 2026-04-05")
                 .date(LocalDateTime.of(2026, 4, 5, 10, 0))
-                .status("OK")
+                .status(ExperimentStatus.OK)
                 .protocol(protocol)
                 .usedReagentBatches(List.of())
                 .measurementPairs(List.of())

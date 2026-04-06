@@ -1,6 +1,7 @@
 package it.elismart_lims.service;
 
 import it.elismart_lims.model.MeasurementPair;
+import it.elismart_lims.model.PairType;
 import it.elismart_lims.repository.MeasurementPairRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,7 +35,7 @@ class MeasurementPairServiceTest {
     @BeforeEach
     void setUp() {
         pair = MeasurementPair.builder()
-                .pairType("CALIBRATION")
+                .pairType(PairType.CALIBRATION)
                 .signal1(0.45)
                 .signal2(0.47)
                 .cvPct(3.04)
@@ -51,7 +52,7 @@ class MeasurementPairServiceTest {
         var result = measurementPairService.saveAll(pairs);
 
         assertThat(result).hasSize(1);
-        assertThat(result.getFirst().getPairType()).isEqualTo("CALIBRATION");
+        assertThat(result.getFirst().getPairType()).isEqualTo(PairType.CALIBRATION);
         verify(measurementPairRepository, times(1)).saveAll(pairs);
     }
 }

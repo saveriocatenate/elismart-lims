@@ -9,6 +9,8 @@ import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.exception.model.ProtocolMismatchException;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.Experiment;
+import it.elismart_lims.model.ExperimentStatus;
+import it.elismart_lims.model.PairType;
 import it.elismart_lims.model.Protocol;
 import it.elismart_lims.model.ReagentCatalog;
 import it.elismart_lims.model.UsedReagentBatch;
@@ -95,14 +97,14 @@ class ExperimentServiceTest {
                 .id(1L)
                 .name("Test Experiment")
                 .date(LocalDateTime.of(2026, 4, 5, 10, 0))
-                .status("COMPLETED")
+                .status(ExperimentStatus.COMPLETED)
                 .protocol(protocol)
                 .usedReagentBatches(List.of(batch))
                 .measurementPairs(List.of())
                 .build();
 
         MeasurementPairRequest pairRequest = new MeasurementPairRequest(
-                "CALIBRATION", null, 0.45, 0.47, 0.46, 3.04, 98.5, false);
+                PairType.CALIBRATION, null, 0.45, 0.47, 0.46, 3.04, 98.5, false);
 
         UsedReagentBatchRequest batchRequest = new UsedReagentBatchRequest(
                 1L, "LOT-001", LocalDate.of(2027, 12, 31));
@@ -111,7 +113,7 @@ class ExperimentServiceTest {
                 "Test Experiment",
                 LocalDateTime.of(2026, 4, 5, 10, 0),
                 10L,
-                "COMPLETED",
+                ExperimentStatus.COMPLETED,
                 List.of(batchRequest),
                 List.of(pairRequest));
     }
@@ -124,7 +126,7 @@ class ExperimentServiceTest {
 
         assertThat(result.id()).isEqualTo(1L);
         assertThat(result.name()).isEqualTo("Test Experiment");
-        assertThat(result.status()).isEqualTo("COMPLETED");
+        assertThat(result.status()).isEqualTo(ExperimentStatus.COMPLETED);
         verify(experimentRepository).findById(1L);
     }
 
@@ -190,7 +192,7 @@ class ExperimentServiceTest {
     @Test
     void search_shouldReturnPagedResultsWithFilters() {
         ExperimentSearchRequest searchRequest = new ExperimentSearchRequest(
-                "test", null, null, null, "COMPLETED", 0, 10);
+                "test", null, null, null, ExperimentStatus.COMPLETED, 0, 10);
 
         when(experimentRepository.findAll(any(Specification.class), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(experiment)));

@@ -37,10 +37,10 @@ public final class ReagentCatalogMapper {
      */
     public static ReagentCatalogResponse toResponse(ReagentCatalog entity) {
         return ReagentCatalogResponse.builder()
-                .withId(entity.getId())
-                .withName(entity.getName())
-                .withManufacturer(entity.getManufacturer())
-                .withDescription(entity.getDescription())
+                .id(entity.getId())
+                .name(entity.getName())
+                .manufacturer(entity.getManufacturer())
+                .description(entity.getDescription())
                 .build();
     }
 

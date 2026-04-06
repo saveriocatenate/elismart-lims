@@ -1,12 +1,13 @@
 package it.elismart_lims.dto;
 
-import jakarta.validation.constraints.NotBlank;
+import it.elismart_lims.model.PairType;
+import jakarta.validation.constraints.NotNull;
 
 /**
  * Request payload for creating a MeasurementPair.
  */
 public record MeasurementPairRequest(
-        @NotBlank String pairType,
+        @NotNull PairType pairType,
         Double concentrationNominal,
         Double signal1,
         Double signal2,

@@ -2,6 +2,7 @@ package it.elismart_lims.util;
 
 import it.elismart_lims.dto.ExperimentSearchRequest;
 import it.elismart_lims.model.Experiment;
+import it.elismart_lims.model.ExperimentStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -60,11 +61,11 @@ class ExperimentSpecificationsTest {
                 Arguments.of("blank name → ignored",
                         new ExperimentSearchRequest("   ", null,  null, null, null,  0, 20)),
 
-                Arguments.of("non-blank status filter",
-                        new ExperimentSearchRequest(null,  null,  null, null, "OK",  0, 20)),
+                Arguments.of("non-null status filter",
+                        new ExperimentSearchRequest(null,  null,  null, null, ExperimentStatus.OK,  0, 20)),
 
-                Arguments.of("blank status → ignored",
-                        new ExperimentSearchRequest(null,  null,  null, null, "   ", 0, 20)),
+                Arguments.of("null status → ignored",
+                        new ExperimentSearchRequest(null,  null,  null, null, null, 0, 20)),
 
                 Arguments.of("exact date filter",
                         new ExperimentSearchRequest(null,  exact, null, null, null,  0, 20)),
@@ -79,7 +80,7 @@ class ExperimentSpecificationsTest {
                         new ExperimentSearchRequest(null,  null,  from, to,   null,  0, 20)),
 
                 Arguments.of("combined name + range + status",
-                        new ExperimentSearchRequest("Run", null,  from, to,   "OK",  0, 20)),
+                        new ExperimentSearchRequest("Run", null,  from, to,   ExperimentStatus.OK,  0, 20)),
 
                 Arguments.of("exact date overrides dateFrom + dateTo",
                         new ExperimentSearchRequest(null,  exact, from, to,   null,  0, 20))

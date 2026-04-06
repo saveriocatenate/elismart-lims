@@ -20,11 +20,11 @@ public final class ProtocolReagentSpecMapper {
      */
     public static ProtocolReagentSpecResponse toResponse(ProtocolReagentSpec entity) {
         return ProtocolReagentSpecResponse.builder()
-                .withId(entity.getId())
-                .withProtocolId(entity.getProtocol().getId())
-                .withReagentId(entity.getReagent().getId())
-                .withReagentName(entity.getReagent().getName())
-                .withIsMandatory(entity.getIsMandatory())
+                .id(entity.getId())
+                .protocolId(entity.getProtocol().getId())
+                .reagentId(entity.getReagent().getId())
+                .reagentName(entity.getReagent().getName())
+                .isMandatory(entity.getIsMandatory())
                 .build();
     }
 }

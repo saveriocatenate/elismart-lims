@@ -1,5 +1,6 @@
 package it.elismart_lims.dto;
 
+import it.elismart_lims.model.ExperimentStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -14,7 +15,7 @@ public record ExperimentRequest(
         @NotBlank String name,
         @NotNull LocalDateTime date,
         @NotNull Long protocolId,
-        @NotNull String status,
+        @NotNull ExperimentStatus status,
         @NotNull List<UsedReagentBatchRequest> usedReagentBatches,
         @NotNull List<MeasurementPairRequest> measurementPairs
 ) {

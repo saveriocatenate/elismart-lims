@@ -32,19 +32,24 @@ public final class ExperimentMapper {
 
     /**
      * Converts an Experiment entity into an ExperimentResponse DTO.
+     * Audit fields ({@code createdAt}, {@code updatedAt}, {@code createdBy}) are
+     * read from the {@link it.elismart_lims.model.Auditable} superclass.
      *
      * @param experiment the Experiment entity
-     * @return the response DTO with nested collections
+     * @return the response DTO with nested collections and audit metadata
      */
     public static ExperimentResponse toResponse(Experiment experiment) {
         return ExperimentResponse.builder()
-                .withId(experiment.getId())
-                .withName(experiment.getName())
-                .withDate(experiment.getDate())
-                .withStatus(experiment.getStatus())
-                .withProtocolName(experiment.getProtocol().getName())
-                .withUsedReagentBatches(UsedReagentBatchMapper.toResponseList(experiment.getUsedReagentBatches()))
-                .withMeasurementPairs(MeasurementPairMapper.toResponseList(experiment.getMeasurementPairs()))
+                .id(experiment.getId())
+                .name(experiment.getName())
+                .date(experiment.getDate())
+                .status(experiment.getStatus())
+                .protocolName(experiment.getProtocol().getName())
+                .createdAt(experiment.getCreatedAt())
+                .updatedAt(experiment.getUpdatedAt())
+                .createdBy(experiment.getCreatedBy())
+                .usedReagentBatches(UsedReagentBatchMapper.toResponseList(experiment.getUsedReagentBatches()))
+                .measurementPairs(MeasurementPairMapper.toResponseList(experiment.getMeasurementPairs()))
                 .build();
     }
 }

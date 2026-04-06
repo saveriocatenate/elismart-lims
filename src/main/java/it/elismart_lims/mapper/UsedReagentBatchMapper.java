@@ -22,10 +22,10 @@ public final class UsedReagentBatchMapper {
      */
     public static UsedReagentBatchResponse toResponse(UsedReagentBatch entity) {
         return UsedReagentBatchResponse.builder()
-                .withId(entity.getId())
-                .withReagentName(entity.getReagent().getName())
-                .withLotNumber(entity.getLotNumber())
-                .withExpiryDate(entity.getExpiryDate())
+                .id(entity.getId())
+                .reagentName(entity.getReagent().getName())
+                .lotNumber(entity.getLotNumber())
+                .expiryDate(entity.getExpiryDate())
                 .build();
     }
 

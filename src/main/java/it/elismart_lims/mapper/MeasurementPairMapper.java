@@ -68,15 +68,15 @@ public final class MeasurementPairMapper {
      */
     public static MeasurementPairResponse toResponse(MeasurementPair entity) {
         return MeasurementPairResponse.builder()
-                .withId(entity.getId())
-                .withPairType(entity.getPairType())
-                .withConcentrationNominal(entity.getConcentrationNominal())
-                .withSignal1(entity.getSignal1())
-                .withSignal2(entity.getSignal2())
-                .withSignalMean(entity.getSignalMean())
-                .withCvPct(entity.getCvPct())
-                .withRecoveryPct(entity.getRecoveryPct())
-                .withIsOutlier(entity.getIsOutlier() != null && entity.getIsOutlier())
+                .id(entity.getId())
+                .pairType(entity.getPairType())
+                .concentrationNominal(entity.getConcentrationNominal())
+                .signal1(entity.getSignal1())
+                .signal2(entity.getSignal2())
+                .signalMean(entity.getSignalMean())
+                .cvPct(entity.getCvPct())
+                .recoveryPct(entity.getRecoveryPct())
+                .isOutlier(entity.getIsOutlier() != null && entity.getIsOutlier())
                 .build();
     }
 

@@ -37,12 +37,12 @@ public final class ProtocolMapper {
      */
     public static ProtocolResponse toResponse(Protocol entity) {
         return ProtocolResponse.builder()
-                .withId(entity.getId())
-                .withName(entity.getName())
-                .withNumCalibrationPairs(entity.getNumCalibrationPairs())
-                .withNumControlPairs(entity.getNumControlPairs())
-                .withMaxCvAllowed(entity.getMaxCvAllowed())
-                .withMaxErrorAllowed(entity.getMaxErrorAllowed())
+                .id(entity.getId())
+                .name(entity.getName())
+                .numCalibrationPairs(entity.getNumCalibrationPairs())
+                .numControlPairs(entity.getNumControlPairs())
+                .maxCvAllowed(entity.getMaxCvAllowed())
+                .maxErrorAllowed(entity.getMaxErrorAllowed())
                 .build();
     }
 }

@@ -1,0 +1,16 @@
+# Test profile — separate H2 file database so integration tests never touch the dev data.
+# In-memory mode is intentionally avoided to match the production persistence model,
+# but the path is distinct from ./data/elismart_db to prevent cross-contamination.
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/elismart_test_db;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: false
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect

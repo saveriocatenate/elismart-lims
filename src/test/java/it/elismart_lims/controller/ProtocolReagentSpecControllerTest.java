@@ -38,11 +38,11 @@ class ProtocolReagentSpecControllerTest {
 
     private ProtocolReagentSpecResponse sampleResponse(Long id, String reagentName, boolean mandatory) {
         return ProtocolReagentSpecResponse.builder()
-                .withId(id)
-                .withProtocolId(1L)
-                .withReagentId(10L)
-                .withReagentName(reagentName)
-                .withIsMandatory(mandatory)
+                .id(id)
+                .protocolId(1L)
+                .reagentId(10L)
+                .reagentName(reagentName)
+                .isMandatory(mandatory)
                 .build();
     }
 

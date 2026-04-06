@@ -7,6 +7,7 @@ import it.elismart_lims.dto.ExperimentResponse;
 import it.elismart_lims.dto.ExperimentSearchRequest;
 import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.dto.MeasurementPairRequest;
+import it.elismart_lims.model.ExperimentStatus;
 import it.elismart_lims.exception.model.ProtocolMismatchException;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.service.ExperimentService;
@@ -45,13 +46,13 @@ class ExperimentControllerTest {
 
     private ExperimentResponse sampleResponse() {
         return ExperimentResponse.builder()
-                .withId(1L)
-                .withName("Run 2026-04-05")
-                .withDate(LocalDateTime.of(2026, 4, 5, 10, 0))
-                .withStatus("OK")
-                .withProtocolName("IgG Test")
-                .withUsedReagentBatches(List.of())
-                .withMeasurementPairs(List.of())
+                .id(1L)
+                .name("Run 2026-04-05")
+                .date(LocalDateTime.of(2026, 4, 5, 10, 0))
+                .status(ExperimentStatus.OK)
+                .protocolName("IgG Test")
+                .usedReagentBatches(List.of())
+                .measurementPairs(List.of())
                 .build();
     }
 
@@ -79,7 +80,7 @@ class ExperimentControllerTest {
                 "Run 2026-04-05",
                 LocalDateTime.of(2026, 4, 5, 10, 0),
                 1L,
-                "OK",
+                ExperimentStatus.OK,
                 List.of(new UsedReagentBatchRequest(1L, "LOT-001", null)),
                 List.of());
         when(experimentService.create(any())).thenReturn(sampleResponse());
@@ -92,7 +93,7 @@ class ExperimentControllerTest {
 
     @Test
     void create_shouldReturn400_whenMissingReagents() throws Exception {
-        var request = new ExperimentRequest("Run", LocalDateTime.of(2026, 4, 5, 10, 0), 1L, "OK",
+        var request = new ExperimentRequest("Run", LocalDateTime.of(2026, 4, 5, 10, 0), 1L, ExperimentStatus.OK,
                 List.of(new UsedReagentBatchRequest(1L, "LOT-001", null)), List.of());
         when(experimentService.create(any())).thenThrow(new ProtocolMismatchException("Missing reagents"));
 

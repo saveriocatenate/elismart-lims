@@ -2,6 +2,7 @@ package it.elismart_lims.util;
 
 import it.elismart_lims.dto.ExperimentSearchRequest;
 import it.elismart_lims.model.Experiment;
+import it.elismart_lims.model.ExperimentStatus;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -32,8 +33,9 @@ public final class ExperimentSpecifications {
                 predicates.add(cb.like(cb.lower(root.get("name")), "%" + request.name().toLowerCase() + "%"));
             }
 
-            if (request.status() != null && !request.status().isBlank()) {
-                predicates.add(cb.equal(root.get("status"), request.status()));
+            ExperimentStatus status = request.status();
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
             }
 
             LocalDateTime exactDate = request.date();
