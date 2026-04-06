@@ -9,6 +9,7 @@ REST API endpoints exposed by the EliSmart LIMS backend.
 | Health | [API-health.md](API-health.md) | `/api/health` |
 | Protocol | [API-protocol.md](API-protocol.md) | `/api/protocols` |
 | Reagent Catalog | [API-reagent-catalog.md](API-reagent-catalog.md) | `/api/reagent-catalogs` |
+| Protocol Reagent Spec | [API-protocol-reagent-spec.md](API-protocol-reagent-spec.md) | `/api/protocol-reagent-specs` |
 | Experiment | [API-experiment.md](API-experiment.md) | `/api/experiments` |
 
 ## Database

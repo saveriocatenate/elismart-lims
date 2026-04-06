@@ -46,6 +46,23 @@ _check_auth()
 
 st.set_page_config(page_title="EliSmart LIMS", page_icon="🧪", layout="wide")
 
+# --- Override primary button color to light green ---
+st.markdown(
+    """
+    <style>
+    .stButton > button[kind="primary"] {
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background-color: #66BB6A;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # --- Header ---
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "EliSmartLogo.png")
 if os.path.exists(LOGO_PATH):
@@ -107,3 +124,9 @@ with col2:
         st.switch_page("pages/add_reagent.py")
     if st.button("📋 Search Experiments", use_container_width=True):
         st.switch_page("pages/search_experiments.py")
+
+st.markdown("---")
+col3, col4 = st.columns(2)
+with col3:
+    if st.button("🔬 Add Experiment", use_container_width=True, type="primary"):
+        st.switch_page("pages/add_experiment.py")

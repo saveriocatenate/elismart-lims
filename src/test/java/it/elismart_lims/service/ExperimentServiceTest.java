@@ -5,6 +5,7 @@ import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.ExperimentResponse;
 import it.elismart_lims.dto.ExperimentSearchRequest;
 import it.elismart_lims.dto.MeasurementPairRequest;
+import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.exception.model.ProtocolMismatchException;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.Experiment;
@@ -103,12 +104,15 @@ class ExperimentServiceTest {
         MeasurementPairRequest pairRequest = new MeasurementPairRequest(
                 "CALIBRATION", null, 0.45, 0.47, 0.46, 3.04, 98.5, false);
 
+        UsedReagentBatchRequest batchRequest = new UsedReagentBatchRequest(
+                1L, "LOT-001", LocalDate.of(2027, 12, 31));
+
         request = new ExperimentRequest(
                 "Test Experiment",
                 LocalDateTime.of(2026, 4, 5, 10, 0),
                 10L,
                 "COMPLETED",
-                List.of(100L),
+                List.of(batchRequest),
                 List.of(pairRequest));
     }
 
@@ -138,7 +142,8 @@ class ExperimentServiceTest {
         when(protocolService.getEntityById(10L)).thenReturn(protocol);
         when(protocolReagentSpecService.getMandatoryReagentIds(10L)).thenReturn(Set.of());
         when(experimentRepository.save(any(Experiment.class))).thenReturn(experiment);
-        when(usedReagentBatchService.linkToExperiment(List.of(100L), experiment)).thenReturn(List.of(batch));
+        when(usedReagentBatchService.createAllForExperiment(anyList(), any(Experiment.class)))
+                .thenReturn(List.of(batch));
         when(measurementPairService.saveAll(anyList())).thenReturn(List.of());
 
         ExperimentResponse result = experimentService.create(request);
@@ -147,15 +152,15 @@ class ExperimentServiceTest {
         assertThat(result.name()).isEqualTo("Test Experiment");
         assertThat(result.protocolName()).isEqualTo("ELISA Test");
         verify(experimentRepository).save(any(Experiment.class));
-        verify(usedReagentBatchService).linkToExperiment(List.of(100L), experiment);
+        verify(usedReagentBatchService).createAllForExperiment(anyList(), any(Experiment.class));
         verify(measurementPairService).saveAll(anyList());
     }
 
     @Test
     void create_shouldThrow_whenMandatoryReagentsMissing() {
         when(protocolService.getEntityById(10L)).thenReturn(protocol);
+        // mandatory IDs {1,2} but batch only covers {1}
         when(protocolReagentSpecService.getMandatoryReagentIds(10L)).thenReturn(Set.of(1L, 2L));
-        when(usedReagentBatchService.getReagentIdsByBatchIds(List.of(100L))).thenReturn(List.of(1L));
 
         assertThatThrownBy(() -> experimentService.create(request))
                 .isInstanceOf(ProtocolMismatchException.class)

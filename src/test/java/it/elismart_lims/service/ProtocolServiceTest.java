@@ -10,6 +10,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,6 +44,36 @@ class ProtocolServiceTest {
                 .maxCvAllowed(15.0)
                 .maxErrorAllowed(10.0)
                 .build();
+    }
+
+    @Test
+    void getAll_shouldReturnAllProtocols() {
+        Protocol protocol2 = Protocol.builder()
+                .name("IgM Test")
+                .numCalibrationPairs(5)
+                .numControlPairs(2)
+                .maxCvAllowed(10.0)
+                .maxErrorAllowed(8.0)
+                .build();
+
+        when(protocolRepository.findAll()).thenReturn(List.of(protocol, protocol2));
+
+        var result = protocolService.getAll();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).name()).isEqualTo("IgG Test");
+        assertThat(result.get(1).name()).isEqualTo("IgM Test");
+        verify(protocolRepository).findAll();
+    }
+
+    @Test
+    void getAll_shouldReturnEmpty_whenNoProtocols() {
+        when(protocolRepository.findAll()).thenReturn(List.of());
+
+        var result = protocolService.getAll();
+
+        assertThat(result).isEmpty();
+        verify(protocolRepository).findAll();
     }
 
     @Test

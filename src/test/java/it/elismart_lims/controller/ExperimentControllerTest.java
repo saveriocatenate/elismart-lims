@@ -1,7 +1,12 @@
 package it.elismart_lims.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import it.elismart_lims.dto.*;
+import it.elismart_lims.dto.ExperimentPage;
+import it.elismart_lims.dto.ExperimentRequest;
+import it.elismart_lims.dto.ExperimentResponse;
+import it.elismart_lims.dto.ExperimentSearchRequest;
+import it.elismart_lims.dto.UsedReagentBatchRequest;
+import it.elismart_lims.dto.MeasurementPairRequest;
 import it.elismart_lims.exception.model.ProtocolMismatchException;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.service.ExperimentService;
@@ -75,7 +80,7 @@ class ExperimentControllerTest {
                 LocalDateTime.of(2026, 4, 5, 10, 0),
                 1L,
                 "OK",
-                List.of(1L),
+                List.of(new UsedReagentBatchRequest(1L, "LOT-001", null)),
                 List.of());
         when(experimentService.create(any())).thenReturn(sampleResponse());
 
@@ -87,7 +92,8 @@ class ExperimentControllerTest {
 
     @Test
     void create_shouldReturn400_whenMissingReagents() throws Exception {
-        var request = new ExperimentRequest("Run", LocalDateTime.of(2026, 4, 5, 10, 0), 1L, "OK", List.of(), List.of());
+        var request = new ExperimentRequest("Run", LocalDateTime.of(2026, 4, 5, 10, 0), 1L, "OK",
+                List.of(new UsedReagentBatchRequest(1L, "LOT-001", null)), List.of());
         when(experimentService.create(any())).thenThrow(new ProtocolMismatchException("Missing reagents"));
 
         mockMvc.perform(post("/api/experiments")

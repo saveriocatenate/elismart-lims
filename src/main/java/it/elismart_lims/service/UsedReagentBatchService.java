@@ -1,5 +1,6 @@
 package it.elismart_lims.service;
 
+import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.UsedReagentBatch;
@@ -18,6 +19,7 @@ import java.util.List;
 public class UsedReagentBatchService {
 
     private final UsedReagentBatchRepository usedReagentBatchRepository;
+    private final ReagentCatalogService reagentCatalogService;
 
     /**
      * Find a used reagent batch by ID.
@@ -33,32 +35,26 @@ public class UsedReagentBatchService {
     }
 
     /**
-     * Link existing reagent batches to an experiment by setting the experiment reference and saving.
+     * Create and persist all reagent batches for the given experiment.
+     * Each request is resolved to its ReagentCatalog entity and saved with the experiment reference.
      *
-     * @param usedReagentBatchIds the IDs of the reagent batches to link
-     * @param experiment the experiment to link them to
-     * @return the updated list of UsedReagentBatch entities
+     * @param requests   the list of batch creation requests
+     * @param experiment the experiment these batches belong to
+     * @return the list of persisted UsedReagentBatch entities
      */
     @Transactional
-    public List<UsedReagentBatch> linkToExperiment(List<Long> usedReagentBatchIds, Experiment experiment) {
-        return usedReagentBatchIds.stream()
-                .map(id -> {
-                    UsedReagentBatch batch = getById(id);
-                    batch.setExperiment(experiment);
-                    usedReagentBatchRepository.save(batch);
-                    return batch;
+    public List<UsedReagentBatch> createAllForExperiment(List<UsedReagentBatchRequest> requests, Experiment experiment) {
+        return requests.stream()
+                .map(req -> {
+                    var reagent = reagentCatalogService.getEntityById(req.reagentId());
+                    return usedReagentBatchRepository.save(
+                            UsedReagentBatch.builder()
+                                    .experiment(experiment)
+                                    .reagent(reagent)
+                                    .lotNumber(req.lotNumber())
+                                    .expiryDate(req.expiryDate())
+                                    .build());
                 })
-                .toList();
-    }
-
-    /**
-     * Collect the set of reagent IDs covered by the given batch IDs.
-     */
-    @Transactional(readOnly = true)
-    public List<Long> getReagentIdsByBatchIds(List<Long> batchIds) {
-        return batchIds.stream()
-                .map(this::getById)
-                .map(batch -> batch.getReagent().getId())
                 .toList();
     }
 }

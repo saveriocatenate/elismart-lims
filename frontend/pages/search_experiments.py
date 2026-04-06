@@ -53,9 +53,16 @@ with st.form("search_form"):
     with col1:
         name_filter = st.text_input("Name contains")
     with col2:
-        status_filter = st.selectbox("Status", ["ALL", "OK", "KO", "COMPLETED"])
+        status_filter = st.selectbox("Status", ["ALL", "OK", "KO", "VALIDATION_ERROR"])
     with col3:
         page_size = st.selectbox("Page size", [10, 20, 50], index=1)
+    col_date1, col_date2, col_date3 = st.columns(3)
+    with col_date1:
+        date_filter = st.text_input("Date (ISO format)")
+    with col_date2:
+        date_from_filter = st.text_input("Date from (ISO format)")
+    with col_date3:
+        date_to_filter = st.text_input("Date to (ISO format)")
     submitted = st.form_submit_button("Search", use_container_width=True)
 
 st.session_state.setdefault("exp_page", 0)
@@ -63,9 +70,9 @@ st.session_state.setdefault("exp_page", 0)
 if submitted or "exp_results" in st.session_state:
     payload = {
         "name": name_filter if name_filter else None,
-        "date": None,
-        "dateFrom": None,
-        "dateTo": None,
+        "date": date_filter if date_filter else None,
+        "dateFrom": date_from_filter if date_from_filter else None,
+        "dateTo": date_to_filter if date_to_filter else None,
         "status": status_filter if status_filter != "ALL" else None,
         "page": st.session_state.get("exp_page", 0),
         "size": page_size,

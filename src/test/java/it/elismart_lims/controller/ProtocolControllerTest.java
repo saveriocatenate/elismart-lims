@@ -12,6 +12,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
@@ -35,6 +37,28 @@ class ProtocolControllerTest {
 
     @MockitoBean
     private ProtocolService protocolService;
+
+    @Test
+    void getAll_shouldReturnProtocolList() throws Exception {
+        var p1 = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0);
+        var p2 = new ProtocolResponse(2L, "IgM Test", 5, 2, 10.0, 8.0);
+        when(protocolService.getAll()).thenReturn(List.of(p1, p2));
+
+        mockMvc.perform(get("/api/protocols"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].name").value("IgG Test"))
+                .andExpect(jsonPath("$[1].name").value("IgM Test"));
+    }
+
+    @Test
+    void getAll_shouldReturnEmptyList_whenNoProtocols() throws Exception {
+        when(protocolService.getAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/protocols"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
 
     @Test
     void getById_shouldReturnProtocol() throws Exception {

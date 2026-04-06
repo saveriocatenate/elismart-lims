@@ -4,6 +4,24 @@ Base path: `/api/protocols`
 
 ## Endpoints
 
+### GET /api/protocols
+
+Retrieve all protocols (unpaginated list for dropdowns and selection UIs).
+
+**Response 200**:
+```json
+[
+  {
+    "id": 1,
+    "name": "IgG Test",
+    "numCalibrationPairs": 7,
+    "numControlPairs": 3,
+    "maxCvAllowed": 15.0,
+    "maxErrorAllowed": 10.0
+  }
+]
+```
+
 ### GET /api/protocols/{id}
 
 Retrieve a single protocol by its ID.

@@ -1,6 +1,7 @@
 package it.elismart_lims.mapper;
 
 import it.elismart_lims.dto.ExperimentRequest;
+import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.Protocol;
 import org.junit.jupiter.api.Test;
@@ -23,7 +24,7 @@ class ExperimentMapperTest {
                 LocalDateTime.of(2026, 4, 5, 10, 0),
                 1L,
                 "OK",
-                List.of(1L),
+                List.of(new UsedReagentBatchRequest(1L, "LOT-001", null)),
                 List.of());
 
         var entity = ExperimentMapper.toEntity(request, protocol);

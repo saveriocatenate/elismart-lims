@@ -47,7 +47,7 @@ Retrieve a single experiment by its ID.
 
 ### POST /api/experiments
 
-Create a new experiment with associated reagent batches and measurement pairs.
+Create a new experiment with reagent batches and measurement pairs atomically.
 Validates that the provided reagent batches cover all mandatory reagents defined by the protocol.
 
 **Request**:
@@ -57,7 +57,13 @@ Validates that the provided reagent batches cover all mandatory reagents defined
   "date": "2026-04-05T10:00:00",
   "status": "OK",
   "protocolId": 1,
-  "usedReagentBatchIds": [1],
+  "usedReagentBatches": [
+    {
+      "reagentId": 10,
+      "lotNumber": "LOT-2025-001",
+      "expiryDate": "2027-01-01"
+    }
+  ],
   "measurementPairs": [
     {
       "pairType": "CALIBRATION",
@@ -65,19 +71,36 @@ Validates that the provided reagent batches cover all mandatory reagents defined
       "signal1": 0.45,
       "signal2": 0.47,
       "signalMean": 0.46,
-      "cvPct": 3.04,
-      "recoveryPct": 98.5,
+      "cvPct": null,
+      "recoveryPct": null,
       "isOutlier": false
     }
   ]
 }
 ```
 
+**Fields — `usedReagentBatches[]`**:
+- `reagentId` (Long, required) — references a ReagentCatalog entry
+- `lotNumber` (String, required) — the specific batch/lot identifier
+- `expiryDate` (LocalDate, optional) — ISO 8601 date (`"2027-01-01"`)
+
+**Fields — `measurementPairs[]`**:
+- `pairType` (String, required) — one of `CALIBRATION`, `CONTROL`, `SAMPLE`
+- `concentrationNominal` (Double, optional) — expected X-axis value
+- `signal1`, `signal2` (Double) — raw OD readings
+- `signalMean` (Double, optional) — `(signal1 + signal2) / 2`, can be computed client-side
+- `cvPct`, `recoveryPct` (Double, optional)
+- `isOutlier` (Boolean) — flag for manual or automatic outlier marking
+
+**Status values**: `OK`, `KO`, `VALIDATION_ERROR`
+
 **Response 201**: same shape as GET response
 
 **Response 400**:
 - Validation error (missing required fields)
-- `ProtocolMismatchException`: used reagent batches don't cover all mandatory protocol reagents
+- `ProtocolMismatchException`: `usedReagentBatches` does not cover all mandatory protocol reagents
+
+**Response 404**: protocol or referenced reagent not found
 
 ### DELETE /api/experiments/{id}
 
@@ -109,14 +132,14 @@ Search experiments with optional filters and paginated results.
 
 **Fields**:
 - `name` (String, optional) — partial match, case-insensitive
-- `date` (LocalDateTime, optional) — exact date match
-- `dateFrom` (LocalDateTime, optional) — range start (ignored if `date` is provided)
-- `dateTo` (LocalDateTime, optional) — range end (ignored if `date` is provided)
-- `status` (String, optional) — exact match on status
-- `page` (int) — zero-based page number, defaults to `0` when omitted from record
+- `date` (LocalDateTime, optional) — exact date match; if provided, `dateFrom`/`dateTo` are ignored
+- `dateFrom` (LocalDateTime, optional) — range start
+- `dateTo` (LocalDateTime, optional) — range end
+- `status` (String, optional) — exact match; one of `OK`, `KO`, `VALIDATION_ERROR`
+- `page` (int) — zero-based page number
 - `size` (int) — page size
 
-Results are sorted by `date` descending. If `date` is specified, `dateFrom`/`dateTo` are ignored.
+Results are sorted by `date` descending.
 
 **Response 200**:
 ```json

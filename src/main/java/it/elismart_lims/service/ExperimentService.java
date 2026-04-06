@@ -4,6 +4,7 @@ import it.elismart_lims.dto.ExperimentPage;
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.ExperimentResponse;
 import it.elismart_lims.dto.ExperimentSearchRequest;
+import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.exception.model.ProtocolMismatchException;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.mapper.ExperimentMapper;
@@ -20,9 +21,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Business logic for Experiment operations.
@@ -49,26 +50,22 @@ public class ExperimentService {
     }
 
     /**
-     * Create a new experiment with its associated reagent batches and measurement pairs.
-     * Validates that all mandatory reagents for the protocol are present.
+     * Create a new experiment with its reagent batches and measurement pairs atomically.
+     * Validates that all mandatory reagents for the protocol are covered by the provided batches.
      */
     @Transactional
     public ExperimentResponse create(ExperimentRequest request) {
         var protocol = protocolService.getEntityById(request.protocolId());
 
-        // Validate that used reagent batches cover all mandatory protocol reagents
-        validateReagentBatches(request.usedReagentBatchIds(), protocol.getId());
+        validateReagentBatches(request.usedReagentBatches(), protocol.getId());
 
-        // Create and save the experiment
         Experiment experiment = ExperimentMapper.toEntity(request, protocol);
         experiment = experimentRepository.save(experiment);
 
-        // Link used reagent batches to experiment
         List<UsedReagentBatch> batches = usedReagentBatchService
-                .linkToExperiment(request.usedReagentBatchIds(), experiment);
+                .createAllForExperiment(request.usedReagentBatches(), experiment);
         experiment.setUsedReagentBatches(batches);
 
-        // Create and persist measurement pairs
         List<MeasurementPair> pairs = MeasurementPairMapper.toEntityList(request.measurementPairs(), experiment);
         measurementPairService.saveAll(pairs);
         experiment.setMeasurementPairs(pairs);
@@ -76,9 +73,17 @@ public class ExperimentService {
         return ExperimentMapper.toResponse(experiment);
     }
 
-    private void validateReagentBatches(List<Long> reagentBatchIds, Long protocolId) {
-        Set<Long> batchReagentIds = new HashSet<>(
-                usedReagentBatchService.getReagentIdsByBatchIds(reagentBatchIds));
+    /**
+     * Validate that the provided reagent batch requests cover all mandatory reagents of the protocol.
+     *
+     * @param batchRequests the inline batch requests from the experiment creation request
+     * @param protocolId    the protocol whose mandatory reagents must be satisfied
+     * @throws ProtocolMismatchException if any mandatory reagent is not covered
+     */
+    private void validateReagentBatches(List<UsedReagentBatchRequest> batchRequests, Long protocolId) {
+        Set<Long> batchReagentIds = batchRequests.stream()
+                .map(UsedReagentBatchRequest::reagentId)
+                .collect(Collectors.toSet());
 
         Set<Long> mandatoryReagentIds = protocolReagentSpecService.getMandatoryReagentIds(protocolId);
 

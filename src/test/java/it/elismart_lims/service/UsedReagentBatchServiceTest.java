@@ -1,5 +1,6 @@
 package it.elismart_lims.service;
 
+import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.ReagentCatalog;
@@ -31,14 +32,19 @@ class UsedReagentBatchServiceTest {
     @Mock
     private UsedReagentBatchRepository usedReagentBatchRepository;
 
+    @Mock
+    private ReagentCatalogService reagentCatalogService;
+
     @InjectMocks
     private UsedReagentBatchService usedReagentBatchService;
 
+    private ReagentCatalog reagent;
     private UsedReagentBatch batch;
+    private Experiment experiment;
 
     @BeforeEach
     void setUp() {
-        ReagentCatalog reagent = ReagentCatalog.builder()
+        reagent = ReagentCatalog.builder()
                 .id(1L)
                 .name("Anti-IgG")
                 .manufacturer("Sigma")
@@ -50,6 +56,13 @@ class UsedReagentBatchServiceTest {
                 .reagent(reagent)
                 .lotNumber("LOT-001")
                 .expiryDate(LocalDate.of(2027, 12, 31))
+                .build();
+
+        experiment = Experiment.builder()
+                .id(1L)
+                .name("Test Experiment")
+                .date(LocalDateTime.of(2026, 4, 5, 10, 0))
+                .status("COMPLETED")
                 .build();
     }
 
@@ -75,64 +88,29 @@ class UsedReagentBatchServiceTest {
     }
 
     @Test
-    void linkToExperiment_shouldUpdateExperimentAndSave() {
-        Experiment experiment = Experiment.builder()
-                .id(1L)
-                .name("Test Experiment")
-                .date(LocalDateTime.of(2026, 4, 5, 10, 0))
-                .status("COMPLETED")
-                .build();
-
-        when(usedReagentBatchRepository.findById(10L)).thenReturn(Optional.of(batch));
+    void createAllForExperiment_shouldCreateAndReturnBatches() {
+        UsedReagentBatchRequest req = new UsedReagentBatchRequest(1L, "LOT-001", LocalDate.of(2027, 12, 31));
+        when(reagentCatalogService.getEntityById(1L)).thenReturn(reagent);
         when(usedReagentBatchRepository.save(any(UsedReagentBatch.class))).thenReturn(batch);
 
-        List<UsedReagentBatch> result = usedReagentBatchService.linkToExperiment(List.of(10L), experiment);
+        List<UsedReagentBatch> result = usedReagentBatchService.createAllForExperiment(List.of(req), experiment);
 
         assertThat(result).hasSize(1);
-        assertThat(result.getFirst().getExperiment().getId()).isEqualTo(1L);
+        assertThat(result.getFirst().getLotNumber()).isEqualTo("LOT-001");
+        verify(reagentCatalogService).getEntityById(1L);
         verify(usedReagentBatchRepository).save(any(UsedReagentBatch.class));
     }
 
     @Test
-    void linkToExperiment_shouldThrowWhenAnyBatchNotFound() {
-        Experiment experiment = Experiment.builder()
-                .id(1L)
-                .name("Test Experiment")
-                .build();
+    void createAllForExperiment_shouldThrow_whenReagentNotFound() {
+        UsedReagentBatchRequest req = new UsedReagentBatchRequest(99L, "LOT-999", null);
+        when(reagentCatalogService.getEntityById(99L))
+                .thenThrow(new ResourceNotFoundException("Reagent catalog not found with id: 99"));
 
-        when(usedReagentBatchRepository.findById(10L)).thenReturn(Optional.empty());
-
-        var list = List.of(10L);
-        assertThatThrownBy(() -> usedReagentBatchService.linkToExperiment(list, experiment))
+        var list = List.of(req);
+        assertThatThrownBy(() -> usedReagentBatchService.createAllForExperiment(list, experiment))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Used reagent batch not found with id: 10");
+                .hasMessageContaining("Reagent catalog not found with id: 99");
         verify(usedReagentBatchRepository, never()).save(any());
-    }
-
-    @Test
-    void getReagentIdsByBatchIds_shouldReturnReagentIds() {
-        when(usedReagentBatchRepository.findById(10L)).thenReturn(Optional.of(batch));
-
-        List<Long> result = usedReagentBatchService.getReagentIdsByBatchIds(List.of(10L));
-
-        assertThat(result).containsExactly(1L);
-    }
-
-    @Test
-    void getReagentIdsByBatchIds_shouldHandleMultipleBatches() {
-        ReagentCatalog reagent2 = ReagentCatalog.builder().id(2L).name("Buffer").build();
-        UsedReagentBatch batch2 = UsedReagentBatch.builder()
-                .id(20L)
-                .experiment(null)
-                .reagent(reagent2)
-                .lotNumber("LOT-002")
-                .build();
-
-        when(usedReagentBatchRepository.findById(10L)).thenReturn(Optional.of(batch));
-        when(usedReagentBatchRepository.findById(20L)).thenReturn(Optional.of(batch2));
-
-        List<Long> result = usedReagentBatchService.getReagentIdsByBatchIds(List.of(10L, 20L));
-
-        assertThat(result).containsExactly(1L, 2L);
     }
 }

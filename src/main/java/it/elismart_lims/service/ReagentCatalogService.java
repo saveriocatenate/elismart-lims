@@ -32,21 +32,35 @@ public class ReagentCatalogService {
     }
 
     /**
-     * Find a reagent catalog by its ID.
+     * Find a reagent catalog by its ID and return the response DTO.
      *
      * @param id the reagent catalog ID
-     * @return the found ReagentCatalog
+     * @return the found ReagentCatalogResponse
      * @throws ResourceNotFoundException if no reagent catalog exists with the given ID
      */
     @Transactional(readOnly = true)
     public ReagentCatalogResponse getById(Long id) {
-        var reagent = reagentCatalogRepository.findById(id)
+        return ReagentCatalogMapper.toResponse(getEntityById(id));
+    }
+
+    /**
+     * Find a reagent catalog entity by its ID.
+     *
+     * @param id the reagent catalog ID
+     * @return the found ReagentCatalog entity
+     * @throws ResourceNotFoundException if no reagent catalog exists with the given ID
+     */
+    @Transactional(readOnly = true)
+    public ReagentCatalog getEntityById(Long id) {
+        return reagentCatalogRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Reagent catalog not found with id: " + id));
-        return ReagentCatalogMapper.toResponse(reagent);
     }
 
     /**
      * Create a new reagent catalog.
+     *
+     * @param reagentCatalog the entity to persist
+     * @return the saved ReagentCatalog entity
      */
     @Transactional
     public ReagentCatalog create(ReagentCatalog reagentCatalog) {
@@ -55,6 +69,9 @@ public class ReagentCatalogService {
 
     /**
      * Delete a reagent catalog by its ID.
+     *
+     * @param id the reagent catalog ID
+     * @throws ResourceNotFoundException if no reagent catalog exists with the given ID
      */
     @Transactional
     public void delete(Long id) {
