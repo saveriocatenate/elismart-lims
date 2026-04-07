@@ -1,5 +1,6 @@
 package it.elismart_lims.service;
 
+import it.elismart_lims.dto.ProtocolRequest;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.Protocol;
 import it.elismart_lims.repository.ProtocolRepository;
@@ -9,6 +10,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +34,9 @@ class ProtocolServiceTest {
 
     @Mock
     private ProtocolRepository protocolRepository;
+
+    @Mock
+    private ExperimentService experimentService;
 
     @InjectMocks
     private ProtocolService protocolService;
@@ -120,29 +128,33 @@ class ProtocolServiceTest {
 
     @Test
     void search_shouldReturnAllProtocols_whenNameIsBlank() {
-        when(protocolRepository.findAll()).thenReturn(List.of(protocol));
+        Pageable pageable = PageRequest.of(0, 20);
+        when(protocolRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(protocol)));
 
-        var result = protocolService.search(null);
+        Page<it.elismart_lims.dto.ProtocolResponse> result = protocolService.search(null, pageable);
 
-        assertThat(result).hasSize(1);
-        assertThat(result.getFirst().name()).isEqualTo("IgG Test");
-        verify(protocolRepository).findAll();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().getFirst().name()).isEqualTo("IgG Test");
+        verify(protocolRepository).findAll(pageable);
     }
 
     @Test
     void search_shouldReturnFiltered_whenNameProvided() {
-        when(protocolRepository.findByNameContainingIgnoreCase("IgG")).thenReturn(List.of(protocol));
+        Pageable pageable = PageRequest.of(0, 20);
+        when(protocolRepository.findByNameContainingIgnoreCase("IgG", pageable))
+                .thenReturn(new PageImpl<>(List.of(protocol)));
 
-        var result = protocolService.search("IgG");
+        Page<it.elismart_lims.dto.ProtocolResponse> result = protocolService.search("IgG", pageable);
 
-        assertThat(result).hasSize(1);
-        assertThat(result.getFirst().name()).isEqualTo("IgG Test");
-        verify(protocolRepository).findByNameContainingIgnoreCase("IgG");
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().getFirst().name()).isEqualTo("IgG Test");
+        verify(protocolRepository).findByNameContainingIgnoreCase("IgG", pageable);
     }
 
     @Test
     void delete_shouldRemove_whenProtocolExists() {
         when(protocolRepository.existsById(1L)).thenReturn(true);
+        when(experimentService.existsByProtocolId(1L)).thenReturn(false);
 
         protocolService.delete(1L);
 
@@ -157,6 +169,44 @@ class ProtocolServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Protocol not found with id: 1");
         verify(protocolRepository, never()).deleteById(1L);
+    }
+
+    @Test
+    void delete_shouldThrow_whenProtocolHasLinkedExperiments() {
+        when(protocolRepository.existsById(1L)).thenReturn(true);
+        when(experimentService.existsByProtocolId(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> protocolService.delete(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("remove all experiments");
+        verify(protocolRepository, never()).deleteById(1L);
+    }
+
+    @Test
+    void update_shouldUpdateFieldsAndReturnResponse() {
+        protocol.setId(1L);
+        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0);
+        when(protocolRepository.findById(1L)).thenReturn(Optional.of(protocol));
+        when(experimentService.existsByProtocolId(1L)).thenReturn(false);
+        when(protocolRepository.save(any(Protocol.class))).thenReturn(protocol);
+
+        var result = protocolService.update(1L, updateRequest);
+
+        assertThat(result.name()).isEqualTo("IgG v2");
+        verify(protocolRepository).save(protocol);
+    }
+
+    @Test
+    void update_shouldThrow_whenProtocolHasLinkedExperiments() {
+        protocol.setId(1L);
+        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0);
+        when(protocolRepository.findById(1L)).thenReturn(Optional.of(protocol));
+        when(experimentService.existsByProtocolId(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> protocolService.update(1L, updateRequest))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("remove all experiments");
+        verify(protocolRepository, never()).save(any());
     }
 
     @Test

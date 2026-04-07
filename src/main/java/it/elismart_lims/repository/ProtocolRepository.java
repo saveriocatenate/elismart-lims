@@ -1,9 +1,10 @@
 package it.elismart_lims.repository;
 
 import it.elismart_lims.model.Protocol;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -33,10 +34,11 @@ public interface ProtocolRepository extends JpaRepository<Protocol, Long> {
             String name, Integer numCalibrationPairs, Integer numControlPairs);
 
     /**
-     * Find all protocols whose name contains the given string, case-insensitively.
+     * Find all protocols whose name contains the given string, case-insensitively, with pagination.
      *
-     * @param name the partial name to search for
-     * @return matching Protocol entities sorted by their natural order
+     * @param name     the partial name to search for
+     * @param pageable pagination and sorting information
+     * @return a page of matching Protocol entities
      */
-    List<Protocol> findByNameContainingIgnoreCase(String name);
+    Page<Protocol> findByNameContainingIgnoreCase(String name, Pageable pageable);
 }

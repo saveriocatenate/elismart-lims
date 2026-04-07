@@ -1,25 +1,48 @@
 package it.elismart_lims.service;
 
+import it.elismart_lims.dto.ProtocolRequest;
 import it.elismart_lims.dto.ProtocolResponse;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.mapper.ProtocolMapper;
-import java.util.List;
 import it.elismart_lims.model.Protocol;
 import it.elismart_lims.repository.ProtocolRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 /**
  * Business logic for Protocol operations.
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ProtocolService {
 
     private final ProtocolRepository protocolRepository;
+
+    /**
+     * Lazily injected to break the circular dependency with {@link ExperimentService}.
+     * Spring resolves via a proxy on first use; Mockito injects the mock via constructor.
+     */
+    private final ExperimentService experimentService;
+
+    /**
+     * Constructor with {@code @Lazy} on the {@link ExperimentService} parameter to break
+     * the circular dependency: ExperimentService → ProtocolService → ExperimentService.
+     *
+     * @param protocolRepository the protocol repository
+     * @param experimentService  the experiment service (lazy proxy in production)
+     */
+    public ProtocolService(
+            ProtocolRepository protocolRepository,
+            @Lazy ExperimentService experimentService) {
+        this.protocolRepository = protocolRepository;
+        this.experimentService = experimentService;
+    }
 
     /**
      * Return all protocols.
@@ -84,18 +107,47 @@ public class ProtocolService {
     }
 
     /**
-     * Search protocols by partial name match (case-insensitive).
+     * Search protocols by partial name match (case-insensitive) with pagination.
      * Returns all protocols when {@code name} is {@code null} or blank.
      *
-     * @param name the partial name to search for; {@code null} or blank returns all
-     * @return list of matching ProtocolResponse DTOs
+     * @param name     the partial name to search for; {@code null} or blank returns all
+     * @param pageable pagination and sorting information
+     * @return a page of matching ProtocolResponse DTOs
      */
     @Transactional(readOnly = true)
-    public List<ProtocolResponse> search(String name) {
-        List<Protocol> results = (name == null || name.isBlank())
-                ? protocolRepository.findAll()
-                : protocolRepository.findByNameContainingIgnoreCase(name);
-        return results.stream().map(ProtocolMapper::toResponse).toList();
+    public Page<ProtocolResponse> search(String name, Pageable pageable) {
+        if (name == null || name.isBlank()) {
+            return protocolRepository.findAll(pageable).map(ProtocolMapper::toResponse);
+        }
+        return protocolRepository.findByNameContainingIgnoreCase(name, pageable)
+                .map(ProtocolMapper::toResponse);
+    }
+
+    /**
+     * Update the fields of an existing protocol.
+     *
+     * <p>Blocked if any experiment already references this protocol — the user must
+     * remove all linked experiments before editing the protocol.</p>
+     *
+     * @param id      the protocol ID
+     * @param request the update payload
+     * @return the updated ProtocolResponse DTO
+     * @throws ResourceNotFoundException if no protocol exists with the given ID
+     * @throws IllegalStateException     if experiments are linked to this protocol
+     */
+    @Transactional
+    public ProtocolResponse update(Long id, ProtocolRequest request) {
+        var protocol = protocolRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Protocol not found with id: " + id));
+        if (experimentService.existsByProtocolId(id)) {
+            throw new IllegalStateException(
+                    "Cannot edit protocol: remove all experiments linked to this protocol first.");
+        }
+        log.info("Updating protocol id: {}", id);
+        ProtocolMapper.updateEntity(protocol, request);
+        ProtocolResponse response = ProtocolMapper.toResponse(protocolRepository.save(protocol));
+        log.info("Protocol updated id: {}", response.id());
+        return response;
     }
 
     /**
@@ -123,6 +175,10 @@ public class ProtocolService {
         log.info("Deleting protocol id: {}", id);
         if (!protocolRepository.existsById(id)) {
             throw new ResourceNotFoundException("Protocol not found with id: " + id);
+        }
+        if (experimentService.existsByProtocolId(id)) {
+            throw new IllegalStateException(
+                    "Cannot delete protocol: remove all experiments linked to this protocol first.");
         }
         protocolRepository.deleteById(id);
         log.info("Protocol deleted id: {}", id);

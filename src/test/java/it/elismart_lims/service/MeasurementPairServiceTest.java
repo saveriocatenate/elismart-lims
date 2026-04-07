@@ -1,5 +1,8 @@
 package it.elismart_lims.service;
 
+import it.elismart_lims.dto.MeasurementPairUpdateRequest;
+import it.elismart_lims.exception.model.ResourceNotFoundException;
+import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.MeasurementPair;
 import it.elismart_lims.model.PairType;
 import it.elismart_lims.repository.MeasurementPairRepository;
@@ -11,8 +14,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -54,5 +60,64 @@ class MeasurementPairServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.getFirst().getPairType()).isEqualTo(PairType.CALIBRATION);
         verify(measurementPairRepository, times(1)).saveAll(pairs);
+    }
+
+    @Test
+    void update_shouldRecalculateMetricsAndSave() {
+        var experiment = Experiment.builder().id(1L).build();
+        var pairToUpdate = MeasurementPair.builder()
+                .id(10L)
+                .experiment(experiment)
+                .pairType(PairType.CALIBRATION)
+                .signal1(0.40)
+                .signal2(0.42)
+                .signalMean(0.41)
+                .cvPct(3.36)
+                .concentrationNominal(100.0)
+                .recoveryPct(41.0)
+                .isOutlier(false)
+                .build();
+
+        when(measurementPairRepository.findById(10L)).thenReturn(Optional.of(pairToUpdate));
+        when(measurementPairRepository.save(any())).thenReturn(pairToUpdate);
+
+        var request = new MeasurementPairUpdateRequest(10L, 0.50, 0.52, 100.0);
+        measurementPairService.update(request, 1L);
+
+        var eps = org.assertj.core.data.Offset.offset(1e-9);
+        assertThat(pairToUpdate.getSignal1()).isCloseTo(0.50, eps);
+        assertThat(pairToUpdate.getSignal2()).isCloseTo(0.52, eps);
+        assertThat(pairToUpdate.getSignalMean()).isCloseTo(0.51, eps);
+        // Recovery% is left unchanged since it depends on calibration curve data
+        assertThat(pairToUpdate.getRecoveryPct()).isCloseTo(41.0, org.assertj.core.data.Offset.offset(0.01));
+        verify(measurementPairRepository).save(pairToUpdate);
+    }
+
+    @Test
+    void update_shouldThrow_whenPairNotFound() {
+        when(measurementPairRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> measurementPairService.update(
+                new MeasurementPairUpdateRequest(99L, 0.5, 0.5, null), 1L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("MeasurementPair not found");
+    }
+
+    @Test
+    void update_shouldThrow_whenPairBelongsToDifferentExperiment() {
+        var experiment = Experiment.builder().id(2L).build();
+        var pairToUpdate = MeasurementPair.builder()
+                .id(10L)
+                .experiment(experiment)
+                .pairType(PairType.CALIBRATION)
+                .isOutlier(false)
+                .build();
+
+        when(measurementPairRepository.findById(10L)).thenReturn(Optional.of(pairToUpdate));
+
+        assertThatThrownBy(() -> measurementPairService.update(
+                new MeasurementPairUpdateRequest(10L, 0.5, 0.5, null), 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not belong to experiment");
     }
 }

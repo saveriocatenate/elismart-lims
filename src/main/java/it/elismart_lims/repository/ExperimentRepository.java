@@ -43,4 +43,13 @@ public interface ExperimentRepository extends JpaRepository<Experiment, Long>, J
     @Override
     @EntityGraph(attributePaths = {"protocol"})
     Page<Experiment> findAll(Specification<Experiment> spec, Pageable pageable);
+
+    /**
+     * Check whether any experiment is linked to the given protocol.
+     * Used to guard protocol deletion and modification.
+     *
+     * @param protocolId the protocol ID to check
+     * @return {@code true} if at least one experiment references this protocol
+     */
+    boolean existsByProtocolId(Long protocolId);
 }

@@ -15,22 +15,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import datetime
 import requests
 import streamlit as st
-from utils import check_auth, inject_global_css, render_logo, render_sidebar, resolve_backend_url
+from utils import resolve_backend_url
 
 BACKEND_URL = resolve_backend_url()
 
-check_auth()
-
-st.set_page_config(page_title="Add Experiment", page_icon="🔬", layout="wide")
-
-inject_global_css()
-
-_ASSETS = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
-render_logo(_ASSETS)
-render_sidebar(BACKEND_URL)
-
 if st.button("← Back to Dashboard"):
-    st.switch_page("app.py")
+    st.switch_page("pages/dashboard.py")
 
 st.title("New Experiment")
 st.markdown("---")

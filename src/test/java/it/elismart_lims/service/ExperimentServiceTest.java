@@ -215,7 +215,8 @@ class ExperimentServiceTest {
                 "Updated Name",
                 LocalDateTime.of(2026, 5, 1, 9, 0),
                 ExperimentStatus.OK,
-                List.of(batchUpdate));
+                List.of(batchUpdate),
+                null);
 
         when(experimentRepository.findById(1L)).thenReturn(Optional.of(experiment));
         when(experimentRepository.save(any(Experiment.class))).thenReturn(experiment);
@@ -229,12 +230,21 @@ class ExperimentServiceTest {
     }
 
     @Test
+    void existsByProtocolId_shouldReturnTrue_whenExperimentsExist() {
+        when(experimentRepository.existsByProtocolId(10L)).thenReturn(true);
+
+        assertThat(experimentService.existsByProtocolId(10L)).isTrue();
+        verify(experimentRepository).existsByProtocolId(10L);
+    }
+
+    @Test
     void update_shouldThrow_whenExperimentNotFound() {
         ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
                 "Name",
                 LocalDateTime.of(2026, 5, 1, 9, 0),
                 ExperimentStatus.OK,
-                List.of());
+                List.of(),
+                null);
 
         when(experimentRepository.findById(99L)).thenReturn(Optional.empty());
 

@@ -30,6 +30,20 @@ public final class ProtocolMapper {
     }
 
     /**
+     * Applies all fields from a ProtocolRequest onto an existing Protocol entity (in-place update).
+     *
+     * @param entity  the entity to update
+     * @param request the request payload carrying new values
+     */
+    public static void updateEntity(Protocol entity, ProtocolRequest request) {
+        entity.setName(request.name());
+        entity.setNumCalibrationPairs(request.numCalibrationPairs());
+        entity.setNumControlPairs(request.numControlPairs());
+        entity.setMaxCvAllowed(request.maxCvAllowed());
+        entity.setMaxErrorAllowed(request.maxErrorAllowed());
+    }
+
+    /**
      * Converts a Protocol entity into a ProtocolResponse DTO.
      *
      * @param entity the Protocol entity

@@ -77,6 +77,19 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles {@link IllegalStateException} — returns HTTP 409 Conflict.
+     * Used when an operation is blocked by dependent data (e.g. protocol has linked experiments).
+     *
+     * @param ex the exception
+     * @return a 409 error response body
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException ex) {
+        log.warn("Illegal state: {}", ex.getMessage());
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /**
      * Handles {@link GeminiServiceException} — returns HTTP 502 Bad Gateway,
      * indicating the upstream Gemini AI service failed or returned an unexpected response.
      *

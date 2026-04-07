@@ -2,9 +2,10 @@
 Experiment Details page.
 
 Read/write view of a single experiment.
-- All fields except protocol and the set of linked reagents are editable.
-- Reagent lot numbers and expiry dates are editable; which reagents are used is not.
-- A Delete button opens a confirmation dialog; confirming calls DELETE and returns to search.
+- Default view: all fields shown read-only (click ✏️ Edit to enable editing).
+- EDIT button (green outlined) enables editing of metadata, reagent batches, and
+  measurement pair signal values. The total number of pairs cannot change.
+- DELETE button opens a confirmation dialog; confirming calls DELETE and returns to search.
 The experiment ID is passed via st.session_state["selected_exp_id"].
 API: GET /api/experiments/{id}, PUT /api/experiments/{id}, DELETE /api/experiments/{id}
 """
@@ -15,27 +16,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import datetime
 import requests
 import streamlit as st
-from utils import (
-    check_auth, format_date, inject_global_css, render_logo, render_sidebar, resolve_backend_url,
-)
+from utils import format_date, resolve_backend_url
 
 BACKEND_URL = resolve_backend_url()
 
 _STATUS_OPTIONS = ["PENDING", "COMPLETED", "OK", "KO", "VALIDATION_ERROR"]
-
-check_auth()
-
-st.set_page_config(page_title="Experiment Details", page_icon="🔬", layout="wide")
-
-inject_global_css()
-
-_ASSETS = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
-render_logo(_ASSETS)
-render_sidebar(BACKEND_URL)
-
-# ---------------------------------------------------------------------------
-# Navigation + delete dialog
-# ---------------------------------------------------------------------------
 
 exp_id = st.session_state.get("selected_exp_id")
 if not exp_id:
@@ -53,7 +38,8 @@ def _confirm_delete(exp_name: str) -> None:
             try:
                 resp = requests.delete(f"{BACKEND_URL}/api/experiments/{exp_id}", timeout=10)
                 if resp.status_code == 204:
-                    del st.session_state["selected_exp_id"]
+                    st.session_state.pop("selected_exp_id", None)
+                    st.session_state.pop("exp_edit_mode", None)
                     st.switch_page("pages/search_experiments.py")
                 else:
                     detail = resp.json().get("message", resp.text)
@@ -64,12 +50,6 @@ def _confirm_delete(exp_name: str) -> None:
         if st.button("Close", use_container_width=True):
             st.rerun()
 
-
-nav_col, del_col = st.columns([6, 1])
-with nav_col:
-    if st.button("← Back to Search"):
-        del st.session_state["selected_exp_id"]
-        st.switch_page("pages/search_experiments.py")
 
 # ---------------------------------------------------------------------------
 # Load experiment data
@@ -85,32 +65,54 @@ except requests.exceptions.RequestException as e:
     st.error(f"Request failed: {e}")
     st.stop()
 
-st.title("Experiment Details")
+# ---------------------------------------------------------------------------
+# Header row: back | edit/cancel | delete
+# ---------------------------------------------------------------------------
+
+nav_col, edit_col, del_col = st.columns([5, 1, 1])
+with nav_col:
+    if st.button("← Back to Search"):
+        st.session_state.pop("selected_exp_id", None)
+        st.session_state.pop("exp_edit_mode", None)
+        st.switch_page("pages/search_experiments.py")
+
+edit_mode = st.session_state.get("exp_edit_mode", False)
+
+with edit_col:
+    if not edit_mode:
+        if st.button("✏️ Edit", use_container_width=True):
+            st.session_state["exp_edit_mode"] = True
+            st.rerun()
+    else:
+        if st.button("Cancel", use_container_width=True):
+            st.session_state["exp_edit_mode"] = False
+            st.rerun()
 
 with del_col:
-    st.markdown("&nbsp;", unsafe_allow_html=True)
     st.markdown('<div class="delete-btn"></div>', unsafe_allow_html=True)
     if st.button("🗑️ Delete", use_container_width=True, help="Delete this experiment"):
         _confirm_delete(data.get("name", str(exp_id)))
 
+st.title("Experiment Details")
 st.markdown("---")
 
 # ---------------------------------------------------------------------------
-# Editable metadata form
+# Metadata section
 # ---------------------------------------------------------------------------
 
 batches = data.get("usedReagentBatches", [])
+pairs = data.get("measurementPairs", [])
 
 with st.form("edit_form"):
     st.subheader("Experiment Details")
 
     col_name, col_status = st.columns([3, 1])
     with col_name:
-        edit_name = st.text_input("Name", value=data.get("name", ""))
+        edit_name = st.text_input("Name", value=data.get("name", ""), disabled=not edit_mode)
     with col_status:
         current_status = data.get("status", "OK")
         status_idx = _STATUS_OPTIONS.index(current_status) if current_status in _STATUS_OPTIONS else 0
-        edit_status = st.selectbox("Status", _STATUS_OPTIONS, index=status_idx)
+        edit_status = st.selectbox("Status", _STATUS_OPTIONS, index=status_idx, disabled=not edit_mode)
 
     col_date, col_proto = st.columns(2)
     with col_date:
@@ -120,14 +122,14 @@ with st.form("edit_form"):
                 existing_date = datetime.date.fromisoformat(data["date"][:10])
             except ValueError:
                 pass
-        edit_date = st.date_input("Date", value=existing_date)
+        edit_date = st.date_input("Date", value=existing_date, disabled=not edit_mode)
 
     with col_proto:
         st.text_input("Protocol (read-only)", value=data.get("protocolName", "—"), disabled=True)
 
     st.markdown("---")
 
-    # Editable reagent batches (lot + expiry only; reagent name is read-only)
+    # Reagent batches (lot + expiry editable)
     st.subheader(f"Reagent Batches ({len(batches)} reagent{'s' if len(batches) != 1 else ''})")
 
     batch_lots: list[str] = []
@@ -140,6 +142,7 @@ with st.form("edit_form"):
             value=b.get("lotNumber", ""),
             key=f"edit_lot_{i}",
             label_visibility="collapsed",
+            disabled=not edit_mode,
         )
         existing_expiry = None
         if b.get("expiryDate"):
@@ -152,12 +155,95 @@ with st.form("edit_form"):
             value=existing_expiry,
             key=f"edit_expiry_{i}",
             label_visibility="collapsed",
+            disabled=not edit_mode,
         )
         batch_lots.append(lot)
         batch_expiries.append(expiry)
 
+    # ---------------------------------------------------------------------------
+    # Measurement Pairs section
+    # ---------------------------------------------------------------------------
     st.markdown("---")
-    saved = st.form_submit_button("Save Changes", type="primary", use_container_width=True)
+    st.subheader(f"Measurement Pairs ({len(pairs)} pair{'s' if len(pairs) != 1 else ''})")
+
+    if not edit_mode:
+        # Read-only dataframe view
+        if pairs:
+            st.dataframe(
+                [
+                    {
+                        "Type": p.get("pairType"),
+                        "Conc.": p.get("concentrationNominal"),
+                        "Signal 1": p.get("signal1"),
+                        "Signal 2": p.get("signal2"),
+                        "Mean": p.get("signalMean"),
+                        "%CV": p.get("cvPct"),
+                        "%Recovery": p.get("recoveryPct"),
+                        "Outlier": p.get("isOutlier"),
+                    }
+                    for p in pairs
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.info("No measurement pairs.")
+        saved = False
+        st.form_submit_button("(view only — click ✏️ Edit to modify)", disabled=True, use_container_width=True)
+    else:
+        # Editable signal inputs per pair
+        pair_s1: list[float] = []
+        pair_s2: list[float] = []
+        pair_conc: list[float | None] = []
+
+        if pairs:
+            header_cols = st.columns([1.5, 1.5, 1.5, 1.5, 1.5, 1])
+            for lbl, col in zip(
+                ["Type", "Conc.", "Signal 1", "Signal 2", "Mean*", "%CV*"], header_cols
+            ):
+                col.caption(f"**{lbl}**")
+
+            for i, p in enumerate(pairs):
+                cols = st.columns([1.5, 1.5, 1.5, 1.5, 1.5, 1])
+                cols[0].caption(p.get("pairType", ""))
+                conc = cols[1].number_input(
+                    "Conc",
+                    value=float(p.get("concentrationNominal") or 0.0),
+                    step=0.001,
+                    format="%.4f",
+                    key=f"pair_conc_{i}",
+                    label_visibility="collapsed",
+                )
+                s1 = cols[2].number_input(
+                    "S1",
+                    value=float(p.get("signal1") or 0.0),
+                    step=0.0001,
+                    format="%.4f",
+                    key=f"pair_s1_{i}",
+                    label_visibility="collapsed",
+                )
+                s2 = cols[3].number_input(
+                    "S2",
+                    value=float(p.get("signal2") or 0.0),
+                    step=0.0001,
+                    format="%.4f",
+                    key=f"pair_s2_{i}",
+                    label_visibility="collapsed",
+                )
+                mean_calc = (s1 + s2) / 2.0
+                cv_calc = abs(s1 - s2) / mean_calc * 100 if mean_calc != 0 else 0.0
+                cols[4].caption(f"{mean_calc:.4f}")
+                cols[5].caption(f"{cv_calc:.1f}%")
+
+                pair_s1.append(s1)
+                pair_s2.append(s2)
+                pair_conc.append(conc if conc != 0.0 else p.get("concentrationNominal"))
+        else:
+            st.info("No measurement pairs.")
+
+        st.caption("* Mean and %CV are recalculated live from Signal 1 and Signal 2.")
+
+        saved = st.form_submit_button("Save Changes", type="primary", use_container_width=True)
 
 # ---------------------------------------------------------------------------
 # Save changes
@@ -174,14 +260,25 @@ if saved:
                 "expiryDate": batch_expiries[i].isoformat() if batch_expiries[i] else None,
             }
             for i in range(len(batches))
-            if batch_lots[i].strip()  # skip if lot is empty (optional batches may have no lot)
+            if batch_lots[i].strip()
         ]
+
+        measurement_pair_updates = [
+            {
+                "id": pairs[i]["id"],
+                "signal1": pair_s1[i],
+                "signal2": pair_s2[i],
+                "concentrationNominal": pair_conc[i],
+            }
+            for i in range(len(pairs))
+        ] if pairs else []
 
         payload = {
             "name": edit_name.strip(),
             "date": datetime.datetime.combine(edit_date, datetime.time(0, 0)).isoformat(),
             "status": edit_status,
             "reagentBatchUpdates": reagent_batch_updates,
+            "measurementPairUpdates": measurement_pair_updates,
         }
         try:
             put_resp = requests.put(
@@ -189,8 +286,9 @@ if saved:
             )
             if put_resp.status_code == 200:
                 st.success("Changes saved successfully.")
-                # Refresh local data with the updated response
+                st.session_state["exp_edit_mode"] = False
                 data = put_resp.json()
+                st.rerun()
             else:
                 detail = put_resp.json().get("message", put_resp.text)
                 st.error(f"Save failed ({put_resp.status_code}): {detail}")
@@ -198,33 +296,9 @@ if saved:
             st.error(f"Request failed: {e}")
 
 # ---------------------------------------------------------------------------
-# Read-only sections (measurement pairs)
+# Audit footer
 # ---------------------------------------------------------------------------
 
-pairs = data.get("measurementPairs", [])
-st.subheader("Measurement Pairs", divider="gray")
-if pairs:
-    st.dataframe(
-        [
-            {
-                "Type": p.get("pairType"),
-                "Signal 1": p.get("signal1"),
-                "Signal 2": p.get("signal2"),
-                "Mean": p.get("signalMean"),
-                "Nominal Conc.": p.get("concentrationNominal"),
-                "%CV": p.get("cvPct"),
-                "%Recovery": p.get("recoveryPct"),
-                "Outlier": p.get("isOutlier"),
-            }
-            for p in pairs
-        ],
-        use_container_width=True,
-        hide_index=True,
-    )
-else:
-    st.info("No measurement pairs.")
-
-# Audit metadata
 st.markdown("---")
 audit_cols = st.columns(3)
 audit_cols[0].caption(f"Created by: {data.get('createdBy', '—')}")

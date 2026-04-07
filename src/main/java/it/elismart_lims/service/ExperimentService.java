@@ -133,9 +133,27 @@ public class ExperimentService {
             usedReagentBatchService.updateBatch(batchUpdate, id);
         }
 
+        if (request.measurementPairUpdates() != null) {
+            for (var pairUpdate : request.measurementPairUpdates()) {
+                measurementPairService.update(pairUpdate, id);
+            }
+        }
+
         experiment = experimentRepository.save(experiment);
         log.info("Experiment updated id: {}", id);
         return ExperimentMapper.toResponse(experiment);
+    }
+
+    /**
+     * Check whether any experiment is linked to the given protocol.
+     * Used by {@link ProtocolService} to guard deletion and updates.
+     *
+     * @param protocolId the protocol ID to check
+     * @return {@code true} if at least one experiment references this protocol
+     */
+    @Transactional(readOnly = true)
+    public boolean existsByProtocolId(Long protocolId) {
+        return experimentRepository.existsByProtocolId(protocolId);
     }
 
     /**
