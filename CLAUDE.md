@@ -20,7 +20,7 @@ EliSmart database: a LIMS schema featuring hierarchical Protocols (defining curv
 **Backend** environment variables (set in shell or via `.env` file sourced before startup):
 - `GEMINI_API_KEY` — Google Gemini API key (required for `/api/ai/analyze`)
 - `GEMINI_BASE_URL` — override Gemini base URL (optional, defaults to `https://generativelanguage.googleapis.com`)
-- `GEMINI_MODEL` — override Gemini model (optional, defaults to `gemini-1.5-flash`)
+- `GEMINI_MODEL` — override Gemini model (optional, defaults to `gemini-flash-latest`)
 
 See `.env.example` for the full list of variables and expected formats.
 

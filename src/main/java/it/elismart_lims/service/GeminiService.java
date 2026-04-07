@@ -76,7 +76,7 @@ public class GeminiService {
         this.geminiPath = "/v1beta/models/" + model + ":generateContent";
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(5));
-        factory.setReadTimeout(Duration.ofSeconds(30));
+        factory.setReadTimeout(Duration.ofSeconds(120));
         this.restClient = restClientBuilder.baseUrl(baseUrl).requestFactory(factory).build();
         this.objectMapper = objectMapper;
         this.experimentService = experimentService;
