@@ -321,14 +321,12 @@ def _render_pairs(experiments: list[dict], pair_type: str, cv_thr: float):
             pair_df = pd.DataFrame(rows)
             outlier_flags = [bool(p.get("isOutlier")) for p in pairs]
 
-            def _style_pairs(data: pd.DataFrame) -> list[list[str]]:
-                result = []
+            def _style_pairs(data: pd.DataFrame) -> pd.DataFrame:
+                styles = pd.DataFrame("", index=data.index, columns=data.columns)
                 for i in range(len(data)):
                     if outlier_flags[i]:
-                        result.append(["background-color: #FFF3CD"] * len(data.columns))
-                    else:
-                        result.append([""] * len(data.columns))
-                return result
+                        styles.iloc[i, :] = "background-color: #FFF3CD"
+                return styles
 
             st.dataframe(
                 pair_df.style.apply(_style_pairs, axis=None),
