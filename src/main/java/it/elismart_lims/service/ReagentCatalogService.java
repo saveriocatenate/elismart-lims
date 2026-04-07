@@ -59,17 +59,45 @@ public class ReagentCatalogService {
     }
 
     /**
-     * Create a new reagent catalog.
+     * Create a new reagent catalog entry.
+     *
+     * <p>Rejects the insert if a reagent with the same name and manufacturer already exists
+     * (case-insensitive comparison on both fields).</p>
      *
      * @param reagentCatalog the entity to persist
      * @return the saved ReagentCatalog entity
+     * @throws IllegalArgumentException if a duplicate name+manufacturer combination is detected
      */
     @Transactional
     public ReagentCatalog create(ReagentCatalog reagentCatalog) {
+        if (reagentCatalogRepository.existsByNameIgnoreCaseAndManufacturerIgnoreCase(
+                reagentCatalog.getName(), reagentCatalog.getManufacturer())) {
+            throw new IllegalArgumentException(
+                    "A reagent named '" + reagentCatalog.getName()
+                    + "' from manufacturer '" + reagentCatalog.getManufacturer()
+                    + "' already exists in the catalog.");
+        }
         log.info("Creating reagent catalog: {}", reagentCatalog.getName());
         ReagentCatalog saved = reagentCatalogRepository.save(reagentCatalog);
         log.info("Reagent catalog created with id: {}", saved.getId());
         return saved;
+    }
+
+    /**
+     * Search reagent catalogs with optional partial-match filters on name and manufacturer.
+     * A {@code null} or blank value for a parameter means "no filter on that field".
+     *
+     * @param name         partial name to filter on, or {@code null}/blank to skip
+     * @param manufacturer partial manufacturer to filter on, or {@code null}/blank to skip
+     * @param pageable     pagination and sorting information
+     * @return a page of matching ReagentCatalogResponse DTOs
+     */
+    @Transactional(readOnly = true)
+    public Page<ReagentCatalogResponse> search(String name, String manufacturer, Pageable pageable) {
+        String nameParam = (name == null || name.isBlank()) ? null : name;
+        String mfrParam = (manufacturer == null || manufacturer.isBlank()) ? null : manufacturer;
+        return reagentCatalogRepository.search(nameParam, mfrParam, pageable)
+                .map(ReagentCatalogMapper::toResponse);
     }
 
     /**

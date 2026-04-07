@@ -1,6 +1,7 @@
 package it.elismart_lims.service;
 
 import it.elismart_lims.dto.UsedReagentBatchRequest;
+import it.elismart_lims.dto.UsedReagentBatchUpdateRequest;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.UsedReagentBatch;
@@ -61,5 +62,33 @@ public class UsedReagentBatchService {
                 .toList();
         log.debug("Saved {} reagent batch(es) for experiment id: {}", saved.size(), experiment.getId());
         return saved;
+    }
+
+    /**
+     * Update the mutable fields of an existing {@link UsedReagentBatch}.
+     *
+     * <p>Only {@code lotNumber} and {@code expiryDate} are changed.
+     * The linked reagent and experiment are immutable.</p>
+     *
+     * @param request      the update payload carrying the batch ID and new field values
+     * @param experimentId the ID of the owning experiment, used to guard against cross-experiment updates
+     * @throws ResourceNotFoundException if no batch exists with the given ID
+     * @throws IllegalArgumentException  if the batch does not belong to {@code experimentId}
+     */
+    @Transactional
+    public void updateBatch(UsedReagentBatchUpdateRequest request, Long experimentId) {
+        UsedReagentBatch batch = usedReagentBatchRepository.findById(request.id())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Used reagent batch not found with id: " + request.id()));
+
+        if (!batch.getExperiment().getId().equals(experimentId)) {
+            throw new IllegalArgumentException(
+                    "Batch " + request.id() + " does not belong to experiment " + experimentId);
+        }
+
+        batch.setLotNumber(request.lotNumber());
+        batch.setExpiryDate(request.expiryDate());
+        usedReagentBatchRepository.save(batch);
+        log.debug("Updated reagent batch id {} for experiment id {}", request.id(), experimentId);
     }
 }

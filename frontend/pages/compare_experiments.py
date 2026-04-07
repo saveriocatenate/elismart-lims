@@ -11,54 +11,34 @@ Can be reached directly or pre-loaded with IDs from the search page via
 st.session_state["compare_exp_ids"].
 API: GET /api/experiments/{id}, POST /api/ai/analyze
 """
+import sys
 import os
-import base64
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 import requests
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
+from utils import check_auth, format_date, inject_global_css, render_logo, render_sidebar, resolve_backend_url
 
 # ---------------------------------------------------------------------------
 # Bootstrap
 # ---------------------------------------------------------------------------
 
-def _resolve_backend_url():
-    env = os.environ.get("BACKEND_URL")
-    if env:
-        return env
-    try:
-        return st.secrets.get("backend_url", "http://localhost:8080")
-    except Exception:
-        return "http://localhost:8080"
-
-
-BACKEND_URL = _resolve_backend_url()
+BACKEND_URL = resolve_backend_url()
 SLOT_LABELS = ["A", "B", "C", "D"]
 MAX_SLOTS = 4
 PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 
-
-def _check_auth():
-    if st.session_state.get("authenticated", False):
-        return True
-    st.stop()
-
-
-_check_auth()
+check_auth()
 
 st.set_page_config(page_title="Compare Experiments", page_icon="📊", layout="wide")
 
-LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "EliSmartLogo.png")
-if os.path.exists(LOGO_PATH):
-    with open(LOGO_PATH, "rb") as f:
-        logo_b64 = base64.b64encode(f.read()).decode()
-    st.markdown(
-        f'<div style="text-align:center; margin-bottom:0.5rem">'
-        f'<img src="data:image/png;base64,{logo_b64}" style="max-width:200px; height:auto" />'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+inject_global_css()
+
+_ASSETS = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
+render_logo(_ASSETS)
 
 with st.sidebar:
     st.caption(f"🔗 Backend: `{BACKEND_URL}`")
@@ -493,7 +473,7 @@ for exp, col in zip(experiments, header_cols):
             delta=f"{emoji} {status}",
         )
         st.caption(
-            (exp.get("date") or "").replace("T", " ")[:16]
+            format_date(exp.get("date"))
             + f"  |  created by {exp.get('createdBy', '—')}"
         )
 

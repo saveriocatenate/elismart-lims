@@ -104,7 +104,7 @@ public class GeminiService {
         log.info("Running Gemini analysis for {} experiment(s): {}",
                 experiments.size(), request.experimentIds());
 
-        String protocolName = experiments.get(0).protocolName();
+        String protocolName = experiments.getFirst().protocolName();
         ProtocolResponse protocol = protocolService.getByName(protocolName);
 
         String prompt = buildPrompt(experiments, protocol, request.userQuestion());

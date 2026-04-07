@@ -1,6 +1,7 @@
 package it.elismart_lims.service;
 
 import it.elismart_lims.dto.UsedReagentBatchRequest;
+import it.elismart_lims.dto.UsedReagentBatchUpdateRequest;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.ExperimentStatus;
@@ -22,6 +23,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 /**
@@ -112,6 +114,55 @@ class UsedReagentBatchServiceTest {
         assertThatThrownBy(() -> usedReagentBatchService.createAllForExperiment(list, experiment))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Reagent catalog not found with id: 99");
+        verify(usedReagentBatchRepository, never()).save(any());
+    }
+
+    @Test
+    void updateBatch_shouldUpdateLotAndExpiry() {
+        UsedReagentBatch batchWithExp = UsedReagentBatch.builder()
+                .id(10L)
+                .experiment(experiment)
+                .reagent(reagent)
+                .lotNumber("LOT-OLD")
+                .expiryDate(LocalDate.of(2027, 12, 31))
+                .build();
+        UsedReagentBatchUpdateRequest request = new UsedReagentBatchUpdateRequest(
+                10L, "LOT-NEW", LocalDate.of(2028, 6, 30));
+
+        when(usedReagentBatchRepository.findById(10L)).thenReturn(Optional.of(batchWithExp));
+        when(usedReagentBatchRepository.save(any(UsedReagentBatch.class))).thenReturn(batchWithExp);
+
+        usedReagentBatchService.updateBatch(request, 1L);
+
+        verify(usedReagentBatchRepository).save(argThat(b ->
+                "LOT-NEW".equals(b.getLotNumber())
+                && LocalDate.of(2028, 6, 30).equals(b.getExpiryDate())));
+    }
+
+    @Test
+    void updateBatch_shouldThrow_whenBatchNotFound() {
+        UsedReagentBatchUpdateRequest request = new UsedReagentBatchUpdateRequest(999L, "LOT", null);
+        when(usedReagentBatchRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> usedReagentBatchService.updateBatch(request, 1L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Used reagent batch not found with id: 999");
+        verify(usedReagentBatchRepository, never()).save(any());
+    }
+
+    @Test
+    void updateBatch_shouldThrow_whenBatchBelongsToDifferentExperiment() {
+        Experiment otherExp = Experiment.builder().id(99L).build();
+        UsedReagentBatch batchOtherExp = UsedReagentBatch.builder()
+                .id(10L)
+                .experiment(otherExp)
+                .build();
+        UsedReagentBatchUpdateRequest request = new UsedReagentBatchUpdateRequest(10L, "LOT", null);
+        when(usedReagentBatchRepository.findById(10L)).thenReturn(Optional.of(batchOtherExp));
+
+        assertThatThrownBy(() -> usedReagentBatchService.updateBatch(request, 1L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not belong to experiment");
         verify(usedReagentBatchRepository, never()).save(any());
     }
 }

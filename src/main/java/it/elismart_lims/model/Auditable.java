@@ -46,7 +46,7 @@ public abstract class Auditable {
 
     /**
      * Identity of the principal who created this record.
-     * Currently always {@code "system"} because the backend has no per-user authentication.
+     * Currently, always {@code "system"} because the backend has no per-user authentication.
      * Update {@link it.elismart_lims.config.AuditorAwareImpl} when auth is added.
      */
     @CreatedBy

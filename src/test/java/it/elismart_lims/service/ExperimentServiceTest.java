@@ -4,8 +4,10 @@ import it.elismart_lims.dto.ExperimentPage;
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.ExperimentResponse;
 import it.elismart_lims.dto.ExperimentSearchRequest;
+import it.elismart_lims.dto.ExperimentUpdateRequest;
 import it.elismart_lims.dto.MeasurementPairRequest;
 import it.elismart_lims.dto.UsedReagentBatchRequest;
+import it.elismart_lims.dto.UsedReagentBatchUpdateRequest;
 import it.elismart_lims.exception.model.ProtocolMismatchException;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.Experiment;
@@ -203,6 +205,43 @@ class ExperimentServiceTest {
         assertThat(result.content().getFirst().name()).isEqualTo("Test Experiment");
         assertThat(result.totalElements()).isEqualTo(1);
         verify(experimentRepository).findAll(any(Specification.class), any(PageRequest.class));
+    }
+
+    @Test
+    void update_shouldUpdateFieldsAndReturnResponse() {
+        UsedReagentBatchUpdateRequest batchUpdate = new UsedReagentBatchUpdateRequest(
+                100L, "LOT-NEW", LocalDate.of(2028, 6, 30));
+        ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
+                "Updated Name",
+                LocalDateTime.of(2026, 5, 1, 9, 0),
+                ExperimentStatus.OK,
+                List.of(batchUpdate));
+
+        when(experimentRepository.findById(1L)).thenReturn(Optional.of(experiment));
+        when(experimentRepository.save(any(Experiment.class))).thenReturn(experiment);
+
+        ExperimentResponse result = experimentService.update(1L, updateRequest);
+
+        assertThat(result.id()).isEqualTo(1L);
+        verify(experimentRepository).findById(1L);
+        verify(usedReagentBatchService).updateBatch(batchUpdate, 1L);
+        verify(experimentRepository).save(any(Experiment.class));
+    }
+
+    @Test
+    void update_shouldThrow_whenExperimentNotFound() {
+        ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
+                "Name",
+                LocalDateTime.of(2026, 5, 1, 9, 0),
+                ExperimentStatus.OK,
+                List.of());
+
+        when(experimentRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> experimentService.update(99L, updateRequest))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Experiment not found with id: 99");
+        verify(experimentRepository, never()).save(any());
     }
 
     @Test

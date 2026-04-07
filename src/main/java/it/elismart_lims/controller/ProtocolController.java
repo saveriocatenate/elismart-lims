@@ -33,6 +33,22 @@ public class ProtocolController {
     }
 
     /**
+     * Search protocols by partial name match (case-insensitive).
+     * Returns all protocols when the {@code name} parameter is absent or blank.
+     *
+     * <p>This endpoint is declared before {@code /{id}} so that the literal path
+     * segment {@code /search} is matched first by Spring MVC.</p>
+     *
+     * @param name optional partial name filter
+     * @return list of matching ProtocolResponse DTOs
+     */
+    @GetMapping("/search")
+    public ResponseEntity<List<ProtocolResponse>> search(
+            @RequestParam(required = false) String name) {
+        return ResponseEntity.ok(protocolService.search(name));
+    }
+
+    /**
      * Get a protocol by ID.
      *
      * @param id the protocol ID

@@ -58,15 +58,44 @@ public class ProtocolService {
     /**
      * Create a new protocol.
      *
+     * <p>Rejects the insert if a protocol with the same name (case-insensitive),
+     * number of calibration pairs, and number of control pairs already exists.
+     * This prevents the accidental creation of functionally duplicate protocols.</p>
+     *
      * @param protocol the entity to persist
      * @return the created ProtocolResponse DTO
+     * @throws IllegalArgumentException if a duplicate protocol is detected
      */
     @Transactional
     public ProtocolResponse create(Protocol protocol) {
+        if (protocolRepository.existsByNameIgnoreCaseAndNumCalibrationPairsAndNumControlPairs(
+                protocol.getName(),
+                protocol.getNumCalibrationPairs(),
+                protocol.getNumControlPairs())) {
+            throw new IllegalArgumentException(
+                    "A protocol named '" + protocol.getName()
+                    + "' with " + protocol.getNumCalibrationPairs() + " calibration pairs"
+                    + " and " + protocol.getNumControlPairs() + " control pairs already exists.");
+        }
         log.info("Creating protocol: {}", protocol.getName());
         ProtocolResponse response = ProtocolMapper.toResponse(protocolRepository.save(protocol));
         log.info("Protocol created with id: {}", response.id());
         return response;
+    }
+
+    /**
+     * Search protocols by partial name match (case-insensitive).
+     * Returns all protocols when {@code name} is {@code null} or blank.
+     *
+     * @param name the partial name to search for; {@code null} or blank returns all
+     * @return list of matching ProtocolResponse DTOs
+     */
+    @Transactional(readOnly = true)
+    public List<ProtocolResponse> search(String name) {
+        List<Protocol> results = (name == null || name.isBlank())
+                ? protocolRepository.findAll()
+                : protocolRepository.findByNameContainingIgnoreCase(name);
+        return results.stream().map(ProtocolMapper::toResponse).toList();
     }
 
     /**

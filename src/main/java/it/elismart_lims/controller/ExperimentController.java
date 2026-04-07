@@ -4,8 +4,7 @@ import it.elismart_lims.dto.ExperimentPage;
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.ExperimentResponse;
 import it.elismart_lims.dto.ExperimentSearchRequest;
-import it.elismart_lims.mapper.MeasurementPairMapper;
-import it.elismart_lims.mapper.UsedReagentBatchMapper;
+import it.elismart_lims.dto.ExperimentUpdateRequest;
 import it.elismart_lims.service.ExperimentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +44,23 @@ public class ExperimentController {
     public ResponseEntity<ExperimentResponse> create(@Valid @RequestBody ExperimentRequest request) {
         var response = experimentService.create(request);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    /**
+     * Update the mutable fields of an existing experiment.
+     *
+     * <p>The protocol and linked reagent set are immutable after creation.
+     * Only name, date, status, and per-batch lot details can change.</p>
+     *
+     * @param id      the experiment ID
+     * @param request the validated update payload
+     * @return 200 OK with the updated ExperimentResponse, or 404 if not found
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<ExperimentResponse> update(
+            @PathVariable Long id,
+            @Valid @RequestBody ExperimentUpdateRequest request) {
+        return ResponseEntity.ok(experimentService.update(id, request));
     }
 
     /**

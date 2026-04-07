@@ -102,6 +102,47 @@ Validates that the provided reagent batches cover all mandatory reagents defined
 
 **Response 404**: protocol or referenced reagent not found
 
+### PUT /api/experiments/{id}
+
+Update the mutable fields of an existing experiment.
+The protocol and the set of linked reagents cannot be changed after creation.
+
+**Path params**:
+- `id` (Long) — the experiment ID
+
+**Request**:
+```json
+{
+  "name": "Updated Run Name",
+  "date": "2026-04-07T00:00:00",
+  "status": "OK",
+  "reagentBatchUpdates": [
+    {
+      "id": 42,
+      "lotNumber": "LOT-2026-NEW",
+      "expiryDate": "2028-01-01"
+    }
+  ]
+}
+```
+
+**Fields**:
+- `name` (String, required) — new human-readable label
+- `date` (LocalDateTime, required) — new experiment date/time
+- `status` (String, required) — one of `PENDING`, `COMPLETED`, `OK`, `KO`, `VALIDATION_ERROR`
+- `reagentBatchUpdates[]` (Array, required, may be empty):
+  - `id` (Long, required) — ID of the `UsedReagentBatch` to update
+  - `lotNumber` (String, required) — new lot number
+  - `expiryDate` (LocalDate, optional) — new expiry date; `null` to clear
+
+**Response 200**: same shape as GET response, reflecting updated values
+
+**Response 400**: validation error or batch does not belong to this experiment
+
+**Response 404**: experiment or batch not found
+
+---
+
 ### DELETE /api/experiments/{id}
 
 Delete an experiment by ID. Cascades to associated reagent batches and measurement pairs.

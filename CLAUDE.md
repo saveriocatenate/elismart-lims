@@ -125,7 +125,7 @@ Backend REST API implemented with full CRUD for Protocol, ReagentCatalog, Experi
   - Protocol (GET all, GET by ID, POST, DELETE)
   - ReagentCatalog (GET all paged, GET by ID, POST, DELETE)
   - ProtocolReagentSpec (GET by protocolId, POST)
-  - Experiment (GET by ID, POST, DELETE, POST /search)
+  - Experiment (GET by ID, POST, PUT, DELETE, POST /search)
   - AI/Gemini (POST /api/ai/analyze)
 - **Experiment POST**: validates mandatory reagent batches against protocol requirements
 - **GlobalExceptionHandler**: maps ResourceNotFoundException, ProtocolMismatchException, GeminiServiceException, IllegalArgumentException, and validation errors to JSON
@@ -139,5 +139,7 @@ Backend REST API implemented with full CRUD for Protocol, ReagentCatalog, Experi
   - `pages/experiment_details.py`: Read-only experiment view (metadata, pairs, batches)
   - `pages/compare_experiments.py`: Side-by-side comparison with lockable sections and Gemini AI analysis
   - `pages/search_protocols.py`: Placeholder (deferred)
+  - `pages/search_reagents.py`: Placeholder (deferred)
+- **Shared utilities**: `frontend/utils.py` — global CSS palette, `resolve_backend_url()`, `check_auth()`, `render_logo()`, `render_sidebar()`. All pages import from this module.
 - **Tests**: 99 passing JUnit tests across controllers, services, mappers, utils, and exceptions
-- **Remaining**: Protocol search UI, MeasurementPair CRUD endpoint, UsedReagentBatch CRUD endpoint
+- **Remaining**: Protocol search UI, Reagent search UI, MeasurementPair CRUD endpoint, UsedReagentBatch CRUD endpoint

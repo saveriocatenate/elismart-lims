@@ -82,12 +82,50 @@ class ReagentCatalogServiceTest {
 
     @Test
     void create_shouldSaveAndReturnEntity() {
+        when(reagentCatalogRepository.existsByNameIgnoreCaseAndManufacturerIgnoreCase("Anti-IgG", "Sigma"))
+                .thenReturn(false);
         when(reagentCatalogRepository.save(any(ReagentCatalog.class))).thenReturn(reagent);
 
         ReagentCatalog result = reagentCatalogService.create(reagent);
 
         assertThat(result.getName()).isEqualTo("Anti-IgG");
         verify(reagentCatalogRepository).save(reagent);
+    }
+
+    @Test
+    void create_shouldThrow_whenDuplicateNameAndManufacturer() {
+        when(reagentCatalogRepository.existsByNameIgnoreCaseAndManufacturerIgnoreCase("Anti-IgG", "Sigma"))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> reagentCatalogService.create(reagent))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("already exists");
+        verify(reagentCatalogRepository, never()).save(any());
+    }
+
+    @Test
+    void search_shouldReturnMatchingPage_whenFiltersProvided() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(reagentCatalogRepository.search("Anti", "Sigma", pageable))
+                .thenReturn(new PageImpl<>(List.of(reagent)));
+
+        Page<ReagentCatalogResponse> result = reagentCatalogService.search("Anti", "Sigma", pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().getFirst().name()).isEqualTo("Anti-IgG");
+        verify(reagentCatalogRepository).search("Anti", "Sigma", pageable);
+    }
+
+    @Test
+    void search_shouldPassNullParams_whenFiltersBlank() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(reagentCatalogRepository.search(null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(reagent)));
+
+        Page<ReagentCatalogResponse> result = reagentCatalogService.search("", "  ", pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(reagentCatalogRepository).search(null, null, pageable);
     }
 
     @Test

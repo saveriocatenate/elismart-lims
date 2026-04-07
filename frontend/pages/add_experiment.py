@@ -8,52 +8,26 @@ Mandatory reagents must have a lot number before submission.
 API: GET /api/protocols, GET /api/protocols/{id}, GET /api/protocol-reagent-specs,
      POST /api/experiments
 """
+import sys
 import os
-import base64
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 import datetime
 import requests
 import streamlit as st
+from utils import check_auth, inject_global_css, render_logo, render_sidebar, resolve_backend_url
 
+BACKEND_URL = resolve_backend_url()
 
-def _resolve_backend_url():
-    env = os.environ.get("BACKEND_URL")
-    if env:
-        return env
-    try:
-        return st.secrets.get("backend_url", "http://localhost:8080")
-    except Exception:
-        return "http://localhost:8080"
-
-
-BACKEND_URL = _resolve_backend_url()
-
-
-def _check_auth():
-    if st.session_state.get("authenticated", False):
-        return True
-    st.stop()
-
-
-_check_auth()
+check_auth()
 
 st.set_page_config(page_title="Add Experiment", page_icon="🔬", layout="wide")
 
-LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "EliSmartLogo.png")
-if os.path.exists(LOGO_PATH):
-    with open(LOGO_PATH, "rb") as f:
-        logo_b64 = base64.b64encode(f.read()).decode()
-    st.markdown(
-        f'<div style="text-align:center; margin-bottom:0.5rem">'
-        f'<img src="data:image/png;base64,{logo_b64}" style="max-width:200px; height:auto" />'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+inject_global_css()
 
-with st.sidebar:
-    st.caption(f"🔗 Backend: `{BACKEND_URL}`")
-    if st.button("🚪 Logout", use_container_width=True):
-        st.session_state["authenticated"] = False
-        st.rerun()
+_ASSETS = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
+render_logo(_ASSETS)
+render_sidebar(BACKEND_URL)
 
 if st.button("← Back to Dashboard"):
     st.switch_page("app.py")
@@ -126,11 +100,7 @@ with st.form("experiment_form"):
         exp_name = st.text_input("Name", placeholder="e.g. IgG Run 2026-04-06")
     with col_status:
         exp_status = st.selectbox("Status", ["OK", "KO", "VALIDATION_ERROR"])
-    col_date, col_time = st.columns(2)
-    with col_date:
-        exp_date = st.date_input("Date", value=datetime.date.today())
-    with col_time:
-        exp_time = st.time_input("Time", value=datetime.time(9, 0))
+    exp_date = st.date_input("Date", value=datetime.date.today())
 
     st.markdown("---")
 
@@ -166,24 +136,24 @@ with st.form("experiment_form"):
 
     # --- Calibration Pairs table ---
     st.subheader(f"Calibration Pairs ({num_cal})")
-    st.caption("Conc. Nominal | Signal 1 | Signal 2 | Signal Mean")
+    st.caption("Signal 1 | Signal 2 | Signal Mean | Conc. Nominal")
     cal_concs, cal_s1, cal_s2, cal_sm = [], [], [], []
     for i in range(num_cal):
         c1, c2, c3, c4 = st.columns(4)
-        cal_concs.append(
-            c1.number_input("Conc. nominal", key=f"cal_conc_{i}", value=0.0, step=0.001,
-                            format="%.4f", label_visibility="collapsed")
-        )
         cal_s1.append(
-            c2.number_input("Signal 1", key=f"cal_s1_{i}", value=0.0, step=0.001,
+            c1.number_input("Signal 1", key=f"cal_s1_{i}", value=0.0, step=0.001,
                             format="%.4f", label_visibility="collapsed")
         )
         cal_s2.append(
-            c3.number_input("Signal 2", key=f"cal_s2_{i}", value=0.0, step=0.001,
+            c2.number_input("Signal 2", key=f"cal_s2_{i}", value=0.0, step=0.001,
                             format="%.4f", label_visibility="collapsed")
         )
         cal_sm.append(
-            c4.number_input("Signal Mean", key=f"cal_sm_{i}", value=0.0, step=0.001,
+            c3.number_input("Signal Mean", key=f"cal_sm_{i}", value=0.0, step=0.001,
+                            format="%.4f", label_visibility="collapsed")
+        )
+        cal_concs.append(
+            c4.number_input("Conc. nominal", key=f"cal_conc_{i}", value=0.0, step=0.001,
                             format="%.4f", label_visibility="collapsed")
         )
 
@@ -191,24 +161,24 @@ with st.form("experiment_form"):
 
     # --- Control Pairs table ---
     st.subheader(f"Control Pairs ({num_ctrl})")
-    st.caption("Conc. Nominal | Signal 1 | Signal 2 | Signal Mean")
+    st.caption("Signal 1 | Signal 2 | Signal Mean | Conc. Nominal")
     ctrl_concs, ctrl_s1, ctrl_s2, ctrl_sm = [], [], [], []
     for i in range(num_ctrl):
         c1, c2, c3, c4 = st.columns(4)
-        ctrl_concs.append(
-            c1.number_input("Conc. nominal", key=f"ctrl_conc_{i}", value=0.0, step=0.001,
-                            format="%.4f", label_visibility="collapsed")
-        )
         ctrl_s1.append(
-            c2.number_input("Signal 1", key=f"ctrl_s1_{i}", value=0.0, step=0.001,
+            c1.number_input("Signal 1", key=f"ctrl_s1_{i}", value=0.0, step=0.001,
                             format="%.4f", label_visibility="collapsed")
         )
         ctrl_s2.append(
-            c3.number_input("Signal 2", key=f"ctrl_s2_{i}", value=0.0, step=0.001,
+            c2.number_input("Signal 2", key=f"ctrl_s2_{i}", value=0.0, step=0.001,
                             format="%.4f", label_visibility="collapsed")
         )
         ctrl_sm.append(
-            c4.number_input("Signal Mean", key=f"ctrl_sm_{i}", value=0.0, step=0.001,
+            c3.number_input("Signal Mean", key=f"ctrl_sm_{i}", value=0.0, step=0.001,
+                            format="%.4f", label_visibility="collapsed")
+        )
+        ctrl_concs.append(
+            c4.number_input("Conc. nominal", key=f"ctrl_conc_{i}", value=0.0, step=0.001,
                             format="%.4f", label_visibility="collapsed")
         )
 
@@ -259,10 +229,12 @@ if submitted:
             })
         return pairs
 
-    measurement_pairs = _pairs("CALIBRATION", cal_concs, cal_s1, cal_s2, cal_sm) + \
-                        _pairs("CONTROL", ctrl_concs, ctrl_s1, ctrl_s2, ctrl_sm)
+    measurement_pairs = (
+        _pairs("CALIBRATION", cal_concs, cal_s1, cal_s2, cal_sm)
+        + _pairs("CONTROL", ctrl_concs, ctrl_s1, ctrl_s2, ctrl_sm)
+    )
 
-    exp_datetime = datetime.datetime.combine(exp_date, exp_time).isoformat()
+    exp_datetime = datetime.datetime.combine(exp_date, datetime.time(0, 0)).isoformat()
 
     payload = {
         "name": exp_name.strip(),

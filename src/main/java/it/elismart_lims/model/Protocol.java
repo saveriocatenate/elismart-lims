@@ -34,7 +34,6 @@ public class Protocol extends Auditable {
     /** Expected number of quality-control replicate pairs per experiment run. */
     @Column(name = "num_control_pairs", nullable = false)
     private Integer numControlPairs;
-
     /** Maximum acceptable %CV between replicates (precision limit). */
     @Column(name = "max_cv_allowed", nullable = false)
     private Double maxCvAllowed;

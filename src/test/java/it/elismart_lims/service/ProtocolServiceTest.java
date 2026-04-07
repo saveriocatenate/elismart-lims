@@ -97,12 +97,47 @@ class ProtocolServiceTest {
 
     @Test
     void create_shouldSaveProtocol() {
+        when(protocolRepository.existsByNameIgnoreCaseAndNumCalibrationPairsAndNumControlPairs(
+                "IgG Test", 7, 3)).thenReturn(false);
         when(protocolRepository.save(any(Protocol.class))).thenReturn(protocol);
 
         var result = protocolService.create(protocol);
 
         assertThat(result.name()).isEqualTo("IgG Test");
         verify(protocolRepository, times(1)).save(protocol);
+    }
+
+    @Test
+    void create_shouldThrow_whenDuplicateProtocol() {
+        when(protocolRepository.existsByNameIgnoreCaseAndNumCalibrationPairsAndNumControlPairs(
+                "IgG Test", 7, 3)).thenReturn(true);
+
+        assertThatThrownBy(() -> protocolService.create(protocol))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("already exists");
+        verify(protocolRepository, never()).save(any());
+    }
+
+    @Test
+    void search_shouldReturnAllProtocols_whenNameIsBlank() {
+        when(protocolRepository.findAll()).thenReturn(List.of(protocol));
+
+        var result = protocolService.search(null);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().name()).isEqualTo("IgG Test");
+        verify(protocolRepository).findAll();
+    }
+
+    @Test
+    void search_shouldReturnFiltered_whenNameProvided() {
+        when(protocolRepository.findByNameContainingIgnoreCase("IgG")).thenReturn(List.of(protocol));
+
+        var result = protocolService.search("IgG");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().name()).isEqualTo("IgG Test");
+        verify(protocolRepository).findByNameContainingIgnoreCase("IgG");
     }
 
     @Test

@@ -38,6 +38,26 @@ public class ReagentCatalogController {
     }
 
     /**
+     * Search reagent catalogs with optional partial-match filters on name and manufacturer.
+     * Returns all catalogs when both parameters are absent or blank.
+     *
+     * <p>This endpoint is declared before {@code /{id}} so that the literal path
+     * segment {@code /search} is matched first by Spring MVC.</p>
+     *
+     * @param name         optional partial name filter
+     * @param manufacturer optional partial manufacturer filter
+     * @param pageable     pagination and sorting parameters (default page size: 20)
+     * @return 200 OK with a paginated list of matching ReagentCatalogResponse DTOs
+     */
+    @GetMapping("/search")
+    public ResponseEntity<Page<ReagentCatalogResponse>> search(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String manufacturer,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(reagentCatalogService.search(name, manufacturer, pageable));
+    }
+
+    /**
      * Get a reagent catalog by ID.
      *
      * @param id the reagent catalog ID

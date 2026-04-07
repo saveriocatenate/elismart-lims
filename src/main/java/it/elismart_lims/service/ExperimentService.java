@@ -4,6 +4,7 @@ import it.elismart_lims.dto.ExperimentPage;
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.ExperimentResponse;
 import it.elismart_lims.dto.ExperimentSearchRequest;
+import it.elismart_lims.dto.ExperimentUpdateRequest;
 import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.exception.model.ProtocolMismatchException;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
@@ -104,6 +105,37 @@ public class ExperimentService {
                     "Missing reagent IDs: " + mandatoryReagentIds +
                     ". Batch reagent IDs provided: " + batchReagentIds);
         }
+    }
+
+    /**
+     * Update the mutable fields of an existing experiment.
+     *
+     * <p>The protocol and the set of linked reagents cannot be changed after creation.
+     * Only {@code name}, {@code date}, {@code status}, and per-batch lot details are
+     * mutable via this operation.</p>
+     *
+     * @param id      the experiment ID
+     * @param request the update payload
+     * @return the updated ExperimentResponse DTO
+     * @throws it.elismart_lims.exception.model.ResourceNotFoundException if no experiment exists with the given ID
+     */
+    @Transactional
+    public ExperimentResponse update(Long id, ExperimentUpdateRequest request) {
+        log.info("Updating experiment id: {}", id);
+        var experiment = experimentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Experiment not found with id: " + id));
+
+        experiment.setName(request.name());
+        experiment.setDate(request.date());
+        experiment.setStatus(request.status());
+
+        for (var batchUpdate : request.reagentBatchUpdates()) {
+            usedReagentBatchService.updateBatch(batchUpdate, id);
+        }
+
+        experiment = experimentRepository.save(experiment);
+        log.info("Experiment updated id: {}", id);
+        return ExperimentMapper.toResponse(experiment);
     }
 
     /**

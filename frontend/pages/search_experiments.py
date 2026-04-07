@@ -7,49 +7,25 @@ Selecting 2+ experiments enables the Compare Selected button, which navigates to
 the comparison page with the selected IDs pre-loaded.
 API: POST /api/experiments/search
 """
+import sys
 import os
-import base64
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 import requests
 import streamlit as st
+from utils import check_auth, format_date, inject_global_css, render_logo, render_sidebar, resolve_backend_url
 
+BACKEND_URL = resolve_backend_url()
 
-def _resolve_backend_url():
-    env = os.environ.get("BACKEND_URL")
-    if env:
-        return env
-    try:
-        return st.secrets.get("backend_url", "http://localhost:8080")
-    except Exception:
-        return "http://localhost:8080"
-
-BACKEND_URL = _resolve_backend_url()
-
-
-def _check_auth():
-    if st.session_state.get("authenticated", False):
-        return True
-    st.stop()
-
-_check_auth()
+check_auth()
 
 st.set_page_config(page_title="Search Experiments", page_icon="📋", layout="wide")
 
-LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "EliSmartLogo.png")
-if os.path.exists(LOGO_PATH):
-    with open(LOGO_PATH, "rb") as f:
-        logo_b64 = base64.b64encode(f.read()).decode()
-    st.markdown(
-        f'<div style="text-align:center; margin-bottom:0.5rem">'
-        f'<img src="data:image/png;base64,{logo_b64}" style="max-width:200px; height:auto" />'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+inject_global_css()
 
-with st.sidebar:
-    st.caption(f"🔗 Backend: `{BACKEND_URL}`")
-    if st.button("🚪 Logout", use_container_width=True):
-        st.session_state["authenticated"] = False
-        st.rerun()
+_ASSETS = os.path.join(os.path.dirname(__file__), "..", "..", "assets")
+render_logo(_ASSETS)
+render_sidebar(BACKEND_URL)
 
 if st.button("← Back to Dashboard"):
     st.switch_page("app.py")
@@ -65,13 +41,15 @@ with st.form("search_form"):
         status_filter = st.selectbox("Status", ["ALL", "OK", "KO", "VALIDATION_ERROR"])
     with col3:
         page_size = st.selectbox("Page size", [10, 20, 50], index=1)
+
     col_date1, col_date2, col_date3 = st.columns(3)
     with col_date1:
-        date_filter = st.text_input("Date (ISO format)")
+        date_filter = st.date_input("Date", value=None)
     with col_date2:
-        date_from_filter = st.text_input("Date from (ISO format)")
+        date_from_filter = st.date_input("Date from", value=None)
     with col_date3:
-        date_to_filter = st.text_input("Date to (ISO format)")
+        date_to_filter = st.date_input("Date to", value=None)
+
     submitted = st.form_submit_button("Search", use_container_width=True)
 
 st.session_state.setdefault("exp_page", 0)
@@ -79,9 +57,9 @@ st.session_state.setdefault("exp_page", 0)
 if submitted or "exp_results" in st.session_state:
     payload = {
         "name": name_filter if name_filter else None,
-        "date": date_filter if date_filter else None,
-        "dateFrom": date_from_filter if date_from_filter else None,
-        "dateTo": date_to_filter if date_to_filter else None,
+        "date": date_filter.isoformat() + "T00:00:00" if date_filter else None,
+        "dateFrom": date_from_filter.isoformat() + "T00:00:00" if date_from_filter else None,
+        "dateTo": date_to_filter.isoformat() + "T23:59:59" if date_to_filter else None,
         "status": status_filter if status_filter != "ALL" else None,
         "page": st.session_state.get("exp_page", 0),
         "size": page_size,
@@ -129,7 +107,7 @@ if results:
                     disabled=at_max and not is_checked,
                 )
                 c1.markdown(f"**{exp.get('name')}**")
-                c2.caption(exp.get("date", "").replace("T", " ") if exp.get("date") else "")
+                c2.caption(format_date(exp.get("date")))
                 c3.markdown(f"🏷️ {exp.get('protocolName', '—')}")
                 status = exp.get("status", "")
                 emoji = "✅" if status == "OK" else "🔴" if status == "KO" else ""

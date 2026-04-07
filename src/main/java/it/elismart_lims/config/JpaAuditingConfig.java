@@ -1,6 +1,5 @@
 package it.elismart_lims.config;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
@@ -9,13 +8,18 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
  * {@code @LastModifiedDate}, and {@code @CreatedBy} annotations in
  * {@link it.elismart_lims.model.Auditable}.
  *
- * <p>{@code @ConditionalOnBean} restricts activation to contexts that have a
- * fully configured JPA {@code EntityManagerFactory}. This prevents the
- * auditing infrastructure from being registered during {@code @WebMvcTest}
- * slices, which do not load JPA at all.</p>
+ * <p>This configuration is unconditional. {@code @ConditionalOnBean} was removed
+ * because it is evaluated before JPA auto-configuration runs (user {@code @Configuration}
+ * classes are processed first), so the {@code entityManagerFactory} bean is never found
+ * and auditing would silently be disabled, causing {@code NOT NULL} constraint
+ * violations on {@code created_at} and {@code created_by}.</p>
+ *
+ * <p>{@code @WebMvcTest} slices do not load JPA entities, so the
+ * {@link org.springframework.data.jpa.domain.support.AuditingEntityListener}
+ * registered here never fires in that context — no extra configuration is needed
+ * in the test layer.</p>
  */
 @Configuration
-@ConditionalOnBean(name = "entityManagerFactory")
 @EnableJpaAuditing(auditorAwareRef = "auditorAwareImpl")
 public class JpaAuditingConfig {
 }
