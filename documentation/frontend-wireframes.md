@@ -24,8 +24,8 @@ Dashboard (/)
   ├── Add Reagent (/add_reagent)
   ├── Add Protocol (/add_protocol)
   ├── Add Experiment (/add_experiment)
-  ├── Search Reagents (/search_reagents)  [deferred]
-  ├── Search Protocols (/search_protocols)  [deferred]
+  ├── Search Reagents (/search_reagents)
+  ├── Search Protocols (/search_protocols)
   └── Search Experiments (/search_experiments)
         ├── Experiment Details (/experiment_details?id=...)
         └── Compare Experiments (/compare_experiments)
@@ -60,8 +60,8 @@ Dashboard (/)
 | Add Reagent          | Navigates to `/add_reagent`                       |
 | Add Protocol         | Navigates to `/add_protocol`                      |
 | Add Experiment       | Navigates to `/add_experiment`                    |
-| Search Reagents      | Navigates to `/search_reagents` (deferred)        |
-| Search Protocols     | Navigates to `/search_protocols` (deferred)       |
+| Search Reagents      | Navigates to `/search_reagents`                   |
+| Search Protocols     | Navigates to `/search_protocols`                  |
 | Search Experiments   | Navigates to `/search_experiments`                |
 | Compare Experiments  | Navigates to `/compare_experiments`               |
 
@@ -78,6 +78,7 @@ Dashboard (/)
 |  New Protocol                                          |
 |                                                        |
 |  Name:                   [_______________________]     |
+|  Curve Type: [ 4PL — Four Parameter Logistic ▼ ]       |
 |  Calibration Pairs: [5]  Control Pairs: [3]            |
 |  Max CV (%): [10.0]      Max Error (%): [15.0]         |
 |                                                        |
@@ -94,6 +95,7 @@ Dashboard (/)
 
 | Element                | Behaviour                                                          |
 |------------------------|--------------------------------------------------------------------|
+| Curve Type selector    | Selectbox with 6 options (4PL, 5PL, 3PL, Linear, Semi-log, P2P); default 4PL |
 | Calibration/control    | Number inputs; drive the measurement-pair rows in add_experiment   |
 | Reagents multi-select  | Loaded from `GET /api/reagent-catalogs` (size=1000)               |
 | Add reagent row button | Increments session-state counter; renders one extra input row      |
@@ -169,15 +171,55 @@ Dashboard (/)
 
 ---
 
-## 5. Search Reagents `/search_reagents` *(deferred)*
+## 5. Search Reagents `/search_reagents`
 
-Placeholder page — reagent search not yet implemented.
+Search the reagent catalog by name and/or manufacturer with pagination.
+
+```
++--------------------------------------------------------+
+|  ← Back to Dashboard                                   |
+|                                                        |
+|  [Name filter]  [Manufacturer filter]  [Page size ▼]  |
+|                                         [ Search ]     |
+|                                                        |
+|  ID | Name               | Manufacturer  | Description |
+|  1  | Anti-IgG Antibody  | Sigma-Aldrich | ...         |
+|                                                        |
+|  [ ← Prev ]                              [ Next → ]   |
++--------------------------------------------------------+
+```
+
+| Element            | Behaviour                                              |
+|--------------------|--------------------------------------------------------|
+| Name filter        | Partial match, case-insensitive                        |
+| Manufacturer filter| Partial match, case-insensitive                        |
+| Search button      | `GET /api/reagent-catalogs` with filters and pagination |
+| Pagination         | Controlled via page parameter                          |
 
 ---
 
-## 6. Search Protocols `/search_protocols` *(deferred)*
+## 6. Search Protocols `/search_protocols`
 
-Placeholder page — protocol search not yet implemented.
+Search protocols by partial name match with pagination.
+
+```
++--------------------------------------------------------+
+|  ← Back to Dashboard                                   |
+|                                                        |
+|  [Name filter]  [Page size ▼]          [ Search ]      |
+|                                                        |
+|  ID | Name       | Curve Type | Cal. Pairs | Ctrl Pairs|
+|  1  | IgG Test   | 4PL        | 7          | 3         |
+|                                                        |
+|  [ ← Prev ]                              [ Next → ]   |
++--------------------------------------------------------+
+```
+
+| Element       | Behaviour                                                |
+|---------------|----------------------------------------------------------|
+| Name filter   | Partial match, case-insensitive                          |
+| Search button | `GET /api/protocols/search` with name filter and pagination |
+| Pagination    | Controlled via page parameter                            |
 
 ---
 
@@ -290,8 +332,8 @@ Dashboard
   ├── Add Experiment ─────────── GET  /api/protocols
   │                               GET  /api/protocol-reagent-specs
   │                               POST /api/experiments
-  ├── Search Reagents ──────────  (deferred)
-  ├── Search Protocols ─────────  (deferred)
+  ├── Search Reagents ──────────  GET  /api/reagent-catalogs (paged)
+  ├── Search Protocols ─────────  GET  /api/protocols/search (paged)
   └── Search Experiments ──────  POST /api/experiments/search
         ├── Details ─────────────  GET  /api/experiments/{id}
         └── Compare ─────────────  GET  /api/experiments/{id} (×N)

@@ -16,6 +16,7 @@ erDiagram
         Integer num_control_pairs "Expected N pairs for controls"
         Double max_cv_allowed "Max %CV between replicates"
         Double max_error_allowed "Max %Recovery error"
+        String curve_type "4PL, 5PL, 3PL, LINEAR, SEMI_LOG_LINEAR, POINT_TO_POINT"
         Timestamp created_at "Set by JPA auditing"
         Timestamp updated_at "Set by JPA auditing"
         String created_by "Set by JPA auditing"

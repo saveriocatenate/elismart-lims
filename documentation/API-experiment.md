@@ -19,6 +19,10 @@ Retrieve a single experiment by its ID.
   "date": "2026-04-05T10:00:00",
   "status": "OK",
   "protocolName": "IgG Test",
+  "protocolCurveType": "FOUR_PARAMETER_LOGISTIC",
+  "createdAt": "2026-04-05T10:00:00",
+  "updatedAt": "2026-04-05T10:00:00",
+  "createdBy": "system",
   "usedReagentBatches": [
     {
       "id": 1,
@@ -92,7 +96,7 @@ Validates that the provided reagent batches cover all mandatory reagents defined
 - `cvPct`, `recoveryPct` (Double, optional)
 - `isOutlier` (Boolean) — flag for manual or automatic outlier marking
 
-**Status values**: `OK`, `KO`, `VALIDATION_ERROR`
+**Status values**: `PENDING`, `COMPLETED`, `OK`, `KO`, `VALIDATION_ERROR`
 
 **Response 201**: same shape as GET response
 

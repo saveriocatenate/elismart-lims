@@ -53,6 +53,7 @@ class ExperimentMapperTest {
 
         assertThat(response.id()).isEqualTo(1L);
         assertThat(response.protocolName()).isEqualTo("IgG Test");
+        assertThat(response.protocolCurveType()).isEqualTo(CurveType.FOUR_PARAMETER_LOGISTIC);
         assertThat(response.usedReagentBatches()).isEmpty();
         assertThat(response.measurementPairs()).isEmpty();
     }

@@ -9,7 +9,7 @@
 
 ## 🌟 Key Features
 
-* **Protocol-Based Management:** Define reusable assay templates with specific curve-fitting types (4PL/5PL), required reagents, and acceptance criteria.
+* **Protocol-Based Management:** Define reusable assay templates with specific curve-fitting types (4PL, 5PL, 3PL, Linear, Semi-log, Point-to-Point), required reagents, and acceptance criteria.
 * **Replicate Analysis:** Automatically handles **Measurement Pairs** (duplicates), calculating Mean Signal, %CV (Precision), and %Recovery (Accuracy).
 * **Full Traceability:** Link every experiment to specific reagent **Lot Numbers** and expiration dates to track systemic issues or degradation.
 * **Smart Validation:** Instant OK/KO status based on protocol-defined thresholds for control points and calibration curves.
@@ -20,7 +20,7 @@
 
 ## 🏗️ Tech Stack
 
-* **Backend:** Java 17+ with Spring Boot
+* **Backend:** Java 21 with Spring Boot 3.4
 * **Frontend:** Python with Streamlit
 * **Database:** H2 (Local/File-based for easy lab deployment)
 * **Intelligence:** Google Gemini API Integration
@@ -40,11 +40,13 @@ The system follows a strict hierarchical structure to ensure data integrity:
 
 ## 🚀 Getting Started
 
-*(Note: This project is currently in the functional testing phase)*
+**Prerequisites:** Java 21+, Python 3.9+, Maven 3.8+
 
-1.  **Clone the repo:** `git clone https://github.com/tuo-username/elismart-lims.git`
-2.  **Build the Backend:** `./mvnw clean install`
-3.  **Run Streamlit:** `streamlit run frontend/main.py`
+1.  **Clone the repo:** `git clone https://github.com/saveriocatenate/elismart-lims.git`
+2.  **Set environment variables:** copy `.env.example` to `.env` and fill in `GEMINI_API_KEY`
+3.  **Build and run the backend:** `./mvnw clean spring-boot:run`
+4.  **Configure the frontend:** create `frontend/.streamlit/secrets.toml` (see `.env.example` for required keys)
+5.  **Run the frontend:** `streamlit run frontend/app.py`
 
 ---
 
