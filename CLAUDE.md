@@ -251,7 +251,13 @@ Phase 1 complete. Phases 2–5 in progress.
 ### Current Flyway Migrations
 - V1–V4: original schema (6 tables) + enum constraints + audit columns + curve_type
 - V5: UNIQUE constraint on reagent_catalog(name, manufacturer)
-
+- V6: user table + roles
+- V7: audit_log table
+- V8: sample table + FK on measurement_pair
+- V9: updated_by column on all auditable tables
+- V10: ai_insight table
+- V11: curve_parameters column on experiment
+- V12: NOT NULL constraints on signal_1, signal_2
 
 ### Model Enums
 - `ExperimentStatus` (5 values): PENDING, COMPLETED, OK, KO, VALIDATION_ERROR
