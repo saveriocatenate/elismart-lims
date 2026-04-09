@@ -10,11 +10,11 @@ import lombok.*;
  */
 @Entity
 @Table(name = "reagent_catalog")
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = false)
 public class ReagentCatalog extends Auditable {
 
     /** Primary key. */
@@ -32,4 +32,17 @@ public class ReagentCatalog extends Auditable {
 
     /** Optional free-text notes about the reagent (catalog reference, storage conditions, etc.). */
     private String description;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReagentCatalog that = (ReagentCatalog) o;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 }

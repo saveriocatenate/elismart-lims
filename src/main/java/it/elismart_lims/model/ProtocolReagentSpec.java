@@ -12,11 +12,11 @@ import lombok.*;
 @Entity
 @Table(name = "protocol_reagent_spec",
        uniqueConstraints = @UniqueConstraint(columnNames = {"protocol_id", "reagent_id"}))
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = false)
 public class ProtocolReagentSpec extends Auditable {
 
     @Id
@@ -34,4 +34,17 @@ public class ProtocolReagentSpec extends Auditable {
     /** Whether this reagent is required for all experiments using the parent protocol. */
     @Column(name = "is_mandatory", nullable = false)
     private Boolean isMandatory;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ProtocolReagentSpec that = (ProtocolReagentSpec) o;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 }

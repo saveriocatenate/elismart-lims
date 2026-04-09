@@ -13,11 +13,11 @@ import java.time.LocalDate;
 @Entity
 @Table(name = "used_reagent_batch",
        uniqueConstraints = @UniqueConstraint(columnNames = {"experiment_id", "reagent_id", "lot_number"}))
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = false)
 public class UsedReagentBatch extends Auditable {
 
     @Id
@@ -39,4 +39,17 @@ public class UsedReagentBatch extends Auditable {
     /** Expiry date of this reagent batch; {@code null} if not available on the label. */
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        UsedReagentBatch that = (UsedReagentBatch) o;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 }

@@ -11,11 +11,11 @@ import lombok.*;
  */
 @Entity
 @Table(name = "measurement_pair")
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = false)
 public class MeasurementPair extends Auditable {
 
     @Id
@@ -61,4 +61,17 @@ public class MeasurementPair extends Auditable {
     /** {@code true} if this pair has been flagged as an outlier (manually or automatically). */
     @Column(name = "is_outlier", nullable = false)
     private Boolean isOutlier;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MeasurementPair that = (MeasurementPair) o;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 }

@@ -11,11 +11,11 @@ import lombok.*;
  */
 @Entity
 @Table(name = "protocol")
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = false)
 public class Protocol extends Auditable {
 
     /** Primary key. */
@@ -47,4 +47,17 @@ public class Protocol extends Auditable {
     @Enumerated(EnumType.STRING)
     @Column(name = "curve_type", nullable = false, length = 50)
     private CurveType curveType;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Protocol that = (Protocol) o;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 }

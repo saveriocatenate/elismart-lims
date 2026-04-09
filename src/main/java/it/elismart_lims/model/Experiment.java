@@ -18,11 +18,11 @@ import java.util.List;
  */
 @Entity
 @Table(name = "experiment")
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = false)
 public class Experiment extends Auditable {
 
     /** Primary key. */
@@ -72,4 +72,17 @@ public class Experiment extends Auditable {
     @Builder.Default
     @BatchSize(size = 50)
     private List<MeasurementPair> measurementPairs = new ArrayList<>();
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Experiment that = (Experiment) o;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 }
