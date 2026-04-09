@@ -72,10 +72,45 @@ public class GeminiService {
             log.debug("Gemini response:\n{}", analysisText);
             log.info("Gemini analysis completed successfully for experiments: {}", request.experimentIds());
             return GeminiAnalysisResponse.builder().analysis(analysisText).build();
-        } catch (Exception e) {
-            log.error("Gemini API call failed", e);
-            throw new GeminiServiceException("Failed to get response from Gemini API", e);
+        } catch (RuntimeException e) {
+            log.error("Gemini API call failed: {}", e.getMessage(), e);
+            throw classifyException(e);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Exception classification
+    // -------------------------------------------------------------------------
+
+    /**
+     * Maps a raw {@link RuntimeException} from LangChain4j to a typed
+     * {@link GeminiServiceException} with the appropriate HTTP status code.
+     *
+     * <p>LangChain4j's Google-AI Gemini integration wraps all failures in
+     * {@code RuntimeException}. The message follows the pattern
+     * {@code "HTTP error (NNN): ..."} for HTTP-level errors, and the cause
+     * chain carries a {@link java.net.http.HttpTimeoutException} for timeouts.</p>
+     *
+     * @param e the raw exception thrown by {@code ChatLanguageModel.generate()}
+     * @return a {@link GeminiServiceException} with the correct HTTP status
+     */
+    private GeminiServiceException classifyException(RuntimeException e) {
+        String msg = e.getMessage();
+
+        if (msg != null && msg.contains("HTTP error (401)")) {
+            return new GeminiServiceException("Invalid or missing Gemini API key", e, 401);
+        }
+
+        if (msg != null && msg.contains("HTTP error (429)")) {
+            return new GeminiServiceException("Gemini API rate limit exceeded", e, 429);
+        }
+
+        Throwable cause = e.getCause();
+        if (cause instanceof java.net.http.HttpTimeoutException) {
+            return new GeminiServiceException("Gemini API request timed out", e, 504);
+        }
+
+        return new GeminiServiceException("Failed to get response from Gemini API", e, 502);
     }
 
     // -------------------------------------------------------------------------

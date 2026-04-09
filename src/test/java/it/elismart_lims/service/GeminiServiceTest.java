@@ -7,6 +7,7 @@ import it.elismart_lims.dto.GeminiAnalysisResponse;
 import it.elismart_lims.dto.MeasurementPairResponse;
 import it.elismart_lims.dto.ProtocolResponse;
 import it.elismart_lims.dto.UsedReagentBatchResponse;
+import it.elismart_lims.exception.model.GeminiServiceException;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.ExperimentStatus;
 import it.elismart_lims.model.PairType;
@@ -159,5 +160,65 @@ class GeminiServiceTest {
         // when / then
         assertThatThrownBy(() -> geminiService.analyze(request))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * Verifies that a 401 HTTP error from LangChain4j is mapped to a GeminiServiceException
+     * with httpStatus=401 and an appropriate message.
+     */
+    @Test
+    void analyze_throwsGeminiServiceException_withStatus401_onAuthFailure() {
+        when(experimentService.getById(1L)).thenReturn(sampleExperiment);
+        when(protocolService.getByName("ELISA Dose-Response")).thenReturn(sampleProtocol);
+        when(chatLanguageModel.generate(anyString()))
+                .thenThrow(new RuntimeException(
+                        "HTTP error (401): {\"error\":{\"code\":401,\"message\":\"API key not valid\",\"status\":\"UNAUTHENTICATED\"}}"));
+
+        GeminiAnalysisRequest request = new GeminiAnalysisRequest(List.of(1L), "Test question");
+
+        assertThatThrownBy(() -> geminiService.analyze(request))
+                .isInstanceOf(GeminiServiceException.class)
+                .hasMessageContaining("Invalid or missing Gemini API key")
+                .satisfies(ex -> assertThat(((GeminiServiceException) ex).getHttpStatus()).isEqualTo(401));
+    }
+
+    /**
+     * Verifies that an HttpTimeoutException cause is mapped to a GeminiServiceException
+     * with httpStatus=504 and an appropriate message.
+     */
+    @Test
+    void analyze_throwsGeminiServiceException_withStatus504_onTimeout() {
+        when(experimentService.getById(1L)).thenReturn(sampleExperiment);
+        when(protocolService.getByName("ELISA Dose-Response")).thenReturn(sampleProtocol);
+        when(chatLanguageModel.generate(anyString()))
+                .thenThrow(new RuntimeException(
+                        "An error occurred while sending the request",
+                        new java.net.http.HttpTimeoutException("request timed out")));
+
+        GeminiAnalysisRequest request = new GeminiAnalysisRequest(List.of(1L), "Test question");
+
+        assertThatThrownBy(() -> geminiService.analyze(request))
+                .isInstanceOf(GeminiServiceException.class)
+                .hasMessageContaining("Gemini API request timed out")
+                .satisfies(ex -> assertThat(((GeminiServiceException) ex).getHttpStatus()).isEqualTo(504));
+    }
+
+    /**
+     * Verifies that a 429 HTTP error from LangChain4j is mapped to a GeminiServiceException
+     * with httpStatus=429.
+     */
+    @Test
+    void analyze_throwsGeminiServiceException_withStatus429_onRateLimit() {
+        when(experimentService.getById(1L)).thenReturn(sampleExperiment);
+        when(protocolService.getByName("ELISA Dose-Response")).thenReturn(sampleProtocol);
+        when(chatLanguageModel.generate(anyString()))
+                .thenThrow(new RuntimeException("HTTP error (429): {\"error\":{\"code\":429,\"message\":\"Resource exhausted\"}}"));
+
+        GeminiAnalysisRequest request = new GeminiAnalysisRequest(List.of(1L), "Test question");
+
+        assertThatThrownBy(() -> geminiService.analyze(request))
+                .isInstanceOf(GeminiServiceException.class)
+                .hasMessageContaining("Gemini API rate limit exceeded")
+                .satisfies(ex -> assertThat(((GeminiServiceException) ex).getHttpStatus()).isEqualTo(429));
     }
 }

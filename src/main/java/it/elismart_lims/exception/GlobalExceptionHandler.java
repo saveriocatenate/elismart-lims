@@ -160,10 +160,21 @@ public class GlobalExceptionHandler {
      * @param ex the exception
      * @return a 502 error response body
      */
+    /**
+     * Handles {@link GeminiServiceException} — returns the HTTP status carried by the exception
+     * (401, 429, 502, or 504), indicating which upstream failure occurred.
+     *
+     * @param ex the exception
+     * @return an error response body with the appropriate status
+     */
     @ExceptionHandler(GeminiServiceException.class)
     public ResponseEntity<Map<String, Object>> handleGeminiService(GeminiServiceException ex) {
         log.error("Gemini service error: {}", ex.getMessage(), ex);
-        return buildResponse(HttpStatus.BAD_GATEWAY, "AI service error: " + ex.getMessage());
+        HttpStatus status = HttpStatus.resolve(ex.getHttpStatus());
+        if (status == null) {
+            status = HttpStatus.BAD_GATEWAY;
+        }
+        return buildResponse(status, "AI service error: " + ex.getMessage());
     }
 
     /**
