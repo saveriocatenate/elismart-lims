@@ -2,9 +2,12 @@ package it.elismart_lims.controller;
 
 import it.elismart_lims.dto.LoginRequest;
 import it.elismart_lims.dto.LoginResponse;
+import it.elismart_lims.dto.RegisterRequest;
+import it.elismart_lims.dto.UserResponse;
 import it.elismart_lims.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>The {@code /api/auth/login} endpoint is explicitly permitted without a JWT
  * in {@link it.elismart_lims.config.SecurityConfig}.</p>
+ *
+ * <p>The {@code /api/auth/register} endpoint requires the {@code ADMIN} role.</p>
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -46,5 +51,20 @@ public class AuthController {
                             "timestamp", java.time.LocalDateTime.now().toString()
                     ));
         }
+    }
+
+    /**
+     * Creates a new user account. Restricted to {@code ADMIN} role.
+     *
+     * <p>The plaintext password is BCrypt-hashed before persistence. Returns HTTP 409
+     * if the requested username is already taken.</p>
+     *
+     * @param request the registration payload; all fields are mandatory
+     * @return 201 Created with the new {@link UserResponse}, 409 if username is duplicate
+     */
+    @PostMapping("/register")
+    public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
+        UserResponse response = authService.register(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

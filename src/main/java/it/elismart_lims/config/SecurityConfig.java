@@ -33,7 +33,11 @@ import java.util.List;
  *   <li>{@code POST /api/auth/login} — public (no token required)</li>
  *   <li>{@code GET /api/health} — public</li>
  *   <li>{@code GET /api-docs/**}, {@code GET /swagger-ui/**} — public (OpenAPI)</li>
+ *   <li>{@code DELETE /api/**} — requires {@code ADMIN} role</li>
  *   <li>{@code POST /api/auth/register} — requires {@code ADMIN} role</li>
+ *   <li>{@code POST /api/protocols} — requires {@code ADMIN} role</li>
+ *   <li>{@code PUT /api/protocols/**} — requires {@code ADMIN} role</li>
+ *   <li>{@code PUT /api/experiments/*&#47;status} — requires {@code REVIEWER} or {@code ADMIN} role</li>
  *   <li>All other endpoints — require any authenticated user</li>
  * </ul>
  *
@@ -66,7 +70,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // ADMIN-only: all delete operations, protocol mutations, user registration
+                        .requestMatchers(HttpMethod.DELETE, "/api/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/auth/register").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/protocols").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/protocols/**").hasRole("ADMIN")
+                        // REVIEWER or ADMIN: experiment status transitions
+                        .requestMatchers(HttpMethod.PUT, "/api/experiments/*/status").hasAnyRole("REVIEWER", "ADMIN")
+                        // All other requests require any authenticated user
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(new JwtAuthFilter(jwtTokenProvider),

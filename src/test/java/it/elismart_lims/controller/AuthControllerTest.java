@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import it.elismart_lims.config.TestSecurityConfig;
 import it.elismart_lims.dto.LoginRequest;
 import it.elismart_lims.dto.LoginResponse;
+import it.elismart_lims.dto.RegisterRequest;
+import it.elismart_lims.dto.UserResponse;
+import it.elismart_lims.model.UserRole;
 import it.elismart_lims.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.LocalDateTime;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -72,6 +77,50 @@ class AuthControllerTest {
     @Test
     void login_shouldReturn400_whenBodyIsEmpty() throws Exception {
         mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void register_shouldReturn201AndUserResponse_whenRequestIsValid() throws Exception {
+        var response = UserResponse.builder()
+                .id(2L)
+                .username("newanalyst")
+                .role(UserRole.ANALYST)
+                .enabled(true)
+                .createdAt(LocalDateTime.now())
+                .build();
+        when(authService.register(any())).thenReturn(response);
+
+        var request = new RegisterRequest("newanalyst", "secret123", UserRole.ANALYST);
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(2))
+                .andExpect(jsonPath("$.username").value("newanalyst"))
+                .andExpect(jsonPath("$.role").value("ANALYST"))
+                .andExpect(jsonPath("$.enabled").value(true));
+    }
+
+    @Test
+    void register_shouldReturn409_whenUsernameAlreadyExists() throws Exception {
+        when(authService.register(any()))
+                .thenThrow(new IllegalStateException("Username already exists: admin"));
+
+        var request = new RegisterRequest("admin", "secret123", UserRole.ANALYST);
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").value("Username already exists: admin"));
+    }
+
+    @Test
+    void register_shouldReturn400_whenBodyIsEmpty() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest());

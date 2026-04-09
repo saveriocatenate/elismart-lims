@@ -2,6 +2,9 @@ package it.elismart_lims.service;
 
 import it.elismart_lims.dto.LoginRequest;
 import it.elismart_lims.dto.LoginResponse;
+import it.elismart_lims.dto.RegisterRequest;
+import it.elismart_lims.dto.UserResponse;
+import it.elismart_lims.mapper.UserMapper;
 import it.elismart_lims.model.User;
 import it.elismart_lims.repository.UserRepository;
 import it.elismart_lims.security.JwtTokenProvider;
@@ -11,6 +14,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 /**
@@ -29,6 +33,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     /**
      * Authenticates a user and returns a signed JWT on success.
@@ -59,5 +64,29 @@ public class AuthService {
                 .username(username)
                 .role(user.getRole().name())
                 .build();
+    }
+
+    /**
+     * Registers a new user in the system.
+     *
+     * <p>The plaintext password is BCrypt-hashed before persistence.
+     * Throws {@link IllegalStateException} (→ HTTP 409) if the username is already taken.</p>
+     *
+     * @param request the registration payload containing username, password, and role
+     * @return a {@link UserResponse} for the newly created user
+     * @throws IllegalStateException if the requested username already exists
+     */
+    public UserResponse register(RegisterRequest request) {
+        if (userRepository.findByUsername(request.username()).isPresent()) {
+            throw new IllegalStateException("Username already exists: " + request.username());
+        }
+        User user = User.builder()
+                .username(request.username())
+                .password(passwordEncoder.encode(request.password()))
+                .role(request.role())
+                .build();
+        User saved = userRepository.save(user);
+        log.info("Registered new user '{}' with role '{}'", saved.getUsername(), saved.getRole());
+        return UserMapper.toResponse(saved);
     }
 }
