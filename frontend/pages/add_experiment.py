@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import datetime
 import requests
 import streamlit as st
-from utils import check_auth, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -29,7 +29,11 @@ st.markdown("---")
 # --- Load protocols ---
 protocols = []
 try:
-    resp = requests.get(f"{BACKEND_URL}/api/protocols", timeout=10)
+    resp = requests.get(
+        f"{BACKEND_URL}/api/protocols",
+        headers=get_auth_headers(),
+        timeout=10,
+    )
     if resp.status_code == 200:
         protocols = resp.json()
 except requests.exceptions.RequestException:
@@ -53,12 +57,17 @@ selected_protocol_id = st.selectbox(
 protocol_detail = None
 reagent_specs = []
 try:
-    pd_resp = requests.get(f"{BACKEND_URL}/api/protocols/{selected_protocol_id}", timeout=10)
+    pd_resp = requests.get(
+        f"{BACKEND_URL}/api/protocols/{selected_protocol_id}",
+        headers=get_auth_headers(),
+        timeout=10,
+    )
     if pd_resp.status_code == 200:
         protocol_detail = pd_resp.json()
     spec_resp = requests.get(
         f"{BACKEND_URL}/api/protocol-reagent-specs",
         params={"protocolId": selected_protocol_id},
+        headers=get_auth_headers(),
         timeout=10,
     )
     if spec_resp.status_code == 200:
@@ -237,7 +246,12 @@ if submitted:
     }
 
     try:
-        resp = requests.post(f"{BACKEND_URL}/api/experiments", json=payload, timeout=15)
+        resp = requests.post(
+            f"{BACKEND_URL}/api/experiments",
+            json=payload,
+            headers=get_auth_headers(),
+            timeout=15,
+        )
         if resp.status_code == 201:
             exp_id = resp.json().get("id")
             st.success(f"Experiment created — ID {exp_id}")

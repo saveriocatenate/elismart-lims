@@ -9,7 +9,7 @@ Usage (from pages/)::
 
     import sys, os
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-    from utils import check_auth, inject_global_css, render_logo, render_sidebar, BACKEND_URL
+    from utils import check_auth, get_auth_headers, inject_global_css, render_logo, render_sidebar, BACKEND_URL
 """
 import os
 import base64
@@ -32,13 +32,31 @@ def resolve_backend_url() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Auth gate
+# Auth helpers
 # ---------------------------------------------------------------------------
 
 def check_auth() -> None:
-    """Stop rendering the current page if the user is not authenticated."""
-    if not st.session_state.get("authenticated", False):
+    """Stop rendering the current page if the user is not authenticated.
+
+    Checks for a non-empty JWT token in ``st.session_state["jwt_token"]``.
+    If absent or empty, stops execution — the login gate in ``app.py`` will
+    intercept the rerun and render the login form instead.
+    """
+    if not st.session_state.get("jwt_token"):
         st.stop()
+
+
+def get_auth_headers() -> dict[str, str]:
+    """Return the ``Authorization`` header dict for authenticated API calls.
+
+    Returns
+    -------
+    dict
+        ``{"Authorization": "Bearer <token>"}`` using the JWT stored in
+        session state, or an empty Bearer value if the token is missing.
+    """
+    token = st.session_state.get("jwt_token", "")
+    return {"Authorization": f"Bearer {token}"}
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +227,7 @@ def render_logo(assets_dir: str) -> None:
 
 
 def render_sidebar(backend_url: str) -> None:
-    """Render the standard sidebar with the backend URL caption and logout button.
+    """Render the standard sidebar with user info, backend URL, and logout button.
 
     Parameters
     ----------
@@ -217,7 +235,13 @@ def render_sidebar(backend_url: str) -> None:
         The backend base URL to display in the sidebar caption.
     """
     with st.sidebar:
+        username = st.session_state.get("username", "")
+        role = st.session_state.get("role", "")
+        if username:
+            st.caption(f"👤 **{username}** ({role})")
         st.caption(f"🔗 Backend: `{backend_url}`")
         if st.button("🚪 Logout", use_container_width=True):
-            st.session_state["authenticated"] = False
+            st.session_state.pop("jwt_token", None)
+            st.session_state.pop("username", None)
+            st.session_state.pop("role", None)
             st.rerun()

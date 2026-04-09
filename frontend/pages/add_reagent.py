@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -36,7 +36,12 @@ with st.form("reagent_form"):
                 "description": description.strip(),
             }
             try:
-                resp = requests.post(f"{BACKEND_URL}/api/reagent-catalogs", json=payload, timeout=10)
+                resp = requests.post(
+                    f"{BACKEND_URL}/api/reagent-catalogs",
+                    json=payload,
+                    headers=get_auth_headers(),
+                    timeout=10,
+                )
                 if resp.status_code == 201:
                     data = resp.json()
                     st.success(f"Reagent added — ID {data['id']}")

@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -47,7 +47,12 @@ if submitted or "reagent_results" in st.session_state:
         params["manufacturer"] = mfr_filter.strip()
 
     try:
-        resp = requests.get(f"{BACKEND_URL}/api/reagent-catalogs/search", params=params, timeout=10)
+        resp = requests.get(
+            f"{BACKEND_URL}/api/reagent-catalogs/search",
+            params=params,
+            headers=get_auth_headers(),
+            timeout=10,
+        )
         if resp.status_code == 200:
             st.session_state["reagent_results"] = resp.json()
         else:

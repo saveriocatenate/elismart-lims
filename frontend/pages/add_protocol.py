@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -31,7 +31,12 @@ st.markdown("---")
 reagent_list: list[dict] = []
 reagent_options: dict[int, str] = {}
 try:
-    resp = requests.get(f"{BACKEND_URL}/api/reagent-catalogs", params={"size": 1000}, timeout=10)
+    resp = requests.get(
+        f"{BACKEND_URL}/api/reagent-catalogs",
+        params={"size": 1000},
+        headers=get_auth_headers(),
+        timeout=10,
+    )
     if resp.status_code == 200:
         reagent_list = resp.json().get("content", [])
         for r in reagent_list:
@@ -166,6 +171,7 @@ if st.button("Create Protocol", type="primary", use_container_width=True, key="p
                         "maxCvAllowed": max_cv,
                         "maxErrorAllowed": max_error,
                     },
+                    headers=get_auth_headers(),
                     timeout=10,
                 )
                 if resp.status_code != 201:
@@ -191,6 +197,7 @@ if st.button("Create Protocol", type="primary", use_container_width=True, key="p
                             "manufacturer": mfr,
                             "description": st.session_state.get(f"new_r_desc_{row_id}", "").strip(),
                         },
+                        headers=get_auth_headers(),
                         timeout=10,
                     )
                     if r_resp.status_code == 201:
@@ -206,6 +213,7 @@ if st.button("Create Protocol", type="primary", use_container_width=True, key="p
                     s_resp = requests.post(
                         f"{BACKEND_URL}/api/protocol-reagent-specs",
                         json={"protocolId": protocol_id, "reagentId": rid, "isMandatory": True},
+                        headers=get_auth_headers(),
                         timeout=10,
                     )
                     if s_resp.status_code == 201:

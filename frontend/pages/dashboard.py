@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -19,7 +19,7 @@ BACKEND_URL = resolve_backend_url()
 def _check_backend():
     """Return (healthy: bool, detail: str | dict)."""
     try:
-        resp = requests.get(f"{BACKEND_URL}/api/health", timeout=5)
+        resp = requests.get(f"{BACKEND_URL}/api/health", headers=get_auth_headers(), timeout=5)
         if resp.status_code == 200:
             return True, resp.json()
         return False, f"Backend returned status {resp.status_code}"

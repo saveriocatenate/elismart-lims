@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, format_date, resolve_backend_url
+from utils import check_auth, format_date, get_auth_headers, resolve_backend_url
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -56,7 +56,12 @@ if submitted or "exp_results" in st.session_state:
         "size": page_size,
     }
     try:
-        resp = requests.post(f"{BACKEND_URL}/api/experiments/search", json=payload, timeout=10)
+        resp = requests.post(
+            f"{BACKEND_URL}/api/experiments/search",
+            json=payload,
+            headers=get_auth_headers(),
+            timeout=10,
+        )
         if resp.status_code == 200:
             st.session_state["exp_results"] = resp.json()
         else:

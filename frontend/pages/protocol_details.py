@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -39,7 +39,11 @@ def _confirm_delete(proto_name: str) -> None:
     with col_del:
         if st.button("Delete", type="primary", use_container_width=True):
             try:
-                resp = requests.delete(f"{BACKEND_URL}/api/protocols/{protocol_id}", timeout=10)
+                resp = requests.delete(
+                    f"{BACKEND_URL}/api/protocols/{protocol_id}",
+                    headers=get_auth_headers(),
+                    timeout=10,
+                )
                 if resp.status_code == 204:
                     st.session_state.pop("selected_protocol_id", None)
                     st.session_state.pop("protocol_edit_mode", None)
@@ -59,7 +63,11 @@ def _confirm_delete(proto_name: str) -> None:
 # ---------------------------------------------------------------------------
 
 try:
-    resp = requests.get(f"{BACKEND_URL}/api/protocols/{protocol_id}", timeout=10)
+    resp = requests.get(
+        f"{BACKEND_URL}/api/protocols/{protocol_id}",
+        headers=get_auth_headers(),
+        timeout=10,
+    )
     if resp.status_code != 200:
         st.error(f"Failed to load protocol (HTTP {resp.status_code})")
         st.stop()
@@ -170,7 +178,10 @@ if saved:
         }
         try:
             put_resp = requests.put(
-                f"{BACKEND_URL}/api/protocols/{protocol_id}", json=payload, timeout=10
+                f"{BACKEND_URL}/api/protocols/{protocol_id}",
+                json=payload,
+                headers=get_auth_headers(),
+                timeout=10,
             )
             if put_resp.status_code == 200:
                 st.success("Protocol updated successfully.")

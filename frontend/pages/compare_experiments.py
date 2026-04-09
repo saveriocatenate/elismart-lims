@@ -23,7 +23,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-from utils import check_auth, format_date, resolve_backend_url
+from utils import check_auth, format_date, get_auth_headers, resolve_backend_url
 
 # ---------------------------------------------------------------------------
 # Bootstrap
@@ -73,7 +73,11 @@ if pre_ids:
     for eid in pre_ids:
         if eid not in already_in and len(st.session_state["compare_selected"]) < MAX_SLOTS:
             try:
-                r = requests.get(f"{BACKEND_URL}/api/experiments/{eid}", timeout=10)
+                r = requests.get(
+                    f"{BACKEND_URL}/api/experiments/{eid}",
+                    headers=get_auth_headers(),
+                    timeout=10,
+                )
                 if r.status_code == 200:
                     d = r.json()
                     st.session_state["compare_selected"].append({
@@ -139,6 +143,7 @@ if len(selected) < MAX_SLOTS:
                 r = requests.post(
                     f"{BACKEND_URL}/api/experiments/search",
                     json={"name": add_name.strip() or None, "page": 0, "size": add_size},
+                    headers=get_auth_headers(),
                     timeout=10,
                 )
                 if r.status_code == 200:
@@ -205,7 +210,11 @@ if load_clicked:
         with st.spinner("Loading experiments…"):
             for eid in ids_to_fetch:
                 try:
-                    r = requests.get(f"{BACKEND_URL}/api/experiments/{eid}", timeout=10)
+                    r = requests.get(
+                        f"{BACKEND_URL}/api/experiments/{eid}",
+                        headers=get_auth_headers(),
+                        timeout=10,
+                    )
                     if r.status_code == 200:
                         data_map[eid] = r.json()
                     elif r.status_code == 404:
@@ -520,6 +529,7 @@ if run_analysis:
                 resp = requests.post(
                     f"{BACKEND_URL}/api/ai/analyze",
                     json={"experimentIds": exp_ids, "userQuestion": combined_question},
+                    headers=get_auth_headers(),
                     timeout=60,
                 )
                 if resp.status_code == 200:
