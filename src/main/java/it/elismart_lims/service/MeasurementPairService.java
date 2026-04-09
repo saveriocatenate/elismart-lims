@@ -4,6 +4,7 @@ import it.elismart_lims.dto.MeasurementPairUpdateRequest;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.MeasurementPair;
 import it.elismart_lims.repository.MeasurementPairRepository;
+import it.elismart_lims.service.validation.ValidationConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -58,8 +59,8 @@ public class MeasurementPairService {
 
         double s1 = request.signal1();
         double s2 = request.signal2();
-        double mean = (s1 + s2) / 2.0;
-        double cv = mean != 0 ? (Math.abs(s1 - s2) / mean) * 100.0 : 0.0;
+        double mean = ValidationConstants.calculateSignalMean(s1, s2);
+        double cv = ValidationConstants.calculateCvPercent(s1, s2);
 
         pair.setSignal1(s1);
         pair.setSignal2(s2);

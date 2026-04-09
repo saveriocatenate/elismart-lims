@@ -4,6 +4,7 @@ import it.elismart_lims.dto.MeasurementPairRequest;
 import it.elismart_lims.dto.MeasurementPairResponse;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.MeasurementPair;
+import it.elismart_lims.service.validation.ValidationConstants;
 
 import java.util.List;
 
@@ -29,18 +30,24 @@ public final class MeasurementPairMapper {
     /**
      * Converts a MeasurementPairRequest DTO into a MeasurementPair entity linked to an experiment.
      *
+     * <p>{@code signalMean} and {@code cvPct} are always computed server-side from the raw signals
+     * using {@link ValidationConstants}. Any client-supplied values for these derived fields are
+     * ignored per the server-side derivation policy.</p>
+     *
      * @param request    the request payload
      * @param experiment the experiment to associate with
      * @return the built MeasurementPair entity
      */
     public static MeasurementPair toEntity(MeasurementPairRequest request, Experiment experiment) {
+        double s1 = request.signal1() != null ? request.signal1() : 0.0;
+        double s2 = request.signal2() != null ? request.signal2() : 0.0;
         return MeasurementPair.builder()
                 .pairType(request.pairType())
                 .concentrationNominal(request.concentrationNominal())
                 .signal1(request.signal1())
                 .signal2(request.signal2())
-                .signalMean(request.signalMean())
-                .cvPct(request.cvPct())
+                .signalMean(ValidationConstants.calculateSignalMean(s1, s2))
+                .cvPct(ValidationConstants.calculateCvPercent(s1, s2))
                 .recoveryPct(request.recoveryPct())
                 .experiment(experiment)
                 .isOutlier(request.isOutlier() != null ? request.isOutlier() : false)
