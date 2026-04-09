@@ -23,12 +23,13 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-from utils import format_date, resolve_backend_url
+from utils import check_auth, format_date, resolve_backend_url
 
 # ---------------------------------------------------------------------------
 # Bootstrap
 # ---------------------------------------------------------------------------
 
+check_auth()
 BACKEND_URL = resolve_backend_url()
 MAX_SLOTS = 4
 PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]

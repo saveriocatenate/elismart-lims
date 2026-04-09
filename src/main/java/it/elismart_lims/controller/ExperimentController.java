@@ -82,7 +82,7 @@ public class ExperimentController {
      * @return 200 OK with a paginated {@link ExperimentPage}
      */
     @PostMapping("/search")
-    public ResponseEntity<ExperimentPage> search(@RequestBody ExperimentSearchRequest request) {
+    public ResponseEntity<ExperimentPage> search(@Valid @RequestBody ExperimentSearchRequest request) {
         return ResponseEntity.ok(experimentService.search(request));
     }
 }

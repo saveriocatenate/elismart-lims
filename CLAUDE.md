@@ -53,7 +53,7 @@ See `.env.example` for the full list of variables and expected formats.
 - DTOs: `src/main/java/it/elismart_lims/dto/`
 - Mappers: `src/main/java/it/elismart_lims/mapper/`
 - Exception Handling: `src/main/java/it/elismart_lims/exception/`
-- Unit/Integration Tests: `src/test/java/` (JUnit 5 + Mockito, 117 tests)
+- Unit/Integration Tests: `src/test/java/` (JUnit 5 + Mockito, 120 tests)
 - Frontend: `frontend/app.py` (entry point) + `frontend/pages/` (sub-pages)
 - Frontend Config: `frontend/.streamlit/secrets.toml` (gitignored, contains `login_user`, `login_pass`, `backend_url`)
 - Frontend Dependencies: `frontend/requirements.txt`
@@ -155,7 +155,7 @@ Frontend auth: every page checks `st.session_state["authenticated"]` on load. If
 
 ## Project Status
 
-Phase 1 complete. Backend REST API implemented with full CRUD for Protocol, ReagentCatalog, Experiment, and ProtocolReagentSpec. AI analysis via Google Gemini (LangChain4j). Frontend 10-page Streamlit app with auth gate. All 117 tests passing.
+Phase 1 complete. Backend REST API implemented with full CRUD for Protocol, ReagentCatalog, Experiment, and ProtocolReagentSpec. AI analysis via Google Gemini (LangChain4j). Frontend 10-page Streamlit app with auth gate. All 120 tests passing.
 
 - **Controllers**:
   - Health (GET /api/health)

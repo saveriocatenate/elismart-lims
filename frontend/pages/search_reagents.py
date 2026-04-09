@@ -10,8 +10,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import resolve_backend_url
+from utils import check_auth, resolve_backend_url
 
+check_auth()
 BACKEND_URL = resolve_backend_url()
 
 if st.button("← Back to Dashboard"):

@@ -3,12 +3,11 @@ package it.elismart_lims.controller;
 import it.elismart_lims.dto.GeminiAnalysisRequest;
 import it.elismart_lims.dto.GeminiAnalysisResponse;
 import it.elismart_lims.service.GeminiService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
 
 /**
  * REST controller exposing the Gemini AI analysis endpoint.
@@ -32,7 +31,7 @@ public class GeminiController {
      */
     @PostMapping("/analyze")
     public ResponseEntity<GeminiAnalysisResponse> analyze(
-            @RequestBody GeminiAnalysisRequest request) {
+            @Valid @RequestBody GeminiAnalysisRequest request) {
         GeminiAnalysisResponse response = geminiService.analyze(request);
         return ResponseEntity.ok(response);
     }

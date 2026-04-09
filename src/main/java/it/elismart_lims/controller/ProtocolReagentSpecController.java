@@ -4,7 +4,9 @@ import it.elismart_lims.dto.ProtocolReagentSpecRequest;
 import it.elismart_lims.dto.ProtocolReagentSpecResponse;
 import it.elismart_lims.service.ProtocolReagentSpecService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +16,7 @@ import java.util.List;
 /**
  * REST controller for ProtocolReagentSpec CRUD operations.
  */
+@Validated
 @RestController
 @RequestMapping("/api/protocol-reagent-specs")
 @RequiredArgsConstructor
@@ -24,12 +27,12 @@ public class ProtocolReagentSpecController {
     /**
      * Get all reagent specifications for a given protocol.
      *
-     * @param protocolId the protocol ID
+     * @param protocolId the protocol ID (must be a positive value)
      * @return list of ProtocolReagentSpecResponse DTOs
      */
     @GetMapping
     public ResponseEntity<List<ProtocolReagentSpecResponse>> getByProtocol(
-            @RequestParam Long protocolId) {
+            @RequestParam @Positive(message = "protocolId must be a positive number") Long protocolId) {
         return ResponseEntity.ok(protocolReagentSpecService.getByProtocolId(protocolId));
     }
 

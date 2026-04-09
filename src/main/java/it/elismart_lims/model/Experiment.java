@@ -52,19 +52,23 @@ public class Experiment extends Auditable {
 
     /**
      * Reagent lot numbers recorded for this experiment run.
+     * {@code orphanRemoval = true} ensures that removing a batch from this collection
+     * deletes the corresponding row from the database — preventing orphaned records.
      * {@code @BatchSize} avoids the N+1 query problem when loading a page of experiments:
      * Hibernate fetches all batches for the page in a single IN-clause query.
      */
-    @OneToMany(mappedBy = "experiment", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "experiment", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @BatchSize(size = 50)
     private List<UsedReagentBatch> usedReagentBatches = new ArrayList<>();
 
     /**
      * Measurement replicates recorded during this experiment run.
+     * {@code orphanRemoval = true} ensures that removing a pair from this collection
+     * deletes the corresponding row from the database — preventing orphaned records.
      * {@code @BatchSize} avoids the N+1 query problem (same rationale as {@link #usedReagentBatches}).
      */
-    @OneToMany(mappedBy = "experiment", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "experiment", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @BatchSize(size = 50)
     private List<MeasurementPair> measurementPairs = new ArrayList<>();
