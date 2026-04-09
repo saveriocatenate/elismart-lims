@@ -108,6 +108,26 @@ class ProtocolControllerTest {
     }
 
     @Test
+    void create_shouldReturn400_whenUnknownFieldInBody() throws Exception {
+        String jsonWithUnknownField = """
+                {
+                  "name": "IgG Test",
+                  "calibrationPoints": 7,
+                  "replicates": 3,
+                  "maxCvAllowed": 15.0,
+                  "maxErrorAllowed": 10.0,
+                  "curveType": "FOUR_PARAMETER_LOGISTIC",
+                  "unknownField": "should cause 400"
+                }
+                """;
+
+        mockMvc.perform(post("/api/protocols")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(jsonWithUnknownField))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void delete_shouldReturn204() throws Exception {
         mockMvc.perform(delete("/api/protocols/1"))
                 .andExpect(status().isNoContent());

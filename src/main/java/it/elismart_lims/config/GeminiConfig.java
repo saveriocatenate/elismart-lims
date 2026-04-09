@@ -10,7 +10,7 @@ import java.time.Duration;
 
 /**
  * Spring configuration that registers a LangChain4j {@link ChatLanguageModel} bean backed by
- * Google AI Gemini.
+ * Google Gemini.
  *
  * <p>Required properties:
  * <ul>

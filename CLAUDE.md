@@ -255,7 +255,7 @@ Phase 1 complete. Phases 2–5 in progress.
 - V7: audit_log table
 - V8: sample table + FK on measurement_pair
 - V9: updated_by column on all auditable tables
-- V10: ai_insight table
+- V10: AI_insight table
 - V11: curve_parameters column on experiment
 - V12: NOT NULL constraints on signal_1, signal_2
 
