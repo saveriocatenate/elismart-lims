@@ -75,29 +75,36 @@ render_sidebar(BACKEND_URL)
 # Navigation with sections
 # ---------------------------------------------------------------------------
 
-pg = st.navigation(
-    {
-        "": [
-            st.Page("pages/dashboard.py", title="Dashboard", icon="🧪", default=True),
-        ],
-        "ADD": [
-            st.Page("pages/add_reagent.py", title="Add Reagent", icon="🧫"),
-            st.Page("pages/add_protocol.py", title="Add Protocol", icon="➕"),
-            st.Page("pages/add_experiment.py", title="Add Experiment", icon="🔬"),
-        ],
-        "SEARCH": [
-            st.Page("pages/search_reagents.py", title="Search Reagents", icon="🔍"),
-            st.Page("pages/search_protocols.py", title="Search Protocols", icon="🔍"),
-            st.Page("pages/search_experiments.py", title="Search Experiments", icon="📋"),
-        ],
-        "DETAILS": [
-            st.Page("pages/protocol_details.py", title="Protocol Details", icon="📄"),
-            st.Page("pages/experiment_details.py", title="Experiment Details", icon="🔬"),
-        ],
-        "AI INTEGRATION": [
-            st.Page("pages/compare_experiments.py", title="Compare Experiments", icon="📊"),
-        ],
-    }
-)
+_is_admin = st.session_state.get("role") == "ADMIN"
+
+_nav: dict = {
+    "": [
+        st.Page("pages/dashboard.py", title="Dashboard", icon="🧪", default=True),
+    ],
+    "ADD": [
+        st.Page("pages/add_reagent.py", title="Add Reagent", icon="🧫"),
+        st.Page("pages/add_protocol.py", title="Add Protocol", icon="➕"),
+        st.Page("pages/add_experiment.py", title="Add Experiment", icon="🔬"),
+    ],
+    "SEARCH": [
+        st.Page("pages/search_reagents.py", title="Search Reagents", icon="🔍"),
+        st.Page("pages/search_protocols.py", title="Search Protocols", icon="🔍"),
+        st.Page("pages/search_experiments.py", title="Search Experiments", icon="📋"),
+    ],
+    "DETAILS": [
+        st.Page("pages/protocol_details.py", title="Protocol Details", icon="📄"),
+        st.Page("pages/experiment_details.py", title="Experiment Details", icon="🔬"),
+    ],
+    "AI INTEGRATION": [
+        st.Page("pages/compare_experiments.py", title="Compare Experiments", icon="📊"),
+    ],
+}
+
+if _is_admin:
+    _nav["ADMIN"] = [
+        st.Page("pages/user_management.py", title="User Management", icon="👥"),
+    ]
+
+pg = st.navigation(_nav)
 
 pg.run()
