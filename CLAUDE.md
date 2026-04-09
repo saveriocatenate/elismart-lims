@@ -9,7 +9,7 @@ EliSmart LIMS: a Laboratory Information Management System featuring hierarchical
 ## Tech Stack
 
 - Backend: Java 21, Spring Boot 3.4.1 (Maven)
-- Frontend: Python 3.14.3, Streamlit (multi-page app with session-based auth gate)
+- Frontend: Python 3.14.3, Streamlit (multipage app with session-based auth gate)
 - Database: H2 Database (Embedded mode, file-based persistence)
 - Migrations: Flyway (schema management via `src/main/resources/db/migration/`)
 - AI: Google Gemini API via LangChain4j (`dev.langchain4j:langchain4j-google-ai-gemini`), configured in `config/GeminiConfig.java`
@@ -74,14 +74,14 @@ The system is a Laboratory Information Management System (LIMS) structured aroun
 
 `CurveType` (in `model/CurveType.java`) defines the calibration curve fitting model stored on each Protocol. Six values are supported:
 
-| Enum constant | Display name | Description |
-|---|---|---|
-| `FOUR_PARAMETER_LOGISTIC` | 4PL | Symmetric sigmoid — ELISA standard |
-| `FIVE_PARAMETER_LOGISTIC` | 5PL | Asymmetric sigmoid |
-| `LOG_LOGISTIC_3P` | 3PL | 4PL with minimum fixed at zero |
-| `LINEAR` | Linear | Simple linear regression y = mx + q |
-| `SEMI_LOG_LINEAR` | Semi-log Linear | Linear regression on log-transformed X axis |
-| `POINT_TO_POINT` | Point-to-Point | Non-parametric interpolation (not recommended) |
+| Enum constant             | Display name    | Description                                    |
+|---------------------------|-----------------|------------------------------------------------|
+| `FOUR_PARAMETER_LOGISTIC` | 4PL             | Symmetric sigmoid — ELISA standard             |
+| `FIVE_PARAMETER_LOGISTIC` | 5PL             | Asymmetric sigmoid                             |
+| `LOG_LOGISTIC_3P`         | 3PL             | 4PL with minimum fixed at zero                 |
+| `LINEAR`                  | Linear          | Simple linear regression y = mx + q            |
+| `SEMI_LOG_LINEAR`         | Semi-log Linear | Linear regression on log-transformed X axis    |
+| `POINT_TO_POINT`          | Point-to-Point  | Non-parametric interpolation (not recommended) |
 
 Each constant carries `displayName`, `description`, and `requiredParameters` fields. The CHECK constraint in `V4__add_curve_type_to_protocol.sql` mirrors this enum exactly. Always keep both in sync when adding new curve types.
 
