@@ -73,6 +73,62 @@ public class Experiment extends Auditable {
     @BatchSize(size = 50)
     private List<MeasurementPair> measurementPairs = new ArrayList<>();
 
+    /**
+     * Adds a {@link UsedReagentBatch} to this experiment and sets the back-reference,
+     * keeping the bidirectional association consistent.
+     *
+     * <p>Always prefer this method over {@code getUsedReagentBatches().add(batch)} to
+     * ensure that {@code batch.experiment} is never left null or pointing at a different
+     * experiment.</p>
+     *
+     * @param batch the reagent batch to associate with this experiment
+     */
+    public void addUsedReagentBatch(UsedReagentBatch batch) {
+        usedReagentBatches.add(batch);
+        batch.setExperiment(this);
+    }
+
+    /**
+     * Removes a {@link UsedReagentBatch} from this experiment and clears its back-reference.
+     *
+     * <p>Because {@code orphanRemoval = true} is configured on the collection, the removed
+     * batch will be deleted from the database at the next flush.</p>
+     *
+     * @param batch the reagent batch to disassociate from this experiment
+     */
+    public void removeUsedReagentBatch(UsedReagentBatch batch) {
+        usedReagentBatches.remove(batch);
+        batch.setExperiment(null);
+    }
+
+    /**
+     * Adds a {@link MeasurementPair} to this experiment and sets the back-reference,
+     * keeping the bidirectional association consistent.
+     *
+     * <p>Always prefer this method over {@code getMeasurementPairs().add(pair)} to
+     * ensure that {@code pair.experiment} is never left null or pointing at a different
+     * experiment.</p>
+     *
+     * @param pair the measurement pair to associate with this experiment
+     */
+    public void addMeasurementPair(MeasurementPair pair) {
+        measurementPairs.add(pair);
+        pair.setExperiment(this);
+    }
+
+    /**
+     * Removes a {@link MeasurementPair} from this experiment and clears its back-reference.
+     *
+     * <p>Because {@code orphanRemoval = true} is configured on the collection, the removed
+     * pair will be deleted from the database at the next flush.</p>
+     *
+     * @param pair the measurement pair to disassociate from this experiment
+     */
+    public void removeMeasurementPair(MeasurementPair pair) {
+        measurementPairs.remove(pair);
+        pair.setExperiment(null);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
