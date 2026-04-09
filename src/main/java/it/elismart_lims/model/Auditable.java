@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -16,11 +17,10 @@ import java.time.LocalDateTime;
  * Base class that adds automatic audit columns to every entity that extends it.
  *
  * <p>{@code createdAt} and {@code createdBy} are set once on insert and never
- * updated. {@code updatedAt} is refreshed on every update. The actual values
- * are supplied by the {@code AuditorAware<String>} bean registered in
- * {@link it.elismart_lims.config.JpaAuditingConfig}; once real authentication
- * is in place, replace the {@code AuditorAwareImpl} implementation with one
- * that reads the authenticated principal instead of returning {@code "system"}.</p>
+ * updated. {@code updatedAt} and {@code updatedBy} are refreshed on every update.
+ * The actual values are supplied by the {@code AuditorAware<String>} bean
+ * ({@link it.elismart_lims.config.AuditorAwareImpl}), which reads the authenticated
+ * principal from the {@code SecurityContextHolder}.</p>
  */
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
@@ -46,10 +46,17 @@ public abstract class Auditable {
 
     /**
      * Identity of the principal who created this record.
-     * Currently, always {@code "system"} because the backend has no per-user authentication.
-     * Update {@link it.elismart_lims.config.AuditorAwareImpl} when auth is added.
+     * Set once on INSERT; never updated afterwards.
      */
     @CreatedBy
     @Column(name = "created_by", nullable = false, updatable = false, length = 100)
     private String createdBy;
+
+    /**
+     * Identity of the principal who last modified this record.
+     * Null for records that have never been modified after initial creation.
+     */
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private String updatedBy;
 }

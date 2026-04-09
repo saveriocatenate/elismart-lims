@@ -21,6 +21,7 @@ public record ExperimentResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         String createdBy,
+        String updatedBy,
         List<UsedReagentBatchResponse> usedReagentBatches,
         List<MeasurementPairResponse> measurementPairs
 ) {

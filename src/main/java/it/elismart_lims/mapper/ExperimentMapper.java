@@ -32,8 +32,9 @@ public final class ExperimentMapper {
 
     /**
      * Converts an Experiment entity into an ExperimentResponse DTO.
-     * Audit fields ({@code createdAt}, {@code updatedAt}, {@code createdBy}) are
-     * read from the {@link it.elismart_lims.model.Auditable} superclass.
+     * Audit fields ({@code createdAt}, {@code updatedAt}, {@code createdBy},
+     * {@code updatedBy}) are read from the {@link it.elismart_lims.model.Auditable}
+     * superclass.
      *
      * @param experiment the Experiment entity
      * @return the response DTO with nested collections and audit metadata
@@ -49,6 +50,7 @@ public final class ExperimentMapper {
                 .createdAt(experiment.getCreatedAt())
                 .updatedAt(experiment.getUpdatedAt())
                 .createdBy(experiment.getCreatedBy())
+                .updatedBy(experiment.getUpdatedBy())
                 .usedReagentBatches(UsedReagentBatchMapper.toResponseList(experiment.getUsedReagentBatches()))
                 .measurementPairs(MeasurementPairMapper.toResponseList(experiment.getMeasurementPairs()))
                 .build();
