@@ -1,7 +1,10 @@
 package it.elismart_lims.service;
 
+import it.elismart_lims.dto.MeasurementPairResponse;
 import it.elismart_lims.dto.MeasurementPairUpdateRequest;
+import it.elismart_lims.dto.OutlierUpdateRequest;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
+import it.elismart_lims.mapper.MeasurementPairMapper;
 import it.elismart_lims.model.MeasurementPair;
 import it.elismart_lims.repository.MeasurementPairRepository;
 import it.elismart_lims.service.validation.ValidationConstants;
@@ -75,5 +78,26 @@ public class MeasurementPairService {
 
         measurementPairRepository.save(pair);
         log.debug("Updated measurement pair id: {}", pair.getId());
+    }
+
+    /**
+     * Update the outlier flag of an existing measurement pair.
+     *
+     * @param id      the measurement pair ID
+     * @param request the outlier update payload
+     * @return the updated {@link MeasurementPairResponse}
+     * @throws ResourceNotFoundException if no pair exists with the given ID
+     */
+    @Transactional
+    public MeasurementPairResponse updateOutlier(Long id, OutlierUpdateRequest request) {
+        MeasurementPair pair = measurementPairRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "MeasurementPair not found with id: " + id));
+
+        pair.setIsOutlier(request.isOutlier());
+
+        measurementPairRepository.save(pair);
+        log.debug("Updated outlier flag for measurement pair id: {} → {}", id, request.isOutlier());
+        return MeasurementPairMapper.toResponse(pair);
     }
 }
