@@ -46,8 +46,8 @@ public final class MeasurementPairMapper {
                 .concentrationNominal(request.concentrationNominal())
                 .signal1(request.signal1())
                 .signal2(request.signal2())
-                .signalMean(ValidationConstants.calculateSignalMean(s1, s2))
-                .cvPct(ValidationConstants.calculateCvPercent(s1, s2))
+                .signalMean(ValidationConstants.calculateSignalMean(s1, s2))  // always server-side
+                .cvPct(ValidationConstants.calculateCvPercent(s1, s2))        // always server-side
                 .recoveryPct(request.recoveryPct())
                 .experiment(experiment)
                 .isOutlier(request.isOutlier() != null ? request.isOutlier() : false)

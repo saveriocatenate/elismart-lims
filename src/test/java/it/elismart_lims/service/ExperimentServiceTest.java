@@ -106,7 +106,7 @@ class ExperimentServiceTest {
                 .build();
 
         MeasurementPairRequest pairRequest = new MeasurementPairRequest(
-                PairType.CALIBRATION, null, 0.45, 0.47, 0.46, 3.04, 98.5, false);
+                PairType.CALIBRATION, null, 0.45, 0.47, 98.5, false);
 
         UsedReagentBatchRequest batchRequest = new UsedReagentBatchRequest(
                 1L, "LOT-001", LocalDate.of(2027, 12, 31));

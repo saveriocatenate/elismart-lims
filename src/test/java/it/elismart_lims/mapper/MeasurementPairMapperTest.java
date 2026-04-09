@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.data.Offset.offset;
 
 /**
  * Unit tests for {@link MeasurementPairMapper}.
@@ -17,7 +18,7 @@ class MeasurementPairMapperTest {
 
     @Test
     void toEntity_shouldMapRequestToEntity() {
-        var request = new MeasurementPairRequest(PairType.CALIBRATION, 100.0, 0.45, 0.47, 0.46, 3.04, 98.5, false);
+        var request = new MeasurementPairRequest(PairType.CALIBRATION, 100.0, 0.45, 0.47, 98.5, false);
 
         var entity = MeasurementPairMapper.toEntity(request);
 
@@ -28,7 +29,7 @@ class MeasurementPairMapperTest {
 
     @Test
     void toEntity_withExperiment_shouldLinkExperiment() {
-        var request = new MeasurementPairRequest(PairType.CALIBRATION, 100.0, 0.45, 0.47, 0.46, 3.04, 98.5, false);
+        var request = new MeasurementPairRequest(PairType.CALIBRATION, 100.0, 0.45, 0.47, 98.5, false);
         var experiment = Experiment.builder().id(1L).build();
 
         var entity = MeasurementPairMapper.toEntity(request, experiment);
@@ -38,7 +39,7 @@ class MeasurementPairMapperTest {
 
     @Test
     void toEntity_shouldDefaultIsOutlierToFalse_whenNull() {
-        var request = new MeasurementPairRequest(PairType.CALIBRATION, 100.0, 0.45, 0.47, 0.46, 3.04, 98.5, null);
+        var request = new MeasurementPairRequest(PairType.CALIBRATION, 100.0, 0.45, 0.47, 98.5, null);
 
         var entity = MeasurementPairMapper.toEntity(request);
 
@@ -69,8 +70,8 @@ class MeasurementPairMapperTest {
     @Test
     void toEntityList_shouldMapMultipleRequests() {
         var requests = List.of(
-                new MeasurementPairRequest(PairType.CALIBRATION, 100.0, 0.45, 0.47, 0.46, 3.04, 98.5, false),
-                new MeasurementPairRequest(PairType.CONTROL, 50.0, 0.30, 0.32, 0.31, 4.5, 95.0, false)
+                new MeasurementPairRequest(PairType.CALIBRATION, 100.0, 0.45, 0.47, 98.5, false),
+                new MeasurementPairRequest(PairType.CONTROL, 50.0, 0.30, 0.32, 95.0, false)
         );
         var experiment = Experiment.builder().id(1L).build();
 
@@ -79,6 +80,26 @@ class MeasurementPairMapperTest {
         assertThat(entities).hasSize(2);
         assertThat(entities.get(0).getExperiment()).isEqualTo(experiment);
         assertThat(entities.get(1).getExperiment()).isEqualTo(experiment);
+    }
+
+    @Test
+    void toEntity_shouldComputeSignalMeanServerSide() {
+        // signal1=100, signal2=110 → mean = (100+110)/2 = 105.0
+        var request = new MeasurementPairRequest(PairType.CALIBRATION, null, 100.0, 110.0, null, false);
+
+        var entity = MeasurementPairMapper.toEntity(request);
+
+        assertThat(entity.getSignalMean()).isCloseTo(105.0, offset(1e-9));
+    }
+
+    @Test
+    void toEntity_shouldComputeCvPctServerSide() {
+        // signal1=100, signal2=110 → SD=10/√2, mean=105 → %CV=(10/(105·√2))·100 ≈ 6.734
+        var request = new MeasurementPairRequest(PairType.CALIBRATION, null, 100.0, 110.0, null, false);
+
+        var entity = MeasurementPairMapper.toEntity(request);
+
+        assertThat(entity.getCvPct()).isCloseTo(6.734, offset(1e-3));
     }
 
     @Test
