@@ -50,7 +50,7 @@ class GlobalExceptionHandlerTest {
     void protocolMismatchException_shouldReturn400WithJsonBody() throws Exception {
         when(protocolService.create(any())).thenThrow(new ProtocolMismatchException("Missing reagents"));
 
-        var request = new ProtocolRequest("Test", 7, 3, 15.0, 10.0);
+        var request = new ProtocolRequest("Test", 7, 3, 15.0, 10.0, it.elismart_lims.model.CurveType.FOUR_PARAMETER_LOGISTIC);
 
         mockMvc.perform(post("/api/protocols")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -64,7 +64,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void validationError_shouldReturn400WithFieldErrors() throws Exception {
-        var request = new ProtocolRequest("", 7, 3, 15.0, 10.0);
+        var request = new ProtocolRequest("", 7, 3, 15.0, 10.0, it.elismart_lims.model.CurveType.FOUR_PARAMETER_LOGISTIC);
 
         mockMvc.perform(post("/api/protocols")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -26,6 +26,7 @@ public final class ProtocolMapper {
                 .numControlPairs(request.numControlPairs())
                 .maxCvAllowed(request.maxCvAllowed())
                 .maxErrorAllowed(request.maxErrorAllowed())
+                .curveType(request.curveType())
                 .build();
     }
 
@@ -41,6 +42,7 @@ public final class ProtocolMapper {
         entity.setNumControlPairs(request.numControlPairs());
         entity.setMaxCvAllowed(request.maxCvAllowed());
         entity.setMaxErrorAllowed(request.maxErrorAllowed());
+        entity.setCurveType(request.curveType());
     }
 
     /**
@@ -57,6 +59,7 @@ public final class ProtocolMapper {
                 .numControlPairs(entity.getNumControlPairs())
                 .maxCvAllowed(entity.getMaxCvAllowed())
                 .maxErrorAllowed(entity.getMaxErrorAllowed())
+                .curveType(entity.getCurveType())
                 .build();
     }
 }

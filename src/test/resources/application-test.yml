@@ -14,3 +14,7 @@ spring:
 
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
+
+gemini:
+  api-key: test-key
+  model: gemini-2.0-flash

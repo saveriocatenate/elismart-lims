@@ -1,7 +1,6 @@
 package it.elismart_lims.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.langchain4j.model.chat.ChatLanguageModel;
 import it.elismart_lims.dto.ExperimentResponse;
 import it.elismart_lims.dto.GeminiAnalysisRequest;
 import it.elismart_lims.dto.GeminiAnalysisResponse;
@@ -10,87 +9,45 @@ import it.elismart_lims.dto.ProtocolResponse;
 import it.elismart_lims.dto.UsedReagentBatchResponse;
 import it.elismart_lims.exception.model.GeminiServiceException;
 import it.elismart_lims.model.PairType;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
-import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.OptionalDouble;
 
 /**
  * Service that builds a structured prompt from experiment data and queries the Google Gemini API
- * to produce a quantitative and qualitative analysis.
+ * via LangChain4j's {@link ChatLanguageModel} to produce a quantitative and qualitative analysis.
  *
  * <p>The prompt follows a three-section structure:
  * {@code [SYSTEM_CONTEXT]}, {@code [EXPERIMENT_DATA]}, and {@code [USER_QUERY]}.</p>
  *
- * <p>Configuration properties:
+ * <p>The {@link ChatLanguageModel} bean is configured in {@link it.elismart_lims.config.GeminiConfig}
+ * from the following properties:
  * <ul>
- *   <li>{@code gemini.api-key} — Google Gemini API key (required for live calls)</li>
- *   <li>{@code gemini.base-url} — Gemini API base URL</li>
+ *   <li>{@code gemini.api-key} — Google Gemini API key</li>
  *   <li>{@code gemini.model} — Gemini model name</li>
  * </ul>
  * </p>
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class GeminiService {
 
-    /** Relative path template filled in from the configured model name. */
-    private final String geminiPath;
-
-    /** Google Gemini API key injected from {@code gemini.api-key}. */
-    private final String apiKey;
-
-    private final RestClient restClient;
-    private final ObjectMapper objectMapper;
+    private final ChatLanguageModel chatLanguageModel;
     private final ExperimentService experimentService;
     private final ProtocolService protocolService;
 
     /**
-     * Constructs the GeminiService, building a dedicated {@link RestClient} pointed at the
-     * Gemini base URL with configured connect and read timeouts.
-     *
-     * @param apiKey             the Google Gemini API key, injected from {@code gemini.api-key}
-     * @param baseUrl            the Gemini API base URL, injected from {@code gemini.base-url}
-     * @param model              the Gemini model identifier, injected from {@code gemini.model}
-     * @param restClientBuilder  the Spring-managed RestClient builder
-     * @param objectMapper       Jackson ObjectMapper for response parsing
-     * @param experimentService  service used to fetch experiment data
-     * @param protocolService    service used to fetch protocol limits by name
-     */
-    public GeminiService(
-            @Value("${gemini.api-key:}") String apiKey,
-            @Value("${gemini.base-url}") String baseUrl,
-            @Value("${gemini.model}") String model,
-            RestClient.Builder restClientBuilder,
-            ObjectMapper objectMapper,
-            ExperimentService experimentService,
-            ProtocolService protocolService) {
-        this.apiKey = apiKey;
-        this.geminiPath = "/v1beta/models/" + model + ":generateContent";
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(5));
-        factory.setReadTimeout(Duration.ofSeconds(120));
-        this.restClient = restClientBuilder.baseUrl(baseUrl).requestFactory(factory).build();
-        this.objectMapper = objectMapper;
-        this.experimentService = experimentService;
-        this.protocolService = protocolService;
-    }
-
-    /**
-     * Fetch each experiment, build a structured prompt, call the Gemini API, and return the
-     * analysis text.
+     * Fetches each experiment, builds a structured prompt, calls the Gemini API via LangChain4j,
+     * and returns the analysis text.
      *
      * @param request contains the list of experiment IDs and the user's question
      * @return a {@link GeminiAnalysisResponse} with the AI-generated text
      * @throws IllegalArgumentException if no experiment IDs are provided
-     * @throws GeminiServiceException   if the Gemini API call fails or returns an unexpected response
+     * @throws GeminiServiceException   if the Gemini API call fails
      */
     public GeminiAnalysisResponse analyze(GeminiAnalysisRequest request) {
         if (request.experimentIds() == null || request.experimentIds().isEmpty()) {
@@ -108,13 +65,17 @@ public class GeminiService {
         ProtocolResponse protocol = protocolService.getByName(protocolName);
 
         String prompt = buildPrompt(experiments, protocol, request.userQuestion());
-        log.debug("Gemini prompt built ({} chars)", prompt.length());
+        log.debug("Gemini request ({} chars):\n{}", prompt.length(), prompt);
 
-        String rawJson = callGeminiApi(prompt);
-        String analysisText = extractText(rawJson);
-
-        log.info("Gemini analysis completed successfully for experiments: {}", request.experimentIds());
-        return GeminiAnalysisResponse.builder().analysis(analysisText).build();
+        try {
+            String analysisText = chatLanguageModel.generate(prompt);
+            log.debug("Gemini response:\n{}", analysisText);
+            log.info("Gemini analysis completed successfully for experiments: {}", request.experimentIds());
+            return GeminiAnalysisResponse.builder().analysis(analysisText).build();
+        } catch (Exception e) {
+            log.error("Gemini API call failed", e);
+            throw new GeminiServiceException("Failed to get response from Gemini API", e);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -246,54 +207,5 @@ public class GeminiService {
         String cvStr = avgCv.isPresent() ? String.format("%.1f%%", avgCv.getAsDouble()) : "n/a";
         String recStr = avgRec.isPresent() ? String.format("%.1f%%", avgRec.getAsDouble()) : "n/a";
         return String.format(" %s (%d pairs): Avg %%CV=%s | Avg %%Rec=%s.", label, pairs.size(), cvStr, recStr);
-    }
-
-    // -------------------------------------------------------------------------
-    // HTTP call
-    // -------------------------------------------------------------------------
-
-    /**
-     * Posts the prompt to the Gemini generateContent endpoint and returns the raw JSON response.
-     * Package-private to allow spy-based testing without a live network call.
-     *
-     * @param prompt the complete prompt string
-     * @return the raw JSON string from the Gemini API
-     */
-    String callGeminiApi(String prompt) {
-        Map<String, Object> body = Map.of(
-                "contents", List.of(
-                        Map.of("parts", List.of(Map.of("text", prompt)))
-                )
-        );
-
-        return restClient.post()
-                .uri(geminiPath + "?key=" + apiKey)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(body)
-                .retrieve()
-                .body(String.class);
-    }
-
-    // -------------------------------------------------------------------------
-    // Response parsing
-    // -------------------------------------------------------------------------
-
-    /**
-     * Extracts the generated text from the Gemini API JSON response.
-     *
-     * <p>Expected structure: {@code candidates[0].content.parts[0].text}</p>
-     *
-     * @param rawJson the raw JSON string from the Gemini API
-     * @return the extracted text
-     * @throws GeminiServiceException if parsing fails or the expected path is absent
-     */
-    private String extractText(String rawJson) {
-        try {
-            JsonNode root = objectMapper.readTree(rawJson);
-            return root.at("/candidates/0/content/parts/0/text").asText();
-        } catch (Exception e) {
-            log.error("Failed to parse Gemini response: {}", rawJson, e);
-            throw new GeminiServiceException("Failed to parse Gemini API response", e);
-        }
     }
 }

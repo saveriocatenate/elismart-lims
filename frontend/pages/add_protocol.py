@@ -50,6 +50,24 @@ existing_pairs: set[tuple[str, str]] = {
 st.subheader("Protocol Details")
 name = st.text_input("Name", placeholder="e.g. IgG Test Protocol", key="proto_name")
 
+# Curve type options: display label → enum value sent to the API
+_CURVE_TYPE_OPTIONS: dict[str, str] = {
+    "4PL — Four Parameter Logistic (ELISA standard)": "FOUR_PARAMETER_LOGISTIC",
+    "5PL — Five Parameter Logistic (asymmetric)": "FIVE_PARAMETER_LOGISTIC",
+    "3PL — Log-Logistic (minimum fixed at zero)": "LOG_LOGISTIC_3P",
+    "Linear (y = mx + q)": "LINEAR",
+    "Semi-log Linear (log X-axis)": "SEMI_LOG_LINEAR",
+    "Point-to-Point (not recommended)": "POINT_TO_POINT",
+}
+curve_label = st.selectbox(
+    "Curve Type",
+    options=list(_CURVE_TYPE_OPTIONS.keys()),
+    index=0,
+    help="Mathematical model used to fit the calibration curve.",
+    key="proto_curve",
+)
+curve_type = _CURVE_TYPE_OPTIONS[curve_label]
+
 col1, col2, col3 = st.columns(3)
 with col1:
     num_cal = st.number_input("Calibration Pairs", min_value=1, value=5, step=1, key="proto_cal")
@@ -141,6 +159,7 @@ if st.button("Create Protocol", type="primary", use_container_width=True, key="p
                     f"{BACKEND_URL}/api/protocols",
                     json={
                         "name": name.strip(),
+                        "curveType": curve_type,
                         "numCalibrationPairs": int(num_cal),
                         "numControlPairs": int(num_ctrl),
                         "maxCvAllowed": max_cv,

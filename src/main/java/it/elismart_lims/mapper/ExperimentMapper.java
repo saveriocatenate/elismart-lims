@@ -45,6 +45,7 @@ public final class ExperimentMapper {
                 .date(experiment.getDate())
                 .status(experiment.getStatus())
                 .protocolName(experiment.getProtocol().getName())
+                .protocolCurveType(experiment.getProtocol().getCurveType())
                 .createdAt(experiment.getCreatedAt())
                 .updatedAt(experiment.getUpdatedAt())
                 .createdBy(experiment.getCreatedBy())

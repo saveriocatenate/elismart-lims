@@ -1,5 +1,6 @@
 package it.elismart_lims.dto;
 
+import it.elismart_lims.model.CurveType;
 import lombok.Builder;
 
 /**
@@ -12,6 +13,7 @@ public record ProtocolResponse(
         Integer numCalibrationPairs,
         Integer numControlPairs,
         Double maxCvAllowed,
-        Double maxErrorAllowed
+        Double maxErrorAllowed,
+        CurveType curveType
 ) {
 }

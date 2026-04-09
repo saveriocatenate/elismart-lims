@@ -2,6 +2,7 @@ package it.elismart_lims.service;
 
 import it.elismart_lims.dto.ProtocolRequest;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
+import it.elismart_lims.model.CurveType;
 import it.elismart_lims.model.Protocol;
 import it.elismart_lims.repository.ProtocolRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +52,7 @@ class ProtocolServiceTest {
                 .numControlPairs(3)
                 .maxCvAllowed(15.0)
                 .maxErrorAllowed(10.0)
+                .curveType(CurveType.FOUR_PARAMETER_LOGISTIC)
                 .build();
     }
 
@@ -62,6 +64,7 @@ class ProtocolServiceTest {
                 .numControlPairs(2)
                 .maxCvAllowed(10.0)
                 .maxErrorAllowed(8.0)
+                .curveType(CurveType.FIVE_PARAMETER_LOGISTIC)
                 .build();
 
         when(protocolRepository.findAll()).thenReturn(List.of(protocol, protocol2));
@@ -185,7 +188,7 @@ class ProtocolServiceTest {
     @Test
     void update_shouldUpdateFieldsAndReturnResponse() {
         protocol.setId(1L);
-        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0);
+        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0, CurveType.FOUR_PARAMETER_LOGISTIC);
         when(protocolRepository.findById(1L)).thenReturn(Optional.of(protocol));
         when(experimentService.existsByProtocolId(1L)).thenReturn(false);
         when(protocolRepository.save(any(Protocol.class))).thenReturn(protocol);
@@ -199,7 +202,7 @@ class ProtocolServiceTest {
     @Test
     void update_shouldThrow_whenProtocolHasLinkedExperiments() {
         protocol.setId(1L);
-        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0);
+        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0, CurveType.FOUR_PARAMETER_LOGISTIC);
         when(protocolRepository.findById(1L)).thenReturn(Optional.of(protocol));
         when(experimentService.existsByProtocolId(1L)).thenReturn(true);
 

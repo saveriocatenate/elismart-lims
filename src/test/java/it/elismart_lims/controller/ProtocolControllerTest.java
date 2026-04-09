@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import it.elismart_lims.dto.ProtocolRequest;
 import it.elismart_lims.dto.ProtocolResponse;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
+import it.elismart_lims.model.CurveType;
 import it.elismart_lims.service.ProtocolService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,8 +41,8 @@ class ProtocolControllerTest {
 
     @Test
     void getAll_shouldReturnProtocolList() throws Exception {
-        var p1 = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0);
-        var p2 = new ProtocolResponse(2L, "IgM Test", 5, 2, 10.0, 8.0);
+        var p1 = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        var p2 = new ProtocolResponse(2L, "IgM Test", 5, 2, 10.0, 8.0, CurveType.FIVE_PARAMETER_LOGISTIC);
         when(protocolService.getAll()).thenReturn(List.of(p1, p2));
 
         mockMvc.perform(get("/api/protocols"))
@@ -62,13 +63,14 @@ class ProtocolControllerTest {
 
     @Test
     void getById_shouldReturnProtocol() throws Exception {
-        var response = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0);
+        var response = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
         when(protocolService.getById(1L)).thenReturn(response);
 
         mockMvc.perform(get("/api/protocols/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.name").value("IgG Test"));
+                .andExpect(jsonPath("$.name").value("IgG Test"))
+                .andExpect(jsonPath("$.curveType").value("FOUR_PARAMETER_LOGISTIC"));
     }
 
     @Test
@@ -82,8 +84,8 @@ class ProtocolControllerTest {
 
     @Test
     void create_shouldReturn201() throws Exception {
-        var request = new ProtocolRequest("IgG Test", 7, 3, 15.0, 10.0);
-        var response = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0);
+        var request = new ProtocolRequest("IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        var response = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
         when(protocolService.create(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/protocols")
@@ -91,12 +93,13 @@ class ProtocolControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.name").value("IgG Test"));
+                .andExpect(jsonPath("$.name").value("IgG Test"))
+                .andExpect(jsonPath("$.curveType").value("FOUR_PARAMETER_LOGISTIC"));
     }
 
     @Test
     void create_shouldReturn400_whenInvalid() throws Exception {
-        var request = new ProtocolRequest("", 7, 3, 15.0, 10.0);
+        var request = new ProtocolRequest("", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
 
         mockMvc.perform(post("/api/protocols")
                         .contentType(MediaType.APPLICATION_JSON)

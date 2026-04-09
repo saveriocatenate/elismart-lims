@@ -41,4 +41,9 @@ public class Protocol extends Auditable {
     /** Maximum acceptable %Recovery error (accuracy limit). */
     @Column(name = "max_error_allowed", nullable = false)
     private Double maxErrorAllowed;
+
+    /** Mathematical model used to fit the calibration curve for this protocol. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "curve_type", nullable = false, length = 50)
+    private CurveType curveType;
 }

@@ -1,5 +1,6 @@
 package it.elismart_lims.dto;
 
+import it.elismart_lims.model.CurveType;
 import it.elismart_lims.model.ExperimentStatus;
 import lombok.Builder;
 
@@ -16,6 +17,7 @@ public record ExperimentResponse(
         LocalDateTime date,
         ExperimentStatus status,
         String protocolName,
+        CurveType protocolCurveType,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         String createdBy,

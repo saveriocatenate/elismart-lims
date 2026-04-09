@@ -55,7 +55,7 @@ st.markdown("---")
 # Session-state defaults
 # ---------------------------------------------------------------------------
 
-st.session_state.setdefault("compare_selected", [])   # list of {id, name, date, protocolName}
+st.session_state.setdefault("compare_selected", [])   # list of {id, name, date, protocolName, protocolCurveType}
 st.session_state.setdefault("compare_data", {})
 st.session_state.setdefault("lock_reagents", False)
 st.session_state.setdefault("lock_calibration", False)
@@ -80,6 +80,7 @@ if pre_ids:
                         "name": d.get("name", f"Exp {eid}"),
                         "date": d.get("date"),
                         "protocolName": d.get("protocolName", "—"),
+                        "protocolCurveType": d.get("protocolCurveType", ""),
                     })
             except Exception:
                 pass
@@ -92,13 +93,24 @@ st.subheader("Selected Experiments")
 
 selected: list[dict] = st.session_state["compare_selected"]
 
+_CURVE_DISPLAY = {
+    "FOUR_PARAMETER_LOGISTIC": "4PL",
+    "FIVE_PARAMETER_LOGISTIC": "5PL",
+    "LOG_LOGISTIC_3P": "3PL",
+    "LINEAR": "Linear",
+    "SEMI_LOG_LINEAR": "Semi-log Linear",
+    "POINT_TO_POINT": "Point-to-Point",
+}
+
 if selected:
     for item in list(selected):
-        sc1, sc2, sc3, sc4 = st.columns([3, 2, 2, 1])
+        sc1, sc2, sc3, sc4, sc5 = st.columns([3, 2, 2, 1, 1])
         sc1.markdown(f"**{item['name']}**")
         sc2.caption(format_date(item.get("date")))
         sc3.caption(item.get("protocolName", "—"))
-        if sc4.button("✕ Remove", key=f"rem_{item['id']}", use_container_width=True):
+        curve_raw = item.get("protocolCurveType", "")
+        sc4.caption(_CURVE_DISPLAY.get(curve_raw, curve_raw or "—"))
+        if sc5.button("✕ Remove", key=f"rem_{item['id']}", use_container_width=True):
             st.session_state["compare_selected"] = [
                 s for s in st.session_state["compare_selected"] if s["id"] != item["id"]
             ]
@@ -141,10 +153,12 @@ if len(selected) < MAX_SLOTS:
             already_ids = {s["id"] for s in st.session_state["compare_selected"]}
             for exp in add_results:
                 eid = exp["id"]
-                ac1, ac2, ac3, ac4 = st.columns([3, 2, 2, 1])
+                ac1, ac2, ac3, ac3b, ac4 = st.columns([3, 2, 2, 1, 1])
                 ac1.markdown(f"**{exp.get('name')}**")
                 ac2.caption(format_date(exp.get("date")))
                 ac3.caption(exp.get("protocolName", "—"))
+                curve_raw = exp.get("protocolCurveType", "")
+                ac3b.caption(_CURVE_DISPLAY.get(curve_raw, curve_raw or "—"))
                 btn_label = "✓ Added" if eid in already_ids else "+ Add"
                 btn_disabled = eid in already_ids or len(st.session_state["compare_selected"]) >= MAX_SLOTS
                 if ac4.button(btn_label, key=f"add_{eid}", disabled=btn_disabled, use_container_width=True):
@@ -153,6 +167,7 @@ if len(selected) < MAX_SLOTS:
                         "name": exp.get("name", f"Exp {eid}"),
                         "date": exp.get("date"),
                         "protocolName": exp.get("protocolName", "—"),
+                        "protocolCurveType": exp.get("protocolCurveType", ""),
                     })
                     st.session_state["compare_data"] = {}
                     st.rerun()

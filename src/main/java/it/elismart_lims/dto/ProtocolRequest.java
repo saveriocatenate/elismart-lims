@@ -1,5 +1,6 @@
 package it.elismart_lims.dto;
 
+import it.elismart_lims.model.CurveType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -11,6 +12,7 @@ public record ProtocolRequest(
         @NotNull Integer numCalibrationPairs,
         @NotNull Integer numControlPairs,
         @NotNull Double maxCvAllowed,
-        @NotNull Double maxErrorAllowed
+        @NotNull Double maxErrorAllowed,
+        @NotNull CurveType curveType
 ) {
 }

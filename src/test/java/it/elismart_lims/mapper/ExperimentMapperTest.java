@@ -2,6 +2,7 @@ package it.elismart_lims.mapper;
 
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.UsedReagentBatchRequest;
+import it.elismart_lims.model.CurveType;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.ExperimentStatus;
 import it.elismart_lims.model.Protocol;
@@ -37,7 +38,7 @@ class ExperimentMapperTest {
 
     @Test
     void toResponse_shouldMapEntityToResponse() {
-        var protocol = Protocol.builder().name("IgG Test").build();
+        var protocol = Protocol.builder().name("IgG Test").curveType(CurveType.FOUR_PARAMETER_LOGISTIC).build();
         var entity = Experiment.builder()
                 .id(1L)
                 .name("Run 2026-04-05")

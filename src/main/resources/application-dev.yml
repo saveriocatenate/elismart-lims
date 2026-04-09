@@ -13,3 +13,16 @@ spring:
 
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
+    show-sql: false                 # SQL routed through SLF4J, not stdout
+    properties:
+      hibernate:
+        format_sql: true            # multi-line, indented SQL in logs
+
+logging:
+  level:
+    # Application code
+    it.elismart_lims: DEBUG
+    # SQL statements (Hibernate 6 / Spring Boot 3)
+    org.hibernate.SQL: DEBUG
+    # Bind parameters for each query
+    org.hibernate.orm.jdbc.bind: TRACE

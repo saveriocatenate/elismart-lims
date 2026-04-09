@@ -21,5 +21,4 @@ server:
 
 gemini:
   api-key: ${GEMINI_API_KEY:}
-  base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
-  model: ${GEMINI_MODEL:gemini-flash-latest}
+  model: ${GEMINI_MODEL:gemini-2.0-flash}

@@ -114,7 +114,7 @@ with st.form("edit_form"):
         status_idx = _STATUS_OPTIONS.index(current_status) if current_status in _STATUS_OPTIONS else 0
         edit_status = st.selectbox("Status", _STATUS_OPTIONS, index=status_idx, disabled=not edit_mode)
 
-    col_date, col_proto = st.columns(2)
+    col_date, col_proto, col_curve = st.columns(3)
     with col_date:
         existing_date = None
         if data.get("date"):
@@ -126,6 +126,19 @@ with st.form("edit_form"):
 
     with col_proto:
         st.text_input("Protocol (read-only)", value=data.get("protocolName", "—"), disabled=True)
+
+    with col_curve:
+        _CURVE_DISPLAY = {
+            "FOUR_PARAMETER_LOGISTIC": "4PL",
+            "FIVE_PARAMETER_LOGISTIC": "5PL",
+            "LOG_LOGISTIC_3P": "3PL",
+            "LINEAR": "Linear",
+            "SEMI_LOG_LINEAR": "Semi-log Linear",
+            "POINT_TO_POINT": "Point-to-Point",
+        }
+        curve_raw = data.get("protocolCurveType", "")
+        curve_label = _CURVE_DISPLAY.get(curve_raw, curve_raw or "—")
+        st.text_input("Curve Type (read-only)", value=curve_label, disabled=True)
 
     st.markdown("---")
 
