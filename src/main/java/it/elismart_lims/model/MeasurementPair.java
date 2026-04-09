@@ -39,15 +39,15 @@ public class MeasurementPair extends Auditable {
     private Double concentrationNominal;
 
     /** Raw optical density reading from the first replicate measurement. */
-    @Column(name = "signal_1")
+    @Column(name = "signal_1", nullable = false)
     private Double signal1;
 
     /** Raw optical density reading from the second replicate measurement. */
-    @Column(name = "signal_2")
+    @Column(name = "signal_2", nullable = false)
     private Double signal2;
 
-    /** Arithmetic mean of {@link #signal1} and {@link #signal2}. */
-    @Column(name = "signal_mean")
+    /** Arithmetic mean of {@link #signal1} and {@link #signal2}; always computed server-side. */
+    @Column(name = "signal_mean", nullable = false)
     private Double signalMean;
 
     /** Precision expressed as coefficient of variation (StdDev / Mean × 100). */

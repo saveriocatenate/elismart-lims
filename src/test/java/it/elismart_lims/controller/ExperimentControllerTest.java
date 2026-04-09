@@ -119,6 +119,50 @@ class ExperimentControllerTest {
     }
 
     @Test
+    void create_shouldReturn400_whenMeasurementPairMissingSignal1() throws Exception {
+        // signal1 is absent — @NotNull on MeasurementPairRequest.signal1 must trigger a 400
+        String json = """
+                {
+                  "name": "Run X",
+                  "date": "2026-04-05T10:00:00",
+                  "protocolId": 1,
+                  "status": "PENDING",
+                  "usedReagentBatches": [{"reagentId": 1, "lotNumber": "LOT-001", "expiryDate": null}],
+                  "measurementPairs": [
+                    {"pairType": "CALIBRATION", "signal2": 0.47, "recoveryPct": null, "isOutlier": false}
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/experiments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void create_shouldReturn400_whenMeasurementPairMissingSignal2() throws Exception {
+        // signal2 is absent — @NotNull on MeasurementPairRequest.signal2 must trigger a 400
+        String json = """
+                {
+                  "name": "Run X",
+                  "date": "2026-04-05T10:00:00",
+                  "protocolId": 1,
+                  "status": "PENDING",
+                  "usedReagentBatches": [{"reagentId": 1, "lotNumber": "LOT-001", "expiryDate": null}],
+                  "measurementPairs": [
+                    {"pairType": "CALIBRATION", "signal1": 0.45, "recoveryPct": null, "isOutlier": false}
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/experiments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void search_shouldReturnPaginatedResults() throws Exception {
         var searchRequest = new ExperimentSearchRequest(
                 null, null, null, null, null, 0, 20);

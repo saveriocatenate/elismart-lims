@@ -15,8 +15,8 @@ import jakarta.validation.constraints.NotNull;
 public record MeasurementPairRequest(
         @NotNull PairType pairType,
         Double concentrationNominal,
-        Double signal1,
-        Double signal2,
+        @NotNull Double signal1,
+        @NotNull Double signal2,
         Double recoveryPct,
         Boolean isOutlier
 ) {
