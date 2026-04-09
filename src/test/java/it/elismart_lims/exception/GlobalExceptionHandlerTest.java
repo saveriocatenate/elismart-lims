@@ -8,6 +8,8 @@ import it.elismart_lims.service.ProtocolService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import it.elismart_lims.config.TestSecurityConfig;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -23,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Unit tests for {@link GlobalExceptionHandler}.
  * Tests the error response format by triggering exceptions through controller endpoints.
  */
+@Import(TestSecurityConfig.class)
 @WebMvcTest(ProtocolController.class)
 class GlobalExceptionHandlerTest {
 

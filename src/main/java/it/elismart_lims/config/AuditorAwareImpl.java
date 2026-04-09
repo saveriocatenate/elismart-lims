@@ -1,26 +1,36 @@
 package it.elismart_lims.config;
 
 import org.springframework.data.domain.AuditorAware;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
 /**
- * Supplies the current "user" identity for JPA auditing ({@code @CreatedBy}).
+ * Supplies the current authenticated username for JPA auditing ({@code @CreatedBy},
+ * {@code @LastModifiedBy}).
  *
- * <p>The backend currently has no per-request authentication — all calls from the
- * Streamlit frontend arrive unauthenticated at the API level. The fixed value
- * {@code "system"} ensures the {@code created_by} column is always populated.</p>
- *
- * <p><strong>To-do when auth is added:</strong> replace the body of
- * {@link #getCurrentAuditor()} with logic that reads the authenticated principal
- * from the security context (e.g. via {@code SecurityContextHolder}).</p>
+ * <p>Reads the principal from {@link SecurityContextHolder}. Falls back to
+ * {@code "system"} for unauthenticated requests (e.g., Flyway callbacks, scheduled
+ * tasks) and anonymous accesses.</p>
  */
 @Component("auditorAwareImpl")
 public class AuditorAwareImpl implements AuditorAware<String> {
 
+    /** Fallback value used when no authenticated principal is present. */
+    private static final String SYSTEM = "system";
+
     @Override
     public Optional<String> getCurrentAuditor() {
-        return Optional.of("system");
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || "anonymousUser".equals(authentication.getPrincipal())) {
+            return Optional.of(SYSTEM);
+        }
+
+        return Optional.of(authentication.getName());
     }
 }
