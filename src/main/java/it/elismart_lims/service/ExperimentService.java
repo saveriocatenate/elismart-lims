@@ -14,6 +14,7 @@ import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.MeasurementPair;
 import it.elismart_lims.model.UsedReagentBatch;
 import it.elismart_lims.repository.ExperimentRepository;
+import it.elismart_lims.service.audit.AuditLogService;
 import it.elismart_lims.util.ExperimentSpecifications;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -41,6 +43,7 @@ public class ExperimentService {
     private final UsedReagentBatchService usedReagentBatchService;
     private final MeasurementPairService measurementPairService;
     private final ProtocolReagentSpecService protocolReagentSpecService;
+    private final AuditLogService auditLogService;
 
     /**
      * Find an experiment by its ID.
@@ -114,6 +117,10 @@ public class ExperimentService {
      * Only {@code name}, {@code date}, {@code status}, and per-batch lot details are
      * mutable via this operation.</p>
      *
+     * <p>Every field that actually changes produces an {@link it.elismart_lims.model.AuditLog}
+     * entry via {@link AuditLogService}. Fields whose old and new values are equal generate
+     * no audit row.</p>
+     *
      * @param id      the experiment ID
      * @param request the update payload
      * @return the updated ExperimentResponse DTO
@@ -124,6 +131,10 @@ public class ExperimentService {
         log.info("Updating experiment id: {}", id);
         var experiment = experimentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Experiment not found with id: " + id));
+
+        auditIfChanged("Experiment", id, "name",       experiment.getName(),   request.name());
+        auditIfChanged("Experiment", id, "date",       experiment.getDate(),   request.date());
+        auditIfChanged("Experiment", id, "status",     experiment.getStatus(), request.status());
 
         experiment.setName(request.name());
         experiment.setDate(request.date());
@@ -142,6 +153,24 @@ public class ExperimentService {
         experiment = experimentRepository.save(experiment);
         log.info("Experiment updated id: {}", id);
         return ExperimentMapper.toResponse(experiment);
+    }
+
+    /**
+     * Logs a field change via {@link AuditLogService} only when the old and new values differ.
+     *
+     * @param entityType simple class name of the entity
+     * @param id         primary key of the entity row
+     * @param field      Java field name
+     * @param oldVal     value before the change; converted to String via {@link Object#toString()}
+     * @param newVal     value after the change; converted to String via {@link Object#toString()}
+     */
+    private void auditIfChanged(String entityType, Long id, String field, Object oldVal, Object newVal) {
+        if (!Objects.equals(oldVal, newVal)) {
+            auditLogService.logChange(entityType, id, field,
+                    oldVal != null ? oldVal.toString() : null,
+                    newVal != null ? newVal.toString() : null,
+                    null);
+        }
     }
 
     /**

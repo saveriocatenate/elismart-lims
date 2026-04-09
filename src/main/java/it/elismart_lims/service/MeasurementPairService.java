@@ -7,6 +7,7 @@ import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.mapper.MeasurementPairMapper;
 import it.elismart_lims.model.MeasurementPair;
 import it.elismart_lims.repository.MeasurementPairRepository;
+import it.elismart_lims.service.audit.AuditLogService;
 import it.elismart_lims.service.validation.ValidationConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Business logic for MeasurementPair operations.
@@ -24,6 +26,7 @@ import java.util.List;
 public class MeasurementPairService {
 
     private final MeasurementPairRepository measurementPairRepository;
+    private final AuditLogService auditLogService;
 
     /**
      * Persist a list of measurement pairs.
@@ -39,9 +42,11 @@ public class MeasurementPairService {
 
     /**
      * Update the raw signal values of an existing measurement pair and recalculate
-     * the derived metrics (signal mean, %CV, %Recovery) server-side.
+     * the derived metrics (signal mean, %CV) server-side.
      *
-     * <p>Only the pair's owner experiment ID is validated; pairType is immutable.</p>
+     * <p>Only the pair's owner experiment ID is validated; pairType is immutable.
+     * Every field that actually changes produces an {@link it.elismart_lims.model.AuditLog}
+     * entry via {@link AuditLogService}.</p>
      *
      * @param request      the update payload (id, signal1, signal2, concentrationNominal)
      * @param experimentId the ID of the owning experiment, used to validate ownership
@@ -58,6 +63,15 @@ public class MeasurementPairService {
             throw new IllegalArgumentException(
                     "Measurement pair " + request.id()
                     + " does not belong to experiment " + experimentId);
+        }
+
+        auditIfChanged("MeasurementPair", pair.getId(), "signal1",
+                pair.getSignal1(), request.signal1());
+        auditIfChanged("MeasurementPair", pair.getId(), "signal2",
+                pair.getSignal2(), request.signal2());
+        if (request.concentrationNominal() != null) {
+            auditIfChanged("MeasurementPair", pair.getId(), "concentrationNominal",
+                    pair.getConcentrationNominal(), request.concentrationNominal());
         }
 
         double s1 = request.signal1();
@@ -83,6 +97,8 @@ public class MeasurementPairService {
     /**
      * Update the outlier flag of an existing measurement pair.
      *
+     * <p>Produces an {@link it.elismart_lims.model.AuditLog} entry when the flag value changes.</p>
+     *
      * @param id      the measurement pair ID
      * @param request the outlier update payload
      * @return the updated {@link MeasurementPairResponse}
@@ -94,10 +110,30 @@ public class MeasurementPairService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "MeasurementPair not found with id: " + id));
 
+        auditIfChanged("MeasurementPair", id, "isOutlier", pair.getIsOutlier(), request.isOutlier());
+
         pair.setIsOutlier(request.isOutlier());
 
         measurementPairRepository.save(pair);
         log.debug("Updated outlier flag for measurement pair id: {} → {}", id, request.isOutlier());
         return MeasurementPairMapper.toResponse(pair);
+    }
+
+    /**
+     * Logs a field change via {@link AuditLogService} only when the old and new values differ.
+     *
+     * @param entityType simple class name of the entity
+     * @param id         primary key of the entity row
+     * @param field      Java field name
+     * @param oldVal     value before the change
+     * @param newVal     value after the change
+     */
+    private void auditIfChanged(String entityType, Long id, String field, Object oldVal, Object newVal) {
+        if (!Objects.equals(oldVal, newVal)) {
+            auditLogService.logChange(entityType, id, field,
+                    oldVal != null ? oldVal.toString() : null,
+                    newVal != null ? newVal.toString() : null,
+                    null);
+        }
     }
 }

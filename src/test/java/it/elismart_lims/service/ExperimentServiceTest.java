@@ -17,6 +17,7 @@ import it.elismart_lims.model.Protocol;
 import it.elismart_lims.model.ReagentCatalog;
 import it.elismart_lims.model.UsedReagentBatch;
 import it.elismart_lims.repository.ExperimentRepository;
+import it.elismart_lims.service.audit.AuditLogService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,6 +62,9 @@ class ExperimentServiceTest {
 
     @Mock
     private ProtocolReagentSpecService protocolReagentSpecService;
+
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private ExperimentService experimentService;
@@ -265,5 +269,39 @@ class ExperimentServiceTest {
         ExperimentPage result = experimentService.search(searchRequest);
 
         assertThat(result.content()).isEmpty();
+    }
+
+    @Test
+    void update_shouldAuditNameChange_whenNameDiffers() {
+        ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
+                "New Name",
+                experiment.getDate(),
+                experiment.getStatus(),
+                List.of(),
+                null);
+
+        when(experimentRepository.findById(1L)).thenReturn(Optional.of(experiment));
+        when(experimentRepository.save(any(Experiment.class))).thenReturn(experiment);
+
+        experimentService.update(1L, updateRequest);
+
+        verify(auditLogService).logChange("Experiment", 1L, "name", "Test Experiment", "New Name", null);
+    }
+
+    @Test
+    void update_shouldNotAudit_whenNothingChanges() {
+        ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
+                experiment.getName(),
+                experiment.getDate(),
+                experiment.getStatus(),
+                List.of(),
+                null);
+
+        when(experimentRepository.findById(1L)).thenReturn(Optional.of(experiment));
+        when(experimentRepository.save(any(Experiment.class))).thenReturn(experiment);
+
+        experimentService.update(1L, updateRequest);
+
+        verify(auditLogService, never()).logChange(any(), any(), any(), any(), any(), any());
     }
 }

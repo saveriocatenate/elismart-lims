@@ -6,6 +6,7 @@ import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.MeasurementPair;
 import it.elismart_lims.model.PairType;
 import it.elismart_lims.repository.MeasurementPairRepository;
+import it.elismart_lims.service.audit.AuditLogService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +33,9 @@ class MeasurementPairServiceTest {
 
     @Mock
     private MeasurementPairRepository measurementPairRepository;
+
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private MeasurementPairService measurementPairService;

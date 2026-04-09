@@ -5,6 +5,7 @@ import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.CurveType;
 import it.elismart_lims.model.Protocol;
 import it.elismart_lims.repository.ProtocolRepository;
+import it.elismart_lims.service.audit.AuditLogService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +39,9 @@ class ProtocolServiceTest {
 
     @Mock
     private ExperimentService experimentService;
+
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private ProtocolService protocolService;

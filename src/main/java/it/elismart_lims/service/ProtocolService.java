@@ -6,6 +6,7 @@ import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.mapper.ProtocolMapper;
 import it.elismart_lims.model.Protocol;
 import it.elismart_lims.repository.ProtocolRepository;
+import it.elismart_lims.service.audit.AuditLogService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Business logic for Protocol operations.
@@ -30,18 +32,23 @@ public class ProtocolService {
      */
     private final ExperimentService experimentService;
 
+    private final AuditLogService auditLogService;
+
     /**
      * Constructor with {@code @Lazy} on the {@link ExperimentService} parameter to break
      * the circular dependency: ExperimentService → ProtocolService → ExperimentService.
      *
      * @param protocolRepository the protocol repository
      * @param experimentService  the experiment service (lazy proxy in production)
+     * @param auditLogService    the audit log service for change tracking
      */
     public ProtocolService(
             ProtocolRepository protocolRepository,
-            @Lazy ExperimentService experimentService) {
+            @Lazy ExperimentService experimentService,
+            AuditLogService auditLogService) {
         this.protocolRepository = protocolRepository;
         this.experimentService = experimentService;
+        this.auditLogService = auditLogService;
     }
 
     /**
@@ -129,6 +136,10 @@ public class ProtocolService {
      * <p>Blocked if any experiment already references this protocol — the user must
      * remove all linked experiments before editing the protocol.</p>
      *
+     * <p>Every field that actually changes produces an {@link it.elismart_lims.model.AuditLog}
+     * entry via {@link AuditLogService}. Fields whose old and new values are equal generate
+     * no audit row.</p>
+     *
      * @param id      the protocol ID
      * @param request the update payload
      * @return the updated ProtocolResponse DTO
@@ -144,10 +155,36 @@ public class ProtocolService {
                     "Cannot edit protocol: remove all experiments linked to this protocol first.");
         }
         log.info("Updating protocol id: {}", id);
+
+        auditIfChanged("Protocol", id, "name",                protocol.getName(),               request.name());
+        auditIfChanged("Protocol", id, "numCalibrationPairs", protocol.getNumCalibrationPairs(), request.numCalibrationPairs());
+        auditIfChanged("Protocol", id, "numControlPairs",     protocol.getNumControlPairs(),     request.numControlPairs());
+        auditIfChanged("Protocol", id, "maxCvAllowed",        protocol.getMaxCvAllowed(),        request.maxCvAllowed());
+        auditIfChanged("Protocol", id, "maxErrorAllowed",     protocol.getMaxErrorAllowed(),     request.maxErrorAllowed());
+        auditIfChanged("Protocol", id, "curveType",           protocol.getCurveType(),           request.curveType());
+
         ProtocolMapper.updateEntity(protocol, request);
         ProtocolResponse response = ProtocolMapper.toResponse(protocolRepository.save(protocol));
         log.info("Protocol updated id: {}", response.id());
         return response;
+    }
+
+    /**
+     * Logs a field change via {@link AuditLogService} only when the old and new values differ.
+     *
+     * @param entityType simple class name of the entity
+     * @param id         primary key of the entity row
+     * @param field      Java field name
+     * @param oldVal     value before the change
+     * @param newVal     value after the change
+     */
+    private void auditIfChanged(String entityType, Long id, String field, Object oldVal, Object newVal) {
+        if (!Objects.equals(oldVal, newVal)) {
+            auditLogService.logChange(entityType, id, field,
+                    oldVal != null ? oldVal.toString() : null,
+                    newVal != null ? newVal.toString() : null,
+                    null);
+        }
     }
 
     /**
