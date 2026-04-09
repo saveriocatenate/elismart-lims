@@ -17,13 +17,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.net.http.HttpTimeoutException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -201,6 +207,77 @@ class GeminiServiceTest {
                 .isInstanceOf(GeminiServiceException.class)
                 .hasMessageContaining("Gemini API request timed out")
                 .satisfies(ex -> assertThat(((GeminiServiceException) ex).getHttpStatus()).isEqualTo(504));
+    }
+
+    /**
+     * Verifies that a transient failure (timeout) followed by a success on the third attempt
+     * returns the successful response without propagating any exception.
+     */
+    @Test
+    void analyze_retriesOnTimeout_andSucceedsOnThirdAttempt() {
+        when(experimentService.getById(1L)).thenReturn(sampleExperiment);
+        when(protocolService.getByName("ELISA Dose-Response")).thenReturn(sampleProtocol);
+        RuntimeException timeout = new RuntimeException(
+                "An error occurred while sending the request", new HttpTimeoutException("timed out"));
+        when(chatLanguageModel.generate(anyString()))
+                .thenThrow(timeout)
+                .thenThrow(timeout)
+                .thenReturn("AI analysis result");
+
+        GeminiService spied = spy(geminiService);
+        doNothing().when(spied).sleep(anyLong());
+
+        GeminiAnalysisResponse response = spied.analyze(new GeminiAnalysisRequest(List.of(1L), "Test?"));
+
+        assertThat(response.analysis()).isEqualTo("AI analysis result");
+        verify(chatLanguageModel, times(3)).generate(anyString());
+        verify(spied, times(2)).sleep(anyLong()); // slept after attempt 1 and attempt 2
+    }
+
+    /**
+     * Verifies that three consecutive timeouts exhaust all retries and throw
+     * a GeminiServiceException with httpStatus=504.
+     */
+    @Test
+    void analyze_throwsGeminiServiceException_afterExhaustingRetries_onThreeTimeouts() {
+        when(experimentService.getById(1L)).thenReturn(sampleExperiment);
+        when(protocolService.getByName("ELISA Dose-Response")).thenReturn(sampleProtocol);
+        RuntimeException timeout = new RuntimeException(
+                "An error occurred while sending the request", new HttpTimeoutException("timed out"));
+        when(chatLanguageModel.generate(anyString())).thenThrow(timeout);
+
+        GeminiService spied = spy(geminiService);
+        doNothing().when(spied).sleep(anyLong());
+
+        assertThatThrownBy(() -> spied.analyze(new GeminiAnalysisRequest(List.of(1L), "Test?")))
+                .isInstanceOf(GeminiServiceException.class)
+                .hasMessageContaining("timed out")
+                .satisfies(ex -> assertThat(((GeminiServiceException) ex).getHttpStatus()).isEqualTo(504));
+
+        verify(chatLanguageModel, times(3)).generate(anyString());
+        verify(spied, times(2)).sleep(anyLong()); // no sleep after the last (3rd) attempt
+    }
+
+    /**
+     * Verifies that an auth failure (401) on the first attempt causes an immediate throw
+     * with no retry — {@code generate()} must be called exactly once.
+     */
+    @Test
+    void analyze_throwsImmediately_withoutRetry_onAuthFailure() {
+        when(experimentService.getById(1L)).thenReturn(sampleExperiment);
+        when(protocolService.getByName("ELISA Dose-Response")).thenReturn(sampleProtocol);
+        when(chatLanguageModel.generate(anyString()))
+                .thenThrow(new RuntimeException(
+                        "HTTP error (401): {\"error\":{\"code\":401,\"message\":\"API key not valid\"}}"));
+
+        GeminiService spied = spy(geminiService);
+
+        assertThatThrownBy(() -> spied.analyze(new GeminiAnalysisRequest(List.of(1L), "Test?")))
+                .isInstanceOf(GeminiServiceException.class)
+                .satisfies(ex -> assertThat(((GeminiServiceException) ex).getHttpStatus()).isEqualTo(401));
+
+        verify(chatLanguageModel, times(1)).generate(anyString()); // called exactly once — no retry
+        verify(spied, times(0)).sleep(anyLong());                  // never slept
     }
 
     /**

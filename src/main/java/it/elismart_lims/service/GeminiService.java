@@ -36,6 +36,12 @@ import java.util.OptionalDouble;
 @RequiredArgsConstructor
 public class GeminiService {
 
+    /** Maximum number of attempts before giving up. */
+    private static final int MAX_RETRIES = 3;
+
+    /** Base delay in milliseconds; doubles on each subsequent attempt (1 s → 2 s → 4 s). */
+    private static final long INITIAL_DELAY_MS = 1000;
+
     private final ChatLanguageModel chatLanguageModel;
     private final ExperimentService experimentService;
     private final ProtocolService protocolService;
@@ -67,14 +73,87 @@ public class GeminiService {
         String prompt = buildPrompt(experiments, protocol, request.userQuestion());
         log.debug("Gemini request ({} chars):\n{}", prompt.length(), prompt);
 
+        String analysisText = callWithRetry(prompt);
+        log.debug("Gemini response:\n{}", analysisText);
+        log.info("Gemini analysis completed successfully for experiments: {}", request.experimentIds());
+        return GeminiAnalysisResponse.builder().analysis(analysisText).build();
+    }
+
+    // -------------------------------------------------------------------------
+    // Retry logic
+    // -------------------------------------------------------------------------
+
+    /**
+     * Calls {@code ChatLanguageModel.generate()} with exponential-backoff retry.
+     *
+     * <p>Only transient errors (timeout, rate limit, 5xx) are retried. Non-transient
+     * errors (e.g. 401 auth failure) cause an immediate throw without any retry.</p>
+     *
+     * <p>Backoff schedule (with {@code INITIAL_DELAY_MS = 1000}):
+     * attempt 1 → sleep 1 s → attempt 2 → sleep 2 s → attempt 3 → throw.</p>
+     *
+     * @param prompt the fully-assembled prompt string
+     * @return the raw text returned by the model
+     * @throws GeminiServiceException if all retries are exhausted or a non-transient error occurs
+     */
+    private String callWithRetry(String prompt) {
+        GeminiServiceException lastException = null;
+
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                return chatLanguageModel.generate(prompt);
+            } catch (RuntimeException e) {
+                GeminiServiceException classified = classifyException(e);
+
+                if (!isTransient(classified)) {
+                    log.error("Non-transient Gemini API error (attempt {}/{}), not retrying: {}",
+                            attempt, MAX_RETRIES, e.getMessage());
+                    throw classified;
+                }
+
+                lastException = classified;
+
+                if (attempt < MAX_RETRIES) {
+                    long delayMs = INITIAL_DELAY_MS * (1L << (attempt - 1)); // 1 s, 2 s, 4 s …
+                    log.warn("Transient Gemini API error (attempt {}/{}), retrying in {} ms: {}",
+                            attempt, MAX_RETRIES, delayMs, e.getMessage());
+                    sleep(delayMs);
+                } else {
+                    log.error("Gemini API call failed after {} attempt(s): {}", MAX_RETRIES, e.getMessage(), e);
+                }
+            }
+        }
+
+        throw lastException; // always non-null: only reachable after a transient failure
+    }
+
+    /**
+     * Returns {@code true} if the classified exception represents a transient failure
+     * that is safe to retry (rate limit, timeout, or any 5xx server error).
+     *
+     * @param ex the classified exception
+     * @return {@code true} if a retry is appropriate
+     */
+    private boolean isTransient(GeminiServiceException ex) {
+        int status = ex.getHttpStatus();
+        return status == 429 || status == 504 || status >= 500;
+    }
+
+    /**
+     * Sleeps for the given number of milliseconds.
+     *
+     * <p>Declared {@code protected} so that tests can override it via a Mockito spy
+     * to avoid actual wall-clock delays.</p>
+     *
+     * @param ms milliseconds to sleep
+     * @throws RuntimeException if the thread is interrupted while sleeping
+     */
+    protected void sleep(long ms) {
         try {
-            String analysisText = chatLanguageModel.generate(prompt);
-            log.debug("Gemini response:\n{}", analysisText);
-            log.info("Gemini analysis completed successfully for experiments: {}", request.experimentIds());
-            return GeminiAnalysisResponse.builder().analysis(analysisText).build();
-        } catch (RuntimeException e) {
-            log.error("Gemini API call failed: {}", e.getMessage(), e);
-            throw classifyException(e);
+            Thread.sleep(ms);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Retry sleep interrupted", ie);
         }
     }
 
