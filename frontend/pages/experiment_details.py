@@ -102,6 +102,68 @@ with del_col:
     if st.button("🗑️ Delete", use_container_width=True, help="Delete this experiment"):
         _confirm_delete(data.get("name", str(exp_id)))
 
+# ---------------------------------------------------------------------------
+# Export row: PDF | Excel
+# ---------------------------------------------------------------------------
+
+pdf_col, xlsx_col, _ = st.columns([1, 1, 5])
+
+with pdf_col:
+    if st.button("📄 Export PDF", use_container_width=True, help="Download Certificate of Analysis"):
+        with st.spinner("Generating PDF…"):
+            try:
+                r = requests.get(
+                    f"{BACKEND_URL}/api/export/experiments/{exp_id}/pdf",
+                    headers=get_auth_headers(),
+                    timeout=30,
+                )
+                if r.status_code == 200:
+                    st.session_state[f"export_pdf_{exp_id}"] = r.content
+                else:
+                    st.error(f"PDF export failed ({r.status_code})")
+            except requests.exceptions.RequestException as e:
+                st.error(f"Request failed: {e}")
+
+with xlsx_col:
+    if st.button("📊 Export Excel", use_container_width=True, help="Download XLSX workbook"):
+        with st.spinner("Generating Excel…"):
+            try:
+                r = requests.get(
+                    f"{BACKEND_URL}/api/export/experiments/{exp_id}/xlsx",
+                    headers=get_auth_headers(),
+                    timeout=30,
+                )
+                if r.status_code == 200:
+                    st.session_state[f"export_xlsx_{exp_id}"] = r.content
+                else:
+                    st.error(f"Excel export failed ({r.status_code})")
+            except requests.exceptions.RequestException as e:
+                st.error(f"Request failed: {e}")
+
+# Show download buttons once bytes are ready (persist across reruns via session_state)
+_pdf_bytes = st.session_state.get(f"export_pdf_{exp_id}")
+_xlsx_bytes = st.session_state.get(f"export_xlsx_{exp_id}")
+if _pdf_bytes or _xlsx_bytes:
+    dl_pdf_col, dl_xlsx_col, _ = st.columns([1, 1, 5])
+    if _pdf_bytes:
+        with dl_pdf_col:
+            st.download_button(
+                "⬇️ Download PDF",
+                data=_pdf_bytes,
+                file_name=f"CoA_experiment_{exp_id}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
+    if _xlsx_bytes:
+        with dl_xlsx_col:
+            st.download_button(
+                "⬇️ Download Excel",
+                data=_xlsx_bytes,
+                file_name=f"experiment_{exp_id}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+
 st.title("Experiment Details")
 st.markdown("---")
 

@@ -115,12 +115,45 @@ if results:
         if len(checked_ids) >= 2:
             st.markdown("---")
             st.caption(f"{len(checked_ids)} experiment(s) selected (max 4)")
-            if st.button("⚖️ Compare Selected", use_container_width=True, type="primary"):
-                st.session_state["compare_exp_ids"] = checked_ids
-                # Clear checkboxes
-                for exp in content:
-                    st.session_state.pop(f"chk_{exp['id']}", None)
-                st.switch_page("pages/compare_experiments.py")
+            act_compare, act_export = st.columns(2)
+
+            with act_compare:
+                if st.button("⚖️ Compare Selected", use_container_width=True, type="primary"):
+                    st.session_state["compare_exp_ids"] = checked_ids
+                    # Clear checkboxes
+                    for exp in content:
+                        st.session_state.pop(f"chk_{exp['id']}", None)
+                    st.switch_page("pages/compare_experiments.py")
+
+            with act_export:
+                if st.button("📊 Export Selected to Excel", use_container_width=True):
+                    with st.spinner("Generating batch Excel…"):
+                        try:
+                            r = requests.post(
+                                f"{BACKEND_URL}/api/export/experiments/xlsx",
+                                json=checked_ids,
+                                headers=get_auth_headers(),
+                                timeout=60,
+                            )
+                            if r.status_code == 200:
+                                st.session_state["batch_xlsx_bytes"] = r.content
+                                st.session_state["batch_xlsx_ids"] = list(checked_ids)
+                            else:
+                                st.error(f"Batch Excel export failed ({r.status_code})")
+                        except requests.exceptions.RequestException as e:
+                            st.error(f"Request failed: {e}")
+
+            # Show download button once bytes are available for the current selection
+            _batch_bytes = st.session_state.get("batch_xlsx_bytes")
+            _batch_ids = st.session_state.get("batch_xlsx_ids", [])
+            if _batch_bytes and set(_batch_ids) == set(checked_ids):
+                st.download_button(
+                    "⬇️ Download Batch Excel",
+                    data=_batch_bytes,
+                    file_name="experiments_batch.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
 
         if total_pages > 1:
             st.markdown("---")
