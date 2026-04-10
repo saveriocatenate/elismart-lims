@@ -180,4 +180,33 @@ class ExperimentControllerTest {
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.last").value(true));
     }
+
+    @Test
+    void validate_shouldReturn200_withUpdatedExperiment() throws Exception {
+        when(experimentService.validate(1L)).thenReturn(sampleResponse());
+
+        mockMvc.perform(post("/api/experiments/1/validate"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.status").value("OK"));
+
+        verify(experimentService).validate(1L);
+    }
+
+    @Test
+    void validate_shouldReturn404_whenExperimentNotFound() throws Exception {
+        when(experimentService.validate(99L)).thenThrow(new ResourceNotFoundException("Not found"));
+
+        mockMvc.perform(post("/api/experiments/99/validate"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void validate_shouldReturn409_whenExperimentAlreadyTerminal() throws Exception {
+        when(experimentService.validate(1L)).thenThrow(
+                new IllegalStateException("Experiment id=1 is already in terminal status OK."));
+
+        mockMvc.perform(post("/api/experiments/1/validate"))
+                .andExpect(status().isConflict());
+    }
 }

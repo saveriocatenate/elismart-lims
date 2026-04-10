@@ -85,4 +85,24 @@ public class ExperimentController {
     public ResponseEntity<ExperimentPage> search(@Valid @RequestBody ExperimentSearchRequest request) {
         return ResponseEntity.ok(experimentService.search(request));
     }
+
+    /**
+     * Runs the full validation workflow for an experiment.
+     *
+     * <p>Fits the calibration curve, back-interpolates concentrations for every
+     * non-outlier CONTROL/SAMPLE pair, evaluates %CV and %Recovery against the
+     * protocol limits, and updates the experiment status to OK or KO.</p>
+     *
+     * <p>Requires at least ANALYST role. An experiment already in a terminal status
+     * (OK or KO) cannot be re-validated without first resetting the status to PENDING.</p>
+     *
+     * @param id the experiment ID
+     * @return 200 OK with the updated {@link ExperimentResponse},
+     *         404 if the experiment is not found,
+     *         409 if the experiment is already in a terminal status
+     */
+    @PostMapping("/{id}/validate")
+    public ResponseEntity<ExperimentResponse> validate(@PathVariable Long id) {
+        return ResponseEntity.ok(experimentService.validate(id));
+    }
 }

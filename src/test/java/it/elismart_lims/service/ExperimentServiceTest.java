@@ -1,5 +1,7 @@
 package it.elismart_lims.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import it.elismart_lims.dto.ExperimentPage;
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.ExperimentResponse;
@@ -10,14 +12,20 @@ import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.dto.UsedReagentBatchUpdateRequest;
 import it.elismart_lims.exception.model.ProtocolMismatchException;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
+import it.elismart_lims.model.CurveType;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.ExperimentStatus;
+import it.elismart_lims.model.MeasurementPair;
 import it.elismart_lims.model.PairType;
 import it.elismart_lims.model.Protocol;
 import it.elismart_lims.model.ReagentCatalog;
 import it.elismart_lims.model.UsedReagentBatch;
 import it.elismart_lims.repository.ExperimentRepository;
 import it.elismart_lims.service.audit.AuditLogService;
+import it.elismart_lims.service.curve.CurveFittingService;
+import it.elismart_lims.service.curve.CurveParameters;
+import it.elismart_lims.service.validation.ValidationEngine;
+import it.elismart_lims.service.validation.ValidationResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +40,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -66,6 +75,15 @@ class ExperimentServiceTest {
     @Mock
     private AuditLogService auditLogService;
 
+    @Mock
+    private CurveFittingService curveFittingService;
+
+    @Mock
+    private ValidationEngine validationEngine;
+
+    @Mock
+    private ObjectMapper objectMapper;
+
     @InjectMocks
     private ExperimentService experimentService;
 
@@ -89,6 +107,7 @@ class ExperimentServiceTest {
                 .numControlPairs(3)
                 .maxCvAllowed(15.0)
                 .maxErrorAllowed(10.0)
+                .curveType(CurveType.LINEAR)
                 .build();
 
         batch = UsedReagentBatch.builder()
@@ -303,5 +322,133 @@ class ExperimentServiceTest {
         experimentService.update(1L, updateRequest);
 
         verify(auditLogService, never()).logChange(any(), any(), any(), any(), any(), any());
+    }
+
+    // -------------------------------------------------------------------------
+    // validate() tests
+    // -------------------------------------------------------------------------
+
+    /**
+     * Validates an experiment with a CALIBRATION pair. Expects the status to update to OK
+     * and curveParameters to be written back to the entity.
+     */
+    @Test
+    void validate_shouldReturnOk_whenDatasetValid() throws JsonProcessingException {
+        MeasurementPair calPair = MeasurementPair.builder()
+                .id(1L)
+                .pairType(PairType.CALIBRATION)
+                .concentrationNominal(10.0)
+                .signal1(3.0)
+                .signal2(3.0)
+                .signalMean(3.0)
+                .cvPct(0.0)
+                .isOutlier(false)
+                .build();
+
+        Experiment experimentWithPairs = Experiment.builder()
+                .id(1L)
+                .name("Test Experiment")
+                .date(LocalDateTime.of(2026, 4, 5, 10, 0))
+                .status(ExperimentStatus.COMPLETED)
+                .protocol(protocol)
+                .measurementPairs(List.of(calPair))
+                .usedReagentBatches(List.of())
+                .build();
+
+        CurveParameters params = new CurveParameters(Map.of("slope", 2.0, "intercept", 1.0));
+        ValidationResult okResult = new ValidationResult(ExperimentStatus.OK, List.of(), params);
+
+        when(experimentRepository.findById(1L)).thenReturn(Optional.of(experimentWithPairs));
+        when(curveFittingService.fitCurve(any(), anyList())).thenReturn(params);
+        when(objectMapper.writeValueAsString(params)).thenReturn("{\"values\":{\"slope\":2.0}}");
+        when(validationEngine.evaluate(any(), any(), any())).thenReturn(okResult);
+        when(experimentRepository.save(any(Experiment.class))).thenReturn(experimentWithPairs);
+
+        ExperimentResponse result = experimentService.validate(1L);
+
+        assertThat(result.id()).isEqualTo(1L);
+        verify(curveFittingService).fitCurve(eq(CurveType.LINEAR), anyList());
+        verify(validationEngine).evaluate(any(), any(), eq(params));
+        verify(experimentRepository).save(any(Experiment.class));
+        verify(auditLogService).logChange(eq("Experiment"), eq(1L), eq("status"),
+                eq("COMPLETED"), eq("OK"), isNull());
+    }
+
+    /**
+     * Validates an experiment that fails protocol limits. Expects the status to update to KO.
+     */
+    @Test
+    void validate_shouldReturnKo_whenDatasetInvalid() throws JsonProcessingException {
+        MeasurementPair calPair = MeasurementPair.builder()
+                .id(1L)
+                .pairType(PairType.CALIBRATION)
+                .concentrationNominal(10.0)
+                .signal1(3.0)
+                .signal2(3.0)
+                .signalMean(3.0)
+                .cvPct(0.0)
+                .isOutlier(false)
+                .build();
+
+        Experiment experimentWithPairs = Experiment.builder()
+                .id(1L)
+                .name("Test Experiment")
+                .date(LocalDateTime.of(2026, 4, 5, 10, 0))
+                .status(ExperimentStatus.COMPLETED)
+                .protocol(protocol)
+                .measurementPairs(List.of(calPair))
+                .usedReagentBatches(List.of())
+                .build();
+
+        CurveParameters params = new CurveParameters(Map.of("slope", 2.0, "intercept", 1.0));
+        ValidationResult koResult = new ValidationResult(ExperimentStatus.KO, List.of(), params);
+
+        when(experimentRepository.findById(1L)).thenReturn(Optional.of(experimentWithPairs));
+        when(curveFittingService.fitCurve(any(), anyList())).thenReturn(params);
+        when(objectMapper.writeValueAsString(params)).thenReturn("{\"values\":{\"slope\":2.0}}");
+        when(validationEngine.evaluate(any(), any(), any())).thenReturn(koResult);
+        when(experimentRepository.save(any(Experiment.class))).thenReturn(experimentWithPairs);
+
+        ExperimentResponse result = experimentService.validate(1L);
+
+        assertThat(result.id()).isEqualTo(1L);
+        verify(auditLogService).logChange(eq("Experiment"), eq(1L), eq("status"),
+                eq("COMPLETED"), eq("KO"), isNull());
+    }
+
+    /**
+     * Validates that a 404 is thrown for an unknown experiment ID.
+     */
+    @Test
+    void validate_shouldThrow_whenExperimentNotFound() {
+        when(experimentRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> experimentService.validate(99L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Experiment not found with id: 99");
+        verify(curveFittingService, never()).fitCurve(any(), anyList());
+    }
+
+    /**
+     * Validates that re-validating a terminal experiment (OK or KO) is rejected with 409.
+     */
+    @Test
+    void validate_shouldThrow_whenExperimentAlreadyTerminal() {
+        Experiment terminalExperiment = Experiment.builder()
+                .id(1L)
+                .name("Done")
+                .date(LocalDateTime.now())
+                .status(ExperimentStatus.OK)
+                .protocol(protocol)
+                .measurementPairs(List.of())
+                .usedReagentBatches(List.of())
+                .build();
+
+        when(experimentRepository.findById(1L)).thenReturn(Optional.of(terminalExperiment));
+
+        assertThatThrownBy(() -> experimentService.validate(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("terminal status");
+        verify(curveFittingService, never()).fitCurve(any(), anyList());
     }
 }

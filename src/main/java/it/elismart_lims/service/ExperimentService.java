@@ -1,5 +1,7 @@
 package it.elismart_lims.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import it.elismart_lims.dto.ExperimentPage;
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.ExperimentResponse;
@@ -11,10 +13,18 @@ import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.mapper.ExperimentMapper;
 import it.elismart_lims.mapper.MeasurementPairMapper;
 import it.elismart_lims.model.Experiment;
+import it.elismart_lims.model.ExperimentStatus;
 import it.elismart_lims.model.MeasurementPair;
+import it.elismart_lims.model.PairType;
+import it.elismart_lims.model.Protocol;
 import it.elismart_lims.model.UsedReagentBatch;
 import it.elismart_lims.repository.ExperimentRepository;
 import it.elismart_lims.service.audit.AuditLogService;
+import it.elismart_lims.service.curve.CalibrationPoint;
+import it.elismart_lims.service.curve.CurveFittingService;
+import it.elismart_lims.service.curve.CurveParameters;
+import it.elismart_lims.service.validation.ValidationEngine;
+import it.elismart_lims.service.validation.ValidationResult;
 import it.elismart_lims.util.ExperimentSpecifications;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +54,9 @@ public class ExperimentService {
     private final MeasurementPairService measurementPairService;
     private final ProtocolReagentSpecService protocolReagentSpecService;
     private final AuditLogService auditLogService;
+    private final CurveFittingService curveFittingService;
+    private final ValidationEngine validationEngine;
+    private final ObjectMapper objectMapper;
 
     /**
      * Find an experiment by its ID.
@@ -152,6 +165,69 @@ public class ExperimentService {
 
         experiment = experimentRepository.save(experiment);
         log.info("Experiment updated id: {}", id);
+        return ExperimentMapper.toResponse(experiment);
+    }
+
+    /**
+     * Runs the full validation workflow for an experiment:
+     * fits the calibration curve, back-interpolates concentrations for every
+     * non-outlier CONTROL/SAMPLE pair, evaluates %CV and %Recovery against the
+     * protocol limits, and updates the experiment status to OK or KO.
+     *
+     * <p>The fitted {@link CurveParameters} are serialised as JSON and stored on
+     * {@link Experiment#getCurveParameters()} for auditing and future display.</p>
+     *
+     * <p>An experiment already in a terminal state ({@link ExperimentStatus#OK} or
+     * {@link ExperimentStatus#KO}) cannot be re-validated until its status is reset
+     * to {@link ExperimentStatus#PENDING}.</p>
+     *
+     * @param id the experiment ID to validate
+     * @return the updated {@link ExperimentResponse}
+     * @throws ResourceNotFoundException if no experiment exists with the given ID
+     * @throws IllegalStateException     if the experiment is already in a terminal status
+     * @throws IllegalArgumentException  if no CALIBRATION pairs are present
+     */
+    @Transactional
+    public ExperimentResponse validate(Long id) {
+        log.info("Validating experiment id: {}", id);
+        var experiment = experimentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Experiment not found with id: " + id));
+
+        ExperimentStatus currentStatus = experiment.getStatus();
+        if (currentStatus == ExperimentStatus.OK || currentStatus == ExperimentStatus.KO) {
+            throw new IllegalStateException(
+                    "Experiment id=" + id + " is already in terminal status " + currentStatus
+                    + ". Reset to PENDING before re-validating.");
+        }
+
+        Protocol protocol = experiment.getProtocol();
+
+        List<CalibrationPoint> calibrationPoints = experiment.getMeasurementPairs().stream()
+                .filter(p -> p.getPairType() == PairType.CALIBRATION)
+                .map(p -> new CalibrationPoint(p.getConcentrationNominal(), p.getSignalMean()))
+                .toList();
+
+        if (calibrationPoints.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Experiment id=" + id + " has no CALIBRATION pairs. Cannot fit calibration curve.");
+        }
+
+        CurveParameters curveParams = curveFittingService.fitCurve(protocol.getCurveType(), calibrationPoints);
+
+        try {
+            experiment.setCurveParameters(objectMapper.writeValueAsString(curveParams));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialise curve parameters: " + e.getMessage(), e);
+        }
+
+        ValidationResult result = validationEngine.evaluate(experiment, protocol, curveParams);
+
+        ExperimentStatus newStatus = result.overallStatus();
+        auditIfChanged("Experiment", id, "status", currentStatus, newStatus);
+        experiment.setStatus(newStatus);
+
+        experiment = experimentRepository.save(experiment);
+        log.info("Experiment id={} validated → status={}", id, newStatus);
         return ExperimentMapper.toResponse(experiment);
     }
 

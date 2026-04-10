@@ -74,6 +74,16 @@ public class Experiment extends Auditable {
     private List<MeasurementPair> measurementPairs = new ArrayList<>();
 
     /**
+     * JSON-serialised calibration curve parameters produced by {@link it.elismart_lims.service.curve.CurveFittingService}
+     * during the most recent validation run. {@code null} until the experiment has been validated.
+     *
+     * <p>Stored as a CLOB to accommodate the variable-length JSON representation of
+     * model-specific parameter maps (e.g. 4PL keys A, B, C, D).</p>
+     */
+    @Column(name = "curve_parameters", columnDefinition = "CLOB")
+    private String curveParameters;
+
+    /**
      * Adds a {@link UsedReagentBatch} to this experiment and sets the back-reference,
      * keeping the bidirectional association consistent.
      *

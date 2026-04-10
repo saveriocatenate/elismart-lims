@@ -18,6 +18,8 @@ public record ExperimentResponse(
         ExperimentStatus status,
         String protocolName,
         CurveType protocolCurveType,
+        /** JSON-serialised calibration curve parameters; {@code null} before first validation. */
+        String curveParameters,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         String createdBy,
