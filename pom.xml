@@ -114,6 +114,13 @@
             <version>3.6.1</version>
         </dependency>
 
+        <!-- CSV Import -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

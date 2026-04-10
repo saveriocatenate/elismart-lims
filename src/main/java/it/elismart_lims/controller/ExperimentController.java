@@ -1,5 +1,6 @@
 package it.elismart_lims.controller;
 
+import it.elismart_lims.dto.CsvImportConfig;
 import it.elismart_lims.dto.ExperimentPage;
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.ExperimentResponse;
@@ -9,8 +10,10 @@ import it.elismart_lims.service.ExperimentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * REST controller for Experiment operations.
@@ -84,6 +87,33 @@ public class ExperimentController {
     @PostMapping("/search")
     public ResponseEntity<ExperimentPage> search(@Valid @RequestBody ExperimentSearchRequest request) {
         return ResponseEntity.ok(experimentService.search(request));
+    }
+
+    /**
+     * Parses a CSV plate-reader export and appends the resulting measurement pairs to an
+     * existing experiment.
+     *
+     * <p>The multipart request must include two parts:
+     * <ul>
+     *   <li>{@code file} — the CSV file</li>
+     *   <li>{@code config} — JSON-encoded {@link CsvImportConfig} specifying the format,
+     *       column names, and well-to-pair mapping</li>
+     * </ul>
+     * </p>
+     *
+     * @param id     the experiment ID
+     * @param file   the uploaded CSV file
+     * @param config import configuration
+     * @return 200 OK with the updated {@link ExperimentResponse} including all newly imported pairs;
+     *         400 if the file is empty or the CSV is malformed;
+     *         404 if the experiment is not found
+     */
+    @PostMapping(value = "/{id}/import-csv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ExperimentResponse> importCsv(
+            @PathVariable Long id,
+            @RequestPart("file") MultipartFile file,
+            @RequestPart("config") CsvImportConfig config) {
+        return ResponseEntity.ok(experimentService.importCsv(id, file, config));
     }
 
     /**

@@ -2,7 +2,9 @@ package it.elismart_lims.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import it.elismart_lims.dto.CsvImportConfig;
 import it.elismart_lims.dto.ExperimentPage;
+import it.elismart_lims.dto.MeasurementPairRequest;
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.ExperimentResponse;
 import it.elismart_lims.dto.ExperimentSearchRequest;
@@ -23,6 +25,7 @@ import it.elismart_lims.service.audit.AuditLogService;
 import it.elismart_lims.service.curve.CalibrationPoint;
 import it.elismart_lims.service.curve.CurveFittingService;
 import it.elismart_lims.service.curve.CurveParameters;
+import it.elismart_lims.service.io.CsvImportService;
 import it.elismart_lims.service.validation.OutlierDetectionService;
 import it.elismart_lims.service.validation.ValidationEngine;
 import it.elismart_lims.service.validation.ValidationResult;
@@ -35,6 +38,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -58,6 +64,7 @@ public class ExperimentService {
     private final CurveFittingService curveFittingService;
     private final OutlierDetectionService outlierDetectionService;
     private final ValidationEngine validationEngine;
+    private final CsvImportService csvImportService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -282,6 +289,46 @@ public class ExperimentService {
     @Transactional(readOnly = true)
     public boolean existsByProtocolId(Long protocolId) {
         return experimentRepository.existsByProtocolId(protocolId);
+    }
+
+    /**
+     * Parses the supplied CSV file and appends the resulting {@link MeasurementPair}s to the
+     * experiment identified by {@code id}.
+     *
+     * <p>Parsing is delegated to {@link CsvImportService}. All derived fields
+     * ({@code signalMean}, {@code cvPct}) are recalculated server-side after import via
+     * {@link it.elismart_lims.mapper.MeasurementPairMapper}.</p>
+     *
+     * @param id     the target experiment ID
+     * @param file   the uploaded CSV file; must not be empty
+     * @param config import configuration (format, column names, well mapping)
+     * @return the updated {@link ExperimentResponse} including all newly imported pairs
+     * @throws ResourceNotFoundException if no experiment exists with the given ID
+     * @throws IllegalArgumentException  if the file is empty, a required column is missing,
+     *                                   no rows match the well mapping, or the stream cannot be read
+     */
+    @Transactional
+    public ExperimentResponse importCsv(Long id, MultipartFile file, CsvImportConfig config) {
+        var experiment = experimentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Experiment not found with id: " + id));
+
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("CSV file must not be empty.");
+        }
+
+        List<MeasurementPairRequest> pairRequests;
+        try {
+            pairRequests = csvImportService.parse(file.getInputStream(), config);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to read CSV file: " + e.getMessage(), e);
+        }
+
+        List<MeasurementPair> entities = MeasurementPairMapper.toEntityList(pairRequests, experiment);
+        List<MeasurementPair> saved = measurementPairService.saveAll(entities);
+        saved.forEach(experiment::addMeasurementPair);
+
+        log.info("CSV import: {} pair(s) added to experiment id={}", saved.size(), id);
+        return ExperimentMapper.toResponse(experiment);
     }
 
     /**

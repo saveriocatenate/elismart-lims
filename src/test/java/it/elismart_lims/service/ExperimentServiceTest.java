@@ -21,9 +21,13 @@ import it.elismart_lims.model.Protocol;
 import it.elismart_lims.model.ReagentCatalog;
 import it.elismart_lims.model.UsedReagentBatch;
 import it.elismart_lims.repository.ExperimentRepository;
+import it.elismart_lims.dto.CsvFormat;
+import it.elismart_lims.dto.CsvImportConfig;
+import it.elismart_lims.dto.WellMapping;
 import it.elismart_lims.service.audit.AuditLogService;
 import it.elismart_lims.service.curve.CurveFittingService;
 import it.elismart_lims.service.curve.CurveParameters;
+import it.elismart_lims.service.io.CsvImportService;
 import it.elismart_lims.service.validation.OutlierDetectionService;
 import it.elismart_lims.service.validation.ValidationEngine;
 import it.elismart_lims.service.validation.ValidationResult;
@@ -33,6 +37,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
@@ -84,6 +90,9 @@ class ExperimentServiceTest {
 
     @Mock
     private ValidationEngine validationEngine;
+
+    @Mock
+    private CsvImportService csvImportService;
 
     @Mock
     private ObjectMapper objectMapper;
@@ -515,5 +524,107 @@ class ExperimentServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("terminal status");
         verify(curveFittingService, never()).fitCurve(any(), anyList());
+    }
+
+    // -------------------------------------------------------------------------
+    // importCsv() tests
+    // -------------------------------------------------------------------------
+
+    /**
+     * A valid CSV import must:
+     * <ol>
+     *   <li>call {@link CsvImportService#parse} with the file's stream</li>
+     *   <li>persist the returned pairs via {@link MeasurementPairService#saveAll}</li>
+     *   <li>return an {@link ExperimentResponse} with the experiment ID</li>
+     * </ol>
+     */
+    @Test
+    void importCsv_shouldParseSaveAndReturnResponse() throws Exception {
+        MeasurementPair calPair = MeasurementPair.builder()
+                .id(10L)
+                .pairType(PairType.CALIBRATION)
+                .concentrationNominal(1.0)
+                .signal1(0.45).signal2(0.47)
+                .signalMean(0.46).cvPct(0.5)
+                .isOutlier(false)
+                .build();
+
+        Experiment experimentWithPairs = Experiment.builder()
+                .id(1L)
+                .name("Test Experiment")
+                .date(LocalDateTime.of(2026, 4, 5, 10, 0))
+                .status(ExperimentStatus.COMPLETED)
+                .protocol(protocol)
+                .measurementPairs(new java.util.ArrayList<>())
+                .usedReagentBatches(List.of())
+                .build();
+
+        byte[] csvBytes = "WellId,Signal1,Signal2\nA1,0.45,0.47".getBytes();
+        MultipartFile file = new MockMultipartFile(
+                "file", "data.csv", "text/csv", csvBytes);
+
+        CsvImportConfig config = new CsvImportConfig(
+                CsvFormat.GENERIC, "WellId", "Signal1", "Signal2",
+                Map.of("A1", new WellMapping(PairType.CALIBRATION, 1.0)));
+
+        MeasurementPairRequest pairReq = new MeasurementPairRequest(
+                PairType.CALIBRATION, 1.0, 0.45, 0.47, null, false);
+
+        when(experimentRepository.findById(1L)).thenReturn(Optional.of(experimentWithPairs));
+        when(csvImportService.parse(any(), any())).thenReturn(List.of(pairReq));
+        when(measurementPairService.saveAll(anyList())).thenReturn(List.of(calPair));
+
+        ExperimentResponse result = experimentService.importCsv(1L, file, config);
+
+        assertThat(result.id()).isEqualTo(1L);
+        verify(csvImportService).parse(any(), eq(config));
+        verify(measurementPairService).saveAll(anyList());
+    }
+
+    /**
+     * An empty {@link MultipartFile} must throw {@link IllegalArgumentException} before
+     * the CSV parser is ever invoked.
+     */
+    @Test
+    void importCsv_shouldThrow_whenFileIsEmpty() throws Exception {
+        Experiment exp = Experiment.builder()
+                .id(1L).name("Test").date(LocalDateTime.now())
+                .status(ExperimentStatus.COMPLETED).protocol(protocol)
+                .measurementPairs(List.of()).usedReagentBatches(List.of())
+                .build();
+
+        MultipartFile emptyFile = new MockMultipartFile(
+                "file", "empty.csv", "text/csv", new byte[0]);
+
+        CsvImportConfig config = new CsvImportConfig(
+                CsvFormat.GENERIC, "WellId", "Signal1", "Signal2", Map.of());
+
+        when(experimentRepository.findById(1L)).thenReturn(Optional.of(exp));
+
+        assertThatThrownBy(() -> experimentService.importCsv(1L, emptyFile, config))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must not be empty");
+
+        verify(csvImportService, never()).parse(any(), any());
+    }
+
+    /**
+     * When the experiment does not exist, importCsv must throw
+     * {@link ResourceNotFoundException} without calling the CSV parser.
+     */
+    @Test
+    void importCsv_shouldThrow_whenExperimentNotFound() throws Exception {
+        MultipartFile file = new MockMultipartFile(
+                "file", "data.csv", "text/csv", "data".getBytes());
+        CsvImportConfig config = new CsvImportConfig(
+                CsvFormat.GENERIC, "WellId", "Signal1", "Signal2", Map.of());
+
+        when(experimentRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> experimentService.importCsv(99L, file, config))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("99");
+
+        verify(csvImportService, never()).parse(any(), any());
     }
 }
