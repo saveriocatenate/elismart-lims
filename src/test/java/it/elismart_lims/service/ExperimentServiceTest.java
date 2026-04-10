@@ -24,6 +24,7 @@ import it.elismart_lims.repository.ExperimentRepository;
 import it.elismart_lims.service.audit.AuditLogService;
 import it.elismart_lims.service.curve.CurveFittingService;
 import it.elismart_lims.service.curve.CurveParameters;
+import it.elismart_lims.service.validation.OutlierDetectionService;
 import it.elismart_lims.service.validation.ValidationEngine;
 import it.elismart_lims.service.validation.ValidationResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,6 +78,9 @@ class ExperimentServiceTest {
 
     @Mock
     private CurveFittingService curveFittingService;
+
+    @Mock
+    private OutlierDetectionService outlierDetectionService;
 
     @Mock
     private ValidationEngine validationEngine;
@@ -427,6 +431,67 @@ class ExperimentServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Experiment not found with id: 99");
         verify(curveFittingService, never()).fitCurve(any(), anyList());
+    }
+
+    /**
+     * When {@link OutlierDetectionService} flags a pair, validate() must set
+     * {@code isOutlier=true} on that pair and emit an audit log entry before
+     * delegating to {@link ValidationEngine}.
+     */
+    @Test
+    void validate_shouldAutoFlagOutliers_andAuditEachFlag() throws JsonProcessingException {
+        MeasurementPair calPair = MeasurementPair.builder()
+                .id(1L)
+                .pairType(PairType.CALIBRATION)
+                .concentrationNominal(10.0)
+                .signal1(3.0).signal2(3.0)
+                .signalMean(3.0).cvPct(0.0)
+                .isOutlier(false)
+                .build();
+
+        MeasurementPair badPair = MeasurementPair.builder()
+                .id(2L)
+                .pairType(PairType.CONTROL)
+                .concentrationNominal(5.0)
+                .signal1(1.0).signal2(20.0)
+                .signalMean(10.5).cvPct(135.0)
+                .isOutlier(false)
+                .build();
+
+        Experiment experimentWithPairs = Experiment.builder()
+                .id(1L)
+                .name("Test Experiment")
+                .date(LocalDateTime.of(2026, 4, 5, 10, 0))
+                .status(ExperimentStatus.COMPLETED)
+                .protocol(protocol)
+                .measurementPairs(new java.util.ArrayList<>(List.of(calPair, badPair)))
+                .usedReagentBatches(List.of())
+                .build();
+
+        CurveParameters params = new CurveParameters(Map.of("slope", 2.0, "intercept", 1.0));
+        ValidationResult okResult = new ValidationResult(ExperimentStatus.OK, List.of(), params);
+
+        when(experimentRepository.findById(1L)).thenReturn(Optional.of(experimentWithPairs));
+        when(curveFittingService.fitCurve(any(), anyList())).thenReturn(params);
+        when(objectMapper.writeValueAsString(params)).thenReturn("{}");
+        // OutlierDetectionService flags pair id=2
+        when(outlierDetectionService.detectOutliers(anyList(), any(Protocol.class)))
+                .thenReturn(List.of(2L));
+        when(validationEngine.evaluate(any(), any(), any())).thenReturn(okResult);
+        when(experimentRepository.save(any(Experiment.class))).thenReturn(experimentWithPairs);
+
+        experimentService.validate(1L);
+
+        // The flagged pair must have isOutlier set to true
+        assertThat(badPair.getIsOutlier()).isTrue();
+
+        // An audit entry must be produced for the auto-flag
+        verify(auditLogService).logChange(
+                eq("MeasurementPair"), eq(2L), eq("isOutlier"),
+                eq("false"), eq("true"), eq("SYSTEM:outlier-detection"));
+
+        // ValidationEngine must still be called (outlier is already set, engine skips it)
+        verify(validationEngine).evaluate(any(), any(), eq(params));
     }
 
     /**

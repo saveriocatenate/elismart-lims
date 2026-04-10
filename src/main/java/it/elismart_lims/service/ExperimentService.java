@@ -23,6 +23,7 @@ import it.elismart_lims.service.audit.AuditLogService;
 import it.elismart_lims.service.curve.CalibrationPoint;
 import it.elismart_lims.service.curve.CurveFittingService;
 import it.elismart_lims.service.curve.CurveParameters;
+import it.elismart_lims.service.validation.OutlierDetectionService;
 import it.elismart_lims.service.validation.ValidationEngine;
 import it.elismart_lims.service.validation.ValidationResult;
 import it.elismart_lims.util.ExperimentSpecifications;
@@ -55,6 +56,7 @@ public class ExperimentService {
     private final ProtocolReagentSpecService protocolReagentSpecService;
     private final AuditLogService auditLogService;
     private final CurveFittingService curveFittingService;
+    private final OutlierDetectionService outlierDetectionService;
     private final ValidationEngine validationEngine;
     private final ObjectMapper objectMapper;
 
@@ -170,9 +172,15 @@ public class ExperimentService {
 
     /**
      * Runs the full validation workflow for an experiment:
-     * fits the calibration curve, back-interpolates concentrations for every
-     * non-outlier CONTROL/SAMPLE pair, evaluates %CV and %Recovery against the
-     * protocol limits, and updates the experiment status to OK or KO.
+     * <ol>
+     *   <li>Fits the calibration curve from CALIBRATION pairs.</li>
+     *   <li>Runs {@link OutlierDetectionService#detectOutliers} to auto-flag pairs whose
+     *       %CV exceeds the protocol limit or that are statistical outliers (Grubbs test).
+     *       Each newly flagged pair is audited with reason {@code "SYSTEM:outlier-detection"}.</li>
+     *   <li>Back-interpolates concentrations for every non-outlier CONTROL/SAMPLE pair.</li>
+     *   <li>Evaluates %CV and %Recovery against the protocol limits.</li>
+     *   <li>Updates the experiment status to OK or KO.</li>
+     * </ol>
      *
      * <p>The fitted {@link CurveParameters} are serialised as JSON and stored on
      * {@link Experiment#getCurveParameters()} for auditing and future display.</p>
@@ -218,6 +226,21 @@ public class ExperimentService {
             experiment.setCurveParameters(objectMapper.writeValueAsString(curveParams));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialise curve parameters: " + e.getMessage(), e);
+        }
+
+        // Outlier detection — must run before ValidationEngine so flagged pairs are excluded.
+        List<Long> outlierIds = outlierDetectionService.detectOutliers(
+                experiment.getMeasurementPairs(), protocol);
+        for (MeasurementPair pair : experiment.getMeasurementPairs()) {
+            if (outlierIds.contains(pair.getId()) && !Boolean.TRUE.equals(pair.getIsOutlier())) {
+                auditLogService.logChange("MeasurementPair", pair.getId(),
+                        "isOutlier", "false", "true", "SYSTEM:outlier-detection");
+                pair.setIsOutlier(true);
+            }
+        }
+        if (!outlierIds.isEmpty()) {
+            log.info("Experiment id={} — {} pair(s) auto-flagged as outliers: {}",
+                    id, outlierIds.size(), outlierIds);
         }
 
         ValidationResult result = validationEngine.evaluate(experiment, protocol, curveParams);
