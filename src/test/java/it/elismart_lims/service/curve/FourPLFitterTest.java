@@ -108,8 +108,8 @@ class FourPLFitterTest {
      *
      * <p>At the inflection point (x=50, y=1.0) the inverse is exact by design.</p>
      *
-     * @param signalStr      measured signal (parsed from CSV source)
-     * @param expectedConcStr expected concentration (parsed from CSV source)
+     * @param signal      measured signal (parsed from CSV source)
+     * @param expectedConc expected concentration (parsed from CSV source)
      */
     @ParameterizedTest(name = "interpolate(signal={0}) → concentration≈{1}")
     @CsvSource({

@@ -154,13 +154,6 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles {@link GeminiServiceException} — returns HTTP 502 Bad Gateway,
-     * indicating the upstream Gemini AI service failed or returned an unexpected response.
-     *
-     * @param ex the exception
-     * @return a 502 error response body
-     */
-    /**
      * Handles {@link GeminiServiceException} — returns the HTTP status carried by the exception
      * (401, 429, 502, or 504), indicating which upstream failure occurred.
      *

@@ -77,7 +77,7 @@ class CsvImportServiceTest {
         assertThat(result).hasSize(6);
 
         // Verify first row
-        MeasurementPairRequest first = result.get(0);
+        MeasurementPairRequest first = result.getFirst();
         assertThat(first.pairType()).isEqualTo(PairType.CALIBRATION);
         assertThat(first.concentrationNominal()).isEqualTo(1.0);
         assertThat(first.signal1()).isCloseTo(0.100, within(1e-6));
@@ -107,8 +107,8 @@ class CsvImportServiceTest {
         List<MeasurementPairRequest> result = service.parse(toStream(csv), config);
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).signal1()).isEqualTo(1.2345);
-        assertThat(result.get(0).signal2()).isEqualTo(9.8765);
+        assertThat(result.getFirst().signal1()).isEqualTo(1.2345);
+        assertThat(result.getFirst().signal2()).isEqualTo(9.8765);
     }
 
     /**
@@ -151,8 +151,9 @@ class CsvImportServiceTest {
         CsvImportConfig config = new CsvImportConfig(
                 CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, Map.of());
 
+        var byteArray = new ByteArrayInputStream(new byte[0]);
         assertThatThrownBy(() ->
-                service.parse(new ByteArrayInputStream(new byte[0]), config))
+                service.parse(byteArray, config))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("empty");
     }
@@ -167,7 +168,8 @@ class CsvImportServiceTest {
         CsvImportConfig config = new CsvImportConfig(
                 CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, Map.of());
 
-        assertThatThrownBy(() -> service.parse(toStream(csv), config))
+        var stream = toStream(csv);
+        assertThatThrownBy(() -> service.parse(stream, config))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("no data rows");
     }
@@ -183,7 +185,8 @@ class CsvImportServiceTest {
         CsvImportConfig config = new CsvImportConfig(
                 CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, Map.of());
 
-        assertThatThrownBy(() -> service.parse(toStream(csv), config))
+        var stream = toStream(csv);
+        assertThatThrownBy(() -> service.parse(stream, config))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(SIGNAL2_COL);
     }
@@ -199,7 +202,8 @@ class CsvImportServiceTest {
         CsvImportConfig config = new CsvImportConfig(
                 CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, Map.of());
 
-        assertThatThrownBy(() -> service.parse(toStream(csv), config))
+        var stream = toStream(csv);
+        assertThatThrownBy(() -> service.parse(stream, config))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(WELL_COL);
     }
@@ -215,8 +219,8 @@ class CsvImportServiceTest {
         // Empty mapping — no wells match
         CsvImportConfig config = new CsvImportConfig(
                 CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, Map.of());
-
-        assertThatThrownBy(() -> service.parse(toStream(csv), config))
+        var stream = toStream(csv);
+        assertThatThrownBy(() -> service.parse(stream, config))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("No CSV rows matched");
     }
@@ -232,8 +236,8 @@ class CsvImportServiceTest {
         Map<String, WellMapping> mapping = Map.of("A1", new WellMapping(PairType.CALIBRATION, 1.0));
         CsvImportConfig config = new CsvImportConfig(
                 CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, mapping);
-
-        assertThatThrownBy(() -> service.parse(toStream(csv), config))
+        var stream = toStream(csv);
+        assertThatThrownBy(() -> service.parse(stream, config))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("abc");
     }
@@ -250,8 +254,8 @@ class CsvImportServiceTest {
     void parse_tecanFormat_throwsUnsupportedOperationException() {
         CsvImportConfig config = new CsvImportConfig(
                 CsvFormat.TECAN, null, null, null, Map.of());
-
-        assertThatThrownBy(() -> service.parse(toStream(""), config))
+        var stream = toStream("");
+        assertThatThrownBy(() -> service.parse(stream, config))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 

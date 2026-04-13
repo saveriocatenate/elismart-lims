@@ -1,7 +1,6 @@
 package it.elismart_lims.service;
 
 import it.elismart_lims.dto.AiInsightResponse;
-import it.elismart_lims.mapper.AiInsightMapper;
 import it.elismart_lims.model.AiInsight;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.repository.AiInsightRepository;

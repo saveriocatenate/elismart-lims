@@ -1,7 +1,6 @@
 package it.elismart_lims.service.io;
 
 import com.lowagie.text.*;
-import com.lowagie.text.Font;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfPageEventHelper;
@@ -82,7 +81,7 @@ public class PdfReportService {
             writer.setPageEvent(new PageFooterEvent());
             document.open();
 
-            addHeader(document, experiment);
+            addHeader(document);
             addMetadata(document, experiment);
             addReagentBatches(document, experiment.usedReagentBatches());
             addCurveParameters(document, experiment);
@@ -109,10 +108,9 @@ public class PdfReportService {
      * Adds the document header: title and generation timestamp.
      *
      * @param doc        the OpenPDF {@link Document}
-     * @param experiment the experiment response DTO
      * @throws DocumentException if OpenPDF cannot add the element
      */
-    private void addHeader(Document doc, ExperimentResponse experiment) throws DocumentException {
+    private void addHeader(Document doc) throws DocumentException {
         Paragraph title = new Paragraph("Certificate of Analysis", FONT_TITLE);
         title.setAlignment(Element.ALIGN_CENTER);
         doc.add(title);
@@ -156,7 +154,8 @@ public class PdfReportService {
 
         boolean isOk = experiment.status() == ExperimentStatus.OK;
         boolean isKo = experiment.status() == ExperimentStatus.KO;
-        Font statusFont = isOk ? FONT_STATUS_OK : (isKo ? FONT_STATUS_KO : FONT_BODY);
+        Font font = isKo ? FONT_STATUS_KO : FONT_BODY;
+        Font statusFont = isOk ? FONT_STATUS_OK : font;
         PdfPCell statusCell = new PdfPCell(new Phrase(experiment.status().name(), statusFont));
         statusCell.setPadding(5);
         if (isOk) statusCell.setBackgroundColor(COLOR_PASS);
@@ -263,13 +262,6 @@ public class PdfReportService {
 
         for (MeasurementPairResponse pair : pairs) {
             boolean outlier = Boolean.TRUE.equals(pair.isOutlier());
-            boolean pass = !outlier
-                    && pair.cvPct() != null
-                    && pair.recoveryPct() != null;
-
-            // "PASS" determination here is approximate: we flag pass if metrics exist and the
-            // pair is not an outlier. Exact protocol-limit checks are performed by ValidationEngine;
-            // the per-pair pass/fail is not yet stored on the DTO, so we show OUTLIER or N/A instead.
             String resultLabel;
             Color rowColor;
             if (outlier) {

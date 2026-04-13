@@ -7,7 +7,6 @@ import it.elismart_lims.dto.ExperimentPage;
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.ExperimentResponse;
 import it.elismart_lims.dto.ExperimentSearchRequest;
-import it.elismart_lims.dto.MeasurementPairRequest;
 import it.elismart_lims.dto.UsedReagentBatchRequest;
 import it.elismart_lims.dto.WellMapping;
 import it.elismart_lims.exception.model.ProtocolMismatchException;

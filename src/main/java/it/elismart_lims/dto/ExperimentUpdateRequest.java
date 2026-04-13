@@ -15,15 +15,15 @@ import java.util.List;
  * raw measurement pair signals are mutable. The total number of measurement pairs is fixed.</p>
  */
 public record ExperimentUpdateRequest(
-        /** New human-readable label for this experiment run. */
+        /* New human-readable label for this experiment run. */
         @NotBlank String name,
-        /** New date and time the experiment was performed. */
+        /* New date and time the experiment was performed. */
         @NotNull LocalDateTime date,
-        /** New lifecycle / validation status. */
+        /* New lifecycle / validation status. */
         @NotNull ExperimentStatus status,
-        /** Per-batch updates; may be empty if no batch details change. */
+        /* Per-batch updates; may be empty if no batch details change. */
         @NotNull List<UsedReagentBatchUpdateRequest> reagentBatchUpdates,
-        /**
+        /*
          * Per-pair signal updates; may be {@code null} or empty if no pair values change.
          * Signal mean, %CV, and %Recovery are recalculated server-side.
          */

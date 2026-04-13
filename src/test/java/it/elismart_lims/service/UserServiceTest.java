@@ -20,7 +20,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -120,7 +119,7 @@ class UserServiceTest {
 
     @Test
     void disableUser_shouldSetEnabledFalseAndAuditLog() {
-        setSecurityContext("admin");
+        setSecurityContext();
         when(userRepository.findById(1L)).thenReturn(Optional.of(analyst));
         when(userRepository.save(analyst)).thenReturn(analyst);
 
@@ -135,7 +134,7 @@ class UserServiceTest {
 
     @Test
     void disableUser_shouldThrow_whenAdminDisablesSelf() {
-        setSecurityContext("admin");
+        setSecurityContext();
         when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
 
         assertThatThrownBy(() -> userService.disableUser(2L))
@@ -148,7 +147,7 @@ class UserServiceTest {
 
     @Test
     void disableUser_shouldThrow_whenUserNotFound() {
-        setSecurityContext("admin");
+        setSecurityContext();
         when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.disableUser(99L))
@@ -160,8 +159,8 @@ class UserServiceTest {
     // Helpers
     // -------------------------------------------------------------------------
 
-    private void setSecurityContext(String username) {
-        var auth = new UsernamePasswordAuthenticationToken(username, null, List.of());
+    private void setSecurityContext() {
+        var auth = new UsernamePasswordAuthenticationToken("admin", null, List.of());
         SecurityContextHolder.getContext().setAuthentication(auth);
     }
 }

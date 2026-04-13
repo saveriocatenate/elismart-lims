@@ -166,7 +166,7 @@ public class GeminiService {
      */
     private boolean isTransient(GeminiServiceException ex) {
         int status = ex.getHttpStatus();
-        return status == 429 || status == 504 || status >= 500;
+        return status == 429 || status >= 500;
     }
 
     /**

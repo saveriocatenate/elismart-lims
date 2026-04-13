@@ -1,6 +1,7 @@
 package it.elismart_lims.repository;
 
 import it.elismart_lims.model.Experiment;
+import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -32,7 +33,7 @@ public interface ExperimentRepository extends JpaRepository<Experiment, Long>, J
      */
     @Override
     @EntityGraph(attributePaths = {"protocol", "usedReagentBatches", "measurementPairs"})
-    Optional<Experiment> findById(Long id);
+    Optional<Experiment> findById(@NonNull Long id);
 
     /**
      * Paginated search with dynamic filters.
@@ -42,7 +43,7 @@ public interface ExperimentRepository extends JpaRepository<Experiment, Long>, J
      */
     @Override
     @EntityGraph(attributePaths = {"protocol"})
-    Page<Experiment> findAll(Specification<Experiment> spec, Pageable pageable);
+    Page<Experiment> findAll(Specification<Experiment> spec, @NonNull Pageable pageable);
 
     /**
      * Check whether any experiment is linked to the given protocol.

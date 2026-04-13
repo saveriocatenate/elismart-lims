@@ -112,8 +112,8 @@ class FivePLFitterTest {
      * Verifies that back-interpolating a signal that was generated at a known
      * concentration recovers that concentration within {@value INTERP_TOLERANCE_PCT}%.
      *
-     * @param signalStr       measured signal (parsed from CSV source)
-     * @param expectedConcStr expected concentration (parsed from CSV source)
+     * @param signal       measured signal (parsed from CSV source)
+     * @param expectedConc expected concentration (parsed from CSV source)
      */
     @ParameterizedTest(name = "interpolate(signal={0}) → concentration≈{1}")
     @CsvSource({

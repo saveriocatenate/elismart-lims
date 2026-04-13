@@ -1,5 +1,7 @@
 package it.elismart_lims.exception.model;
 
+import lombok.Getter;
+
 /**
  * Thrown when the Google Gemini API call fails or returns a response
  * that cannot be parsed into the expected structure.
@@ -14,6 +16,7 @@ package it.elismart_lims.exception.model;
  *   <li>502 — any other Gemini API failure (default)</li>
  * </ul>
  */
+@Getter
 public class GeminiServiceException extends RuntimeException {
 
     /** HTTP status code to return to the caller. Defaults to 502 Bad Gateway. */
@@ -52,12 +55,4 @@ public class GeminiServiceException extends RuntimeException {
         this.httpStatus = httpStatus;
     }
 
-    /**
-     * Returns the HTTP status code associated with this failure.
-     *
-     * @return HTTP status code
-     */
-    public int getHttpStatus() {
-        return httpStatus;
-    }
 }

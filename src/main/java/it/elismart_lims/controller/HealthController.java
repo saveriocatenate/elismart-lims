@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * Simple health-check endpoint for the frontend and monitoring tools.
+ * Simple health check endpoint for the frontend and monitoring tools.
  */
 @RestController
 @RequestMapping("/api/health")

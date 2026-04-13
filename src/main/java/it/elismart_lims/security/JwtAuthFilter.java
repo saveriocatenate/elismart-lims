@@ -1,5 +1,6 @@
 package it.elismart_lims.security;
 
+import it.elismart_lims.config.SecurityConfig;
 import it.elismart_lims.model.UserRole;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

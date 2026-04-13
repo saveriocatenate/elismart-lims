@@ -54,8 +54,6 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 /**
@@ -512,8 +510,8 @@ class ExperimentServiceTest {
 
         // An audit entry must be produced for the auto-flag
         verify(auditLogService).logChange(
-                eq("MeasurementPair"), eq(2L), eq("isOutlier"),
-                eq("false"), eq("true"), eq("SYSTEM:outlier-detection"));
+                "MeasurementPair", 2L, "isOutlier",
+                "false", "true", "SYSTEM:outlier-detection");
 
         // ValidationEngine must still be called (outlier is already set, engine skips it)
         verify(validationEngine).evaluate(any(), any(), eq(params));

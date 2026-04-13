@@ -13,9 +13,9 @@ import jakarta.validation.constraints.NotNull;
  * @param reagentBatchId new {@link it.elismart_lims.model.ReagentBatch} to link
  */
 public record UsedReagentBatchUpdateRequest(
-        /** Database ID of the UsedReagentBatch record to update. */
+        /* Database ID of the UsedReagentBatch record to update. */
         @NotNull Long id,
-        /** ID of the replacement ReagentBatch. */
+        /* ID of the replacement ReagentBatch. */
         @NotNull Long reagentBatchId
 ) {
 }

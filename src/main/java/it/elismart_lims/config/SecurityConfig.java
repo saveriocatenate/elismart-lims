@@ -49,6 +49,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    public static final String ADMIN = "ADMIN";
     private final JwtTokenProvider jwtTokenProvider;
     private final UserDetailsService userDetailsService;
 
@@ -71,12 +72,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // ADMIN-only: all delete operations, protocol mutations, user registration
-                        .requestMatchers(HttpMethod.DELETE, "/api/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/auth/register").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/protocols").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/protocols/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/**").hasRole(ADMIN)
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register").hasRole(ADMIN)
+                        .requestMatchers(HttpMethod.POST, "/api/protocols").hasRole(ADMIN)
+                        .requestMatchers(HttpMethod.PUT, "/api/protocols/**").hasRole(ADMIN)
                         // REVIEWER or ADMIN: experiment status transitions
-                        .requestMatchers(HttpMethod.PUT, "/api/experiments/*/status").hasAnyRole("REVIEWER", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/experiments/*/status").hasAnyRole("REVIEWER", ADMIN)
                         // All other requests require any authenticated user
                         .anyRequest().authenticated()
                 )

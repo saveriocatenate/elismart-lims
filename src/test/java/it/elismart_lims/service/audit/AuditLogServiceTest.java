@@ -183,7 +183,7 @@ class AuditLogServiceTest {
         List<AuditLogResponse> result = auditLogService.getHistory("MeasurementPair", 7L);
 
         assertThat(result).hasSize(1);
-        AuditLogResponse r = result.get(0);
+        AuditLogResponse r = result.getFirst();
         assertThat(r.id()).isEqualTo(99L);
         assertThat(r.entityType()).isEqualTo("MeasurementPair");
         assertThat(r.entityId()).isEqualTo(7L);

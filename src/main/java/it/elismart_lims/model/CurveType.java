@@ -1,5 +1,7 @@
 package it.elismart_lims.model;
 
+import lombok.Getter;
+
 /**
  * Mathematical model used to fit the calibration curve of a {@link Protocol}.
  *
@@ -7,6 +9,7 @@ package it.elismart_lims.model;
  * suitable for display in the UI, and {@link #requiredParameters} which records how many
  * free parameters the fitting algorithm must estimate (used by the future curve-fit engine).</p>
  */
+@Getter
 public enum CurveType {
 
     /**
@@ -68,15 +71,28 @@ public enum CurveType {
             "Non-parametric interpolation between calibration points. Not recommended for high-precision analysis.",
             0);
 
-    /** Short, human-readable label shown in the UI (e.g. "4PL"). */
+    /** Short, human-readable label shown in the UI (e.g. "4PL").
+     * -- GETTER --
+     *  Returns the short display name (e.g.
+     * ).
+     *
+     */
     private final String displayName;
 
-    /** Full description of the curve model. */
+    /** Full description of the curve model.
+     * -- GETTER --
+     *  Returns the full description of the model.
+     *
+     */
     private final String description;
 
     /**
      * Number of free parameters the fitting algorithm must estimate.
      * Zero means no mathematical fitting is performed (point-to-point interpolation).
+     * -- GETTER --
+     *  Returns the number of free parameters required by the fitting algorithm.
+     *
+
      */
     private final int requiredParameters;
 
@@ -86,30 +102,4 @@ public enum CurveType {
         this.requiredParameters = requiredParameters;
     }
 
-    /**
-     * Returns the short display name (e.g. {@code "4PL"}).
-     *
-     * @return the display name
-     */
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    /**
-     * Returns the full description of the model.
-     *
-     * @return the description
-     */
-    public String getDescription() {
-        return description;
-    }
-
-    /**
-     * Returns the number of free parameters required by the fitting algorithm.
-     *
-     * @return the number of required parameters
-     */
-    public int getRequiredParameters() {
-        return requiredParameters;
-    }
 }

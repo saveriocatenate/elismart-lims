@@ -24,7 +24,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
@@ -155,8 +154,8 @@ class SampleServiceTest {
     void update_shouldThrow_whenNotFound() {
         when(sampleRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> sampleService.update(99L,
-                new SampleUpdateRequest(null, null, null, null, null, null)))
+        SampleUpdateRequest request = new SampleUpdateRequest(null, null, null, null, null, null);
+        assertThatThrownBy(() -> sampleService.update(99L, request))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Sample not found with id: 99");
     }
