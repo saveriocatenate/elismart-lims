@@ -36,13 +36,17 @@ public final class ReagentBatchMapper {
     /**
      * Converts a {@link ReagentBatch} entity to a {@link ReagentBatchResponse} DTO.
      *
+     * <p>The parent {@link ReagentCatalog} must be accessible (not lazily unloaded) at call time.</p>
+     *
      * @param entity the entity to convert
-     * @return the response DTO
+     * @return the response DTO including reagent name and manufacturer
      */
     public static ReagentBatchResponse toResponse(ReagentBatch entity) {
         return ReagentBatchResponse.builder()
                 .id(entity.getId())
                 .reagentId(entity.getReagent().getId())
+                .reagentName(entity.getReagent().getName())
+                .manufacturer(entity.getReagent().getManufacturer())
                 .lotNumber(entity.getLotNumber())
                 .expiryDate(entity.getExpiryDate())
                 .supplier(entity.getSupplier())

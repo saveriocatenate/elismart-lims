@@ -91,7 +91,7 @@ class ExperimentControllerTest {
                 LocalDateTime.of(2026, 4, 5, 10, 0),
                 1L,
                 ExperimentStatus.OK,
-                List.of(new UsedReagentBatchRequest(1L, "LOT-001", null)),
+                List.of(new UsedReagentBatchRequest(1L)),
                 List.of());
         when(experimentService.create(any())).thenReturn(sampleResponse());
 
@@ -104,7 +104,7 @@ class ExperimentControllerTest {
     @Test
     void create_shouldReturn400_whenMissingReagents() throws Exception {
         var request = new ExperimentRequest("Run", LocalDateTime.of(2026, 4, 5, 10, 0), 1L, ExperimentStatus.OK,
-                List.of(new UsedReagentBatchRequest(1L, "LOT-001", null)), List.of());
+                List.of(new UsedReagentBatchRequest(1L)), List.of());
         when(experimentService.create(any())).thenThrow(new ProtocolMismatchException("Missing reagents"));
 
         mockMvc.perform(post("/api/experiments")
@@ -137,7 +137,7 @@ class ExperimentControllerTest {
                   "date": "2026-04-05T10:00:00",
                   "protocolId": 1,
                   "status": "PENDING",
-                  "usedReagentBatches": [{"reagentId": 1, "lotNumber": "LOT-001", "expiryDate": null}],
+                  "usedReagentBatches": [{"reagentBatchId": 1}],
                   "measurementPairs": [
                     {"pairType": "CALIBRATION", "signal2": 0.47, "recoveryPct": null, "isOutlier": false}
                   ]
@@ -159,7 +159,7 @@ class ExperimentControllerTest {
                   "date": "2026-04-05T10:00:00",
                   "protocolId": 1,
                   "status": "PENDING",
-                  "usedReagentBatches": [{"reagentId": 1, "lotNumber": "LOT-001", "expiryDate": null}],
+                  "usedReagentBatches": [{"reagentBatchId": 1}],
                   "measurementPairs": [
                     {"pairType": "CALIBRATION", "signal1": 0.45, "recoveryPct": null, "isOutlier": false}
                   ]

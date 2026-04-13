@@ -26,7 +26,7 @@ class ExperimentMapperTest {
                 LocalDateTime.of(2026, 4, 5, 10, 0),
                 1L,
                 ExperimentStatus.OK,
-                List.of(new UsedReagentBatchRequest(1L, "LOT-001", null)),
+                List.of(new UsedReagentBatchRequest(1L)),
                 List.of());
 
         var entity = ExperimentMapper.toEntity(request, protocol);

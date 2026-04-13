@@ -60,6 +60,8 @@ class ReagentBatchMapperTest {
 
         assertThat(response.id()).isEqualTo(1L);
         assertThat(response.reagentId()).isEqualTo(10L);
+        assertThat(response.reagentName()).isEqualTo("Anti-IgG");
+        assertThat(response.manufacturer()).isEqualTo("Sigma");
         assertThat(response.lotNumber()).isEqualTo("LOT-001");
         assertThat(response.expiryDate()).isEqualTo(LocalDate.of(2026, 12, 31));
         assertThat(response.supplier()).isEqualTo("SupplierX");
@@ -75,6 +77,7 @@ class ReagentBatchMapperTest {
 
         assertThat(responses).hasSize(2);
         assertThat(responses.get(0).lotNumber()).isEqualTo("A");
+        assertThat(responses.get(0).reagentName()).isEqualTo("Anti-IgG");
         assertThat(responses.get(1).lotNumber()).isEqualTo("B");
     }
 }

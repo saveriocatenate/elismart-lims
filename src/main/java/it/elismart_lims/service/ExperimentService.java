@@ -58,6 +58,7 @@ public class ExperimentService {
     private final ExperimentRepository experimentRepository;
     private final ProtocolService protocolService;
     private final UsedReagentBatchService usedReagentBatchService;
+    private final ReagentBatchService reagentBatchService;
     private final MeasurementPairService measurementPairService;
     private final ProtocolReagentSpecService protocolReagentSpecService;
     private final AuditLogService auditLogService;
@@ -109,15 +110,18 @@ public class ExperimentService {
     }
 
     /**
-     * Validate that the provided reagent batch requests cover all mandatory reagents of the protocol.
+     * Validate that the provided reagent batch links cover all mandatory reagents of the protocol.
      *
-     * @param batchRequests the inline batch requests from the experiment creation request
+     * <p>Each {@link UsedReagentBatchRequest} carries a {@code reagentBatchId}. The reagent ID
+     * is resolved by loading the corresponding {@link it.elismart_lims.model.ReagentBatch}.</p>
+     *
+     * @param batchRequests the batch link requests from the experiment creation payload
      * @param protocolId    the protocol whose mandatory reagents must be satisfied
      * @throws ProtocolMismatchException if any mandatory reagent is not covered
      */
     private void validateReagentBatches(List<UsedReagentBatchRequest> batchRequests, Long protocolId) {
         Set<Long> batchReagentIds = batchRequests.stream()
-                .map(UsedReagentBatchRequest::reagentId)
+                .map(req -> reagentBatchService.getEntityById(req.reagentBatchId()).getReagent().getId())
                 .collect(Collectors.toSet());
 
         Set<Long> mandatoryReagentIds = protocolReagentSpecService.getMandatoryReagentIds(protocolId);

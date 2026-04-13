@@ -6,7 +6,7 @@ import it.elismart_lims.model.UsedReagentBatch;
 import java.util.List;
 
 /**
- * Static mapper between UsedReagentBatch entities and their DTOs.
+ * Static mapper between {@link UsedReagentBatch} entities and their DTOs.
  */
 public final class UsedReagentBatchMapper {
 
@@ -15,7 +15,11 @@ public final class UsedReagentBatchMapper {
     }
 
     /**
-     * Converts a UsedReagentBatch entity into a UsedReagentBatchResponse DTO.
+     * Converts a {@link UsedReagentBatch} entity into a {@link UsedReagentBatchResponse} DTO.
+     *
+     * <p>The nested {@link it.elismart_lims.dto.ReagentBatchResponse} is built via
+     * {@link ReagentBatchMapper#toResponse}, which requires the reagent association on the
+     * {@link it.elismart_lims.model.ReagentBatch} to be loaded.</p>
      *
      * @param entity the UsedReagentBatch entity
      * @return the response DTO
@@ -23,16 +27,14 @@ public final class UsedReagentBatchMapper {
     public static UsedReagentBatchResponse toResponse(UsedReagentBatch entity) {
         return UsedReagentBatchResponse.builder()
                 .id(entity.getId())
-                .reagentName(entity.getReagent().getName())
-                .lotNumber(entity.getLotNumber())
-                .expiryDate(entity.getExpiryDate())
+                .reagentBatch(ReagentBatchMapper.toResponse(entity.getReagentBatch()))
                 .build();
     }
 
     /**
-     * Converts a list of UsedReagentBatch entities into response DTOs.
+     * Converts a list of {@link UsedReagentBatch} entities into response DTOs.
      *
-     * @param entities the list of UsedReagentBatch entities
+     * @param entities the list of entities
      * @return the list of response DTOs
      */
     public static List<UsedReagentBatchResponse> toResponseList(List<UsedReagentBatch> entities) {

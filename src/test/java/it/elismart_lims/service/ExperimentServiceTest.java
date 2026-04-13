@@ -18,6 +18,7 @@ import it.elismart_lims.model.ExperimentStatus;
 import it.elismart_lims.model.MeasurementPair;
 import it.elismart_lims.model.PairType;
 import it.elismart_lims.model.Protocol;
+import it.elismart_lims.model.ReagentBatch;
 import it.elismart_lims.model.ReagentCatalog;
 import it.elismart_lims.model.UsedReagentBatch;
 import it.elismart_lims.repository.ExperimentRepository;
@@ -74,6 +75,9 @@ class ExperimentServiceTest {
     private UsedReagentBatchService usedReagentBatchService;
 
     @Mock
+    private ReagentBatchService reagentBatchService;
+
+    @Mock
     private MeasurementPairService measurementPairService;
 
     @Mock
@@ -123,12 +127,18 @@ class ExperimentServiceTest {
                 .curveType(CurveType.LINEAR)
                 .build();
 
+        ReagentBatch reagentBatch = ReagentBatch.builder()
+                .id(50L)
+                .reagent(reagent)
+                .lotNumber("LOT-001")
+                .expiryDate(LocalDate.of(2027, 12, 31))
+                .build();
+
         batch = UsedReagentBatch.builder()
                 .id(100L)
                 .experiment(null)
                 .reagent(reagent)
-                .lotNumber("LOT-001")
-                .expiryDate(LocalDate.of(2027, 12, 31))
+                .reagentBatch(reagentBatch)
                 .build();
 
         experiment = Experiment.builder()
@@ -144,8 +154,8 @@ class ExperimentServiceTest {
         MeasurementPairRequest pairRequest = new MeasurementPairRequest(
                 PairType.CALIBRATION, null, 0.45, 0.47, 98.5, false);
 
-        UsedReagentBatchRequest batchRequest = new UsedReagentBatchRequest(
-                1L, "LOT-001", LocalDate.of(2027, 12, 31));
+        // batchRequest now carries the reagentBatch id (50L), not a reagentId
+        UsedReagentBatchRequest batchRequest = new UsedReagentBatchRequest(50L);
 
         request = new ExperimentRequest(
                 "Test Experiment",
@@ -179,6 +189,10 @@ class ExperimentServiceTest {
 
     @Test
     void create_shouldSaveExperimentAndReturnResponse() {
+        // reagentBatchId=50 resolves to reagent.id=1; mandatory set is empty → passes validation
+        ReagentBatch rb = ReagentBatch.builder().id(50L)
+                .reagent(ReagentCatalog.builder().id(1L).build()).lotNumber("LOT-001").build();
+        when(reagentBatchService.getEntityById(50L)).thenReturn(rb);
         when(protocolService.getEntityById(10L)).thenReturn(protocol);
         when(protocolReagentSpecService.getMandatoryReagentIds(10L)).thenReturn(Set.of());
         when(experimentRepository.save(any(Experiment.class))).thenReturn(experiment);
@@ -198,8 +212,11 @@ class ExperimentServiceTest {
 
     @Test
     void create_shouldThrow_whenMandatoryReagentsMissing() {
+        // reagentBatchId=50 resolves to reagent.id=1; mandatory set {1,2} → missing 2 → throws
+        ReagentBatch rb = ReagentBatch.builder().id(50L)
+                .reagent(ReagentCatalog.builder().id(1L).build()).lotNumber("LOT-001").build();
+        when(reagentBatchService.getEntityById(50L)).thenReturn(rb);
         when(protocolService.getEntityById(10L)).thenReturn(protocol);
-        // mandatory IDs {1,2} but batch only covers {1}
         when(protocolReagentSpecService.getMandatoryReagentIds(10L)).thenReturn(Set.of(1L, 2L));
 
         assertThatThrownBy(() -> experimentService.create(request))
@@ -245,8 +262,7 @@ class ExperimentServiceTest {
 
     @Test
     void update_shouldUpdateFieldsAndReturnResponse() {
-        UsedReagentBatchUpdateRequest batchUpdate = new UsedReagentBatchUpdateRequest(
-                100L, "LOT-NEW", LocalDate.of(2028, 6, 30));
+        UsedReagentBatchUpdateRequest batchUpdate = new UsedReagentBatchUpdateRequest(100L, 6L);
         ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
                 "Updated Name",
                 LocalDateTime.of(2026, 5, 1, 9, 0),
