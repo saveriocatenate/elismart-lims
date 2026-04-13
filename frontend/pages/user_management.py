@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
+from utils import check_auth, get_auth_headers, resolve_backend_url, show_confirmation_dialog, show_persistent_error, show_stored_errors, translate_error
 
 check_auth()
 
@@ -113,6 +113,12 @@ else:
                     else:
                         st.markdown('<div class="delete-btn"></div>', unsafe_allow_html=True)
                         if st.button("Disabilita", key=f"btn_disable_{uid}"):
+                            st.session_state[f"confirm_disable_{uid}"] = True
+
+                        if show_confirmation_dialog(
+                            f"Disabilitare l'utente **{uname}**? L'account non potrà più accedere al sistema.",
+                            key=f"disable_{uid}",
+                        ):
                             try:
                                 r = requests.delete(
                                     f"{BACKEND_URL}/api/users/{uid}",

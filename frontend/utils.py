@@ -194,6 +194,51 @@ def show_stored_errors(key: str) -> None:
         st.error(st.session_state.pop(error_key))
 
 
+def show_confirmation_dialog(message: str, key: str) -> bool:
+    """Inline confirmation pattern using session_state.
+
+    Renders a warning box with Confirm and Cancel buttons below the current
+    widget position.  Returns ``True`` on the single rerun immediately after
+    the user clicks *Conferma*; returns ``False`` at all other times.
+
+    Must be used **outside** an ``st.form`` block (form-internal buttons
+    submit the form instead of triggering independent callbacks).
+
+    Usage::
+
+        if st.button("Delete", key=f"del_btn_{uid}"):
+            st.session_state[f"confirm_{key}"] = True
+
+        if show_confirmation_dialog("Delete this user?", key):
+            # execute the destructive action here
+
+    Parameters
+    ----------
+    message:
+        The question or warning to display in the confirmation box.
+    key:
+        A unique string key used to namespace the session-state flag and
+        the button widget keys.  Must be stable across reruns.
+    """
+    state_key = f"confirm_{key}"
+    if not st.session_state.get(state_key, False):
+        return False
+
+    st.warning(message)
+    col_confirm, col_cancel, _ = st.columns([1, 1, 3])
+    confirmed = False
+    with col_confirm:
+        if st.button("Conferma", key=f"confirm_btn_{key}", type="primary", use_container_width=True):
+            st.session_state.pop(state_key, None)
+            confirmed = True
+    with col_cancel:
+        if st.button("Annulla", key=f"cancel_btn_{key}", use_container_width=True):
+            st.session_state.pop(state_key, None)
+            st.rerun()
+
+    return confirmed
+
+
 # ---------------------------------------------------------------------------
 # Global CSS palette
 # ---------------------------------------------------------------------------

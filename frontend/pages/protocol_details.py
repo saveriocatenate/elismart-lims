@@ -27,6 +27,41 @@ if not protocol_id:
     st.stop()
 
 
+@st.dialog("Conferma salvataggio")
+def _confirm_save_proto(proto_name: str) -> None:
+    """Modal dialog that asks the user to confirm saving protocol changes.
+
+    Reads the staged payload from ``st.session_state["proto_pending_save"]``,
+    executes the PUT request on confirmation, and clears the pending state.
+    """
+    payload = st.session_state.get("proto_pending_save", {})
+    st.write(f"Stai per salvare le modifiche al protocollo **{proto_name}**. Confermi?")
+    col_save, col_cancel = st.columns(2)
+    with col_save:
+        if st.button("Conferma", type="primary", use_container_width=True):
+            try:
+                put_resp = requests.put(
+                    f"{BACKEND_URL}/api/protocols/{protocol_id}",
+                    json=payload,
+                    headers=get_auth_headers(),
+                    timeout=10,
+                )
+                if put_resp.status_code == 200:
+                    st.session_state.pop("proto_pending_save", None)
+                    st.session_state["protocol_edit_mode"] = False
+                    st.session_state["proto_save_success"] = True
+                    st.rerun()
+                else:
+                    detail = put_resp.json().get("message", put_resp.text)
+                    show_persistent_error(translate_error(detail), key="protocol_details")
+            except requests.exceptions.RequestException as e:
+                show_persistent_error(translate_error(str(e)), key="protocol_details")
+    with col_cancel:
+        if st.button("Annulla", use_container_width=True):
+            st.session_state.pop("proto_pending_save", None)
+            st.rerun()
+
+
 @st.dialog("Confirm Deletion")
 def _confirm_delete(proto_name: str) -> None:
     """Modal dialog to confirm protocol deletion."""
@@ -97,6 +132,7 @@ with edit_col:
     else:
         if st.button("Cancel", use_container_width=True):
             st.session_state["protocol_edit_mode"] = False
+            st.session_state.pop("proto_pending_save", None)
             st.rerun()
 
 with del_col:
@@ -107,10 +143,31 @@ with del_col:
 st.title("Protocol Details")
 show_stored_errors("protocol_details")
 
+if st.session_state.pop("proto_save_success", False):
+    st.success("Protocollo aggiornato con successo.")
+
 st.info(
     "Edit and Delete are blocked by the server if experiments are linked to this protocol. "
     "Remove all linked experiments first."
 )
+
+if edit_mode:
+    st.markdown(
+        "<div style='border:2px solid #2E7D32;border-radius:6px;padding:0.5rem 1rem;"
+        "margin-bottom:1rem;background:#F1F8E9'>"
+        "<b style='color:#2E7D32'>✏️ Modalità modifica attiva</b> — "
+        "modifica i campi e clicca <b>Save Changes</b> per confermare, "
+        "oppure <b>Cancel</b> per annullare.</div>",
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown(
+        "<div style='border:1px solid #BDBDBD;border-radius:6px;padding:0.5rem 1rem;"
+        "margin-bottom:1rem;background:#FAFAFA'>"
+        "<span style='color:#757575'>👁️ Modalità visualizzazione</span> — "
+        "clicca <b>✏️ Edit</b> per modificare i dati.</div>",
+        unsafe_allow_html=True,
+    )
 
 st.markdown("---")
 
@@ -163,34 +220,21 @@ with st.form("protocol_form"):
         st.form_submit_button("(view only — click ✏️ Edit to modify)", disabled=True, use_container_width=True)
 
 # ---------------------------------------------------------------------------
-# Save logic
+# Stage payload and open confirmation dialog
 # ---------------------------------------------------------------------------
 
 if saved:
     if not edit_name.strip():
-        show_persistent_error("Name is required.")
+        show_persistent_error("Name is required.", key="protocol_details")
     else:
-        payload = {
+        st.session_state["proto_pending_save"] = {
             "name": edit_name.strip(),
             "numCalibrationPairs": int(edit_cal),
             "numControlPairs": int(edit_ctrl),
             "maxCvAllowed": float(edit_cv),
             "maxErrorAllowed": float(edit_error),
         }
-        try:
-            put_resp = requests.put(
-                f"{BACKEND_URL}/api/protocols/{protocol_id}",
-                json=payload,
-                headers=get_auth_headers(),
-                timeout=10,
-            )
-            if put_resp.status_code == 200:
-                st.success("Protocol updated successfully.")
-                st.session_state["protocol_edit_mode"] = False
-                data = put_resp.json()
-                st.rerun()
-            else:
-                detail = put_resp.json().get("message", put_resp.text)
-                show_persistent_error(translate_error(detail), key="protocol_details")
-        except requests.exceptions.RequestException as e:
-            show_persistent_error(translate_error(str(e)), key="protocol_details")
+
+if st.session_state.get("proto_pending_save"):
+    pending_name = st.session_state["proto_pending_save"].get("name", data.get("name", ""))
+    _confirm_save_proto(pending_name)
