@@ -21,7 +21,7 @@ import time
 import pandas as pd
 import requests
 import streamlit as st
-from utils import check_auth, get_auth_headers, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -30,6 +30,7 @@ if st.button("← Back to Dashboard"):
     st.switch_page("pages/dashboard.py")
 
 st.title("New Experiment")
+show_stored_errors("add_experiment")
 st.markdown("---")
 
 
@@ -195,7 +196,7 @@ protocol_detail = _load_protocol_detail(BACKEND_URL, selected_protocol_id, token
 reagent_specs = _load_reagent_specs(BACKEND_URL, selected_protocol_id, token)
 
 if not protocol_detail:
-    st.error("Could not load protocol details.")
+    show_persistent_error("Could not load protocol details.")
     st.stop()
 
 num_cal = protocol_detail.get("numCalibrationPairs", 0)
@@ -297,9 +298,9 @@ for i, spec in enumerate(reagent_specs):
 
             if register_btn:
                 if not nl_lot.strip():
-                    st.error("Lot Number is required.")
+                    show_persistent_error("Lot Number is required.")
                 elif nl_expiry is None:
-                    st.error("Expiry Date is required.")
+                    show_persistent_error("Expiry Date is required.")
                 else:
                     payload = {
                         "reagentId": reagent_id,
@@ -321,9 +322,9 @@ for i, spec in enumerate(reagent_specs):
                             st.rerun()
                         else:
                             detail = pr.json().get("message", pr.text)
-                            st.error(f"Failed ({pr.status_code}): {detail}")
+                            show_persistent_error(translate_error(detail), key="add_experiment")
                     except requests.exceptions.RequestException as e:
-                        st.error(f"Request failed: {e}")
+                        show_persistent_error(translate_error(str(e)), key="add_experiment")
 
 st.markdown("---")
 
@@ -339,7 +340,7 @@ def _build_used_batches() -> list | None:
         if reagent_specs[i].get("isMandatory") and selected_batch_ids[i] is None
     ]
     if missing:
-        st.error(
+        show_persistent_error(
             f"A batch must be selected (or created) for mandatory reagents: "
             f"{', '.join(missing)}"
         )
@@ -437,14 +438,15 @@ if input_mode == "Manual entry":
                     message = body.get("message", resp.text)
                 except Exception:
                     message = resp.text
+                translated = translate_error(message)
                 if resp.status_code in (409, 500):
-                    exp_top_error_ph.error(f"Errore ({resp.status_code}): {message}")
+                    exp_top_error_ph.error(f"Errore ({resp.status_code}): {translated}")
                 elif "name" in message.lower():
-                    exp_name_ph.error(f"⚠️ {message}")
+                    exp_name_ph.error(f"⚠️ {translated}")
                 else:
-                    exp_top_error_ph.error(f"Errore ({resp.status_code}): {message}")
+                    exp_top_error_ph.error(f"Errore ({resp.status_code}): {translated}")
         except requests.exceptions.RequestException as e:
-            exp_top_error_ph.error(f"Errore di rete: {e}")
+            exp_top_error_ph.error(translate_error(f"Errore di rete: {e}"))
 
 
 # ---------------------------------------------------------------------------
@@ -490,7 +492,7 @@ else:
     try:
         df_preview = pd.read_csv(io.BytesIO(csv_file.read()), nrows=5)
     except Exception as e:
-        st.error(f"Could not parse CSV file: {e}")
+        show_persistent_error(f"Could not parse CSV file: {e}")
         st.stop()
 
     st.caption(f"Preview — {csv_file.name} ({csv_file.size:,} bytes)")
@@ -498,7 +500,7 @@ else:
 
     columns = list(df_preview.columns)
     if not columns:
-        st.error("CSV file has no columns.")
+        show_persistent_error("CSV file has no columns.")
         st.stop()
 
     # ── 4. Column mapping ────────────────────────────────────────────────
@@ -521,16 +523,16 @@ else:
     try:
         df_full = pd.read_csv(io.BytesIO(csv_file.read()))
     except Exception as e:
-        st.error(f"Could not re-read CSV: {e}")
+        show_persistent_error(f"Could not re-read CSV: {e}")
         st.stop()
 
     if well_col not in df_full.columns:
-        st.error(f"Column '{well_col}' not found in file.")
+        show_persistent_error(f"Column '{well_col}' not found in file.")
         st.stop()
 
     unique_wells = sorted(df_full[well_col].dropna().astype(str).unique().tolist())
     if not unique_wells:
-        st.error("No well identifiers found in the selected column.")
+        show_persistent_error("No well identifiers found in the selected column.")
         st.stop()
 
     # ── 6. Plate layout data_editor ──────────────────────────────────────
@@ -627,7 +629,7 @@ else:
                     timeout=15,
                 )
             except requests.exceptions.RequestException as e:
-                st.error(f"Network error creating experiment: {e}")
+                show_persistent_error(translate_error(f"Network error creating experiment: {e}"), key="add_experiment")
                 st.stop()
 
         if create_resp.status_code != 201:
@@ -636,12 +638,13 @@ else:
                 detail = body.get("message", create_resp.text)
             except Exception:
                 detail = create_resp.text
+            translated = translate_error(detail)
             if create_resp.status_code in (409, 500):
-                exp_top_error_ph.error(f"Errore ({create_resp.status_code}): {detail}")
+                exp_top_error_ph.error(f"Errore ({create_resp.status_code}): {translated}")
             elif "name" in detail.lower():
-                exp_name_ph.error(f"⚠️ {detail}")
+                exp_name_ph.error(f"⚠️ {translated}")
             else:
-                exp_top_error_ph.error(f"Errore ({create_resp.status_code}): {detail}")
+                exp_top_error_ph.error(f"Errore ({create_resp.status_code}): {translated}")
             st.stop()
 
         exp_id = create_resp.json().get("id")

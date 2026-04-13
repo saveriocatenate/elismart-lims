@@ -21,13 +21,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, get_auth_headers, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
 
 check_auth()
 
 # ADMIN-only guard
 if st.session_state.get("role") != "ADMIN":
-    st.error("Accesso non autorizzato. Questa pagina è riservata agli amministratori.")
+    show_persistent_error("Accesso non autorizzato. Questa pagina è riservata agli amministratori.")
     st.button("← Torna al Dashboard", on_click=lambda: st.switch_page("pages/dashboard.py"))
     st.stop()
 
@@ -35,6 +35,7 @@ BACKEND_URL = resolve_backend_url()
 ROLES = ["ANALYST", "REVIEWER", "ADMIN"]
 
 st.title("User Management")
+show_stored_errors("user_management")
 st.markdown("---")
 
 # ---------------------------------------------------------------------------
@@ -47,9 +48,9 @@ def fetch_users() -> list[dict]:
         resp = requests.get(f"{BACKEND_URL}/api/users", headers=get_auth_headers(), timeout=10)
         if resp.status_code == 200:
             return resp.json()
-        st.error(f"Errore nel caricamento utenti ({resp.status_code}): {resp.text}")
+        show_persistent_error(translate_error(f"Errore nel caricamento utenti ({resp.status_code}): {resp.text}"), key="user_management")
     except requests.exceptions.RequestException as exc:
-        st.error(f"Impossibile raggiungere il backend: {exc}")
+        show_persistent_error(translate_error(f"Impossibile raggiungere il backend: {exc}"), key="user_management")
     return []
 
 
@@ -100,9 +101,9 @@ else:
                             st.rerun()
                         else:
                             body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-                            st.error(body.get("message", f"Errore {r.status_code}"))
+                            show_persistent_error(translate_error(body.get("message", f"Errore {r.status_code}")), key="user_management")
                     except requests.exceptions.RequestException as exc:
-                        st.error(f"Errore di rete: {exc}")
+                        show_persistent_error(translate_error(f"Errore di rete: {exc}"), key="user_management")
 
             # ---- Disable user ----
             with col_disable:
@@ -123,9 +124,9 @@ else:
                                     st.rerun()
                                 else:
                                     body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-                                    st.error(body.get("message", f"Errore {r.status_code}"))
+                                    show_persistent_error(translate_error(body.get("message", f"Errore {r.status_code}")), key="user_management")
                             except requests.exceptions.RequestException as exc:
-                                st.error(f"Errore di rete: {exc}")
+                                show_persistent_error(translate_error(f"Errore di rete: {exc}"), key="user_management")
                 else:
                     st.caption("Account già disabilitato.")
 
@@ -150,7 +151,7 @@ with st.form("create_user_form", clear_on_submit=True):
 
 if submitted:
     if not new_username.strip() or not new_password.strip():
-        st.error("Username e password sono obbligatori.")
+        show_persistent_error("Username e password sono obbligatori.")
     else:
         try:
             r = requests.post(
@@ -168,6 +169,6 @@ if submitted:
                 st.rerun()
             else:
                 body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-                st.error(body.get("message", f"Errore {r.status_code}"))
+                show_persistent_error(translate_error(body.get("message", f"Errore {r.status_code}")), key="user_management")
         except requests.exceptions.RequestException as exc:
-            st.error(f"Errore di rete: {exc}")
+            show_persistent_error(translate_error(f"Errore di rete: {exc}"), key="user_management")

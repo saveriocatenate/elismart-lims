@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, get_auth_headers, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -86,12 +86,13 @@ def _render_expiry_alerts(alerts: list):
 
 
 st.title("Dashboard")
+show_stored_errors("dashboard")
 
 healthy, detail = _check_backend()
 if healthy:
     st.success(f"Backend is online — {detail.get('timestamp', '')}")
 else:
-    st.error(f"Backend offline: {detail}")
+    show_persistent_error(translate_error(f"Backend offline: {detail}"), key="dashboard")
     st.stop()
 
 token = st.session_state.get("token", "")

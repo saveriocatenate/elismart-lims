@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, get_auth_headers, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -50,9 +50,9 @@ def _confirm_delete(proto_name: str) -> None:
                     st.switch_page("pages/search_protocols.py")
                 else:
                     detail = resp.json().get("message", resp.text)
-                    st.error(f"({resp.status_code}): {detail}")
+                    show_persistent_error(translate_error(detail), key="protocol_details")
             except requests.exceptions.RequestException as e:
-                st.error(f"Request failed: {e}")
+                show_persistent_error(translate_error(str(e)), key="protocol_details")
     with col_close:
         if st.button("Close", use_container_width=True):
             st.rerun()
@@ -69,11 +69,11 @@ try:
         timeout=10,
     )
     if resp.status_code != 200:
-        st.error(f"Failed to load protocol (HTTP {resp.status_code})")
+        show_persistent_error(translate_error(f"Failed to load protocol (HTTP {resp.status_code})"))
         st.stop()
     data = resp.json()
 except requests.exceptions.RequestException as e:
-    st.error(f"Request failed: {e}")
+    show_persistent_error(translate_error(str(e)))
     st.stop()
 
 # ---------------------------------------------------------------------------
@@ -105,6 +105,7 @@ with del_col:
         _confirm_delete(data.get("name", str(protocol_id)))
 
 st.title("Protocol Details")
+show_stored_errors("protocol_details")
 
 st.info(
     "Edit and Delete are blocked by the server if experiments are linked to this protocol. "
@@ -167,7 +168,7 @@ with st.form("protocol_form"):
 
 if saved:
     if not edit_name.strip():
-        st.error("Name is required.")
+        show_persistent_error("Name is required.")
     else:
         payload = {
             "name": edit_name.strip(),
@@ -190,6 +191,6 @@ if saved:
                 st.rerun()
             else:
                 detail = put_resp.json().get("message", put_resp.text)
-                st.error(f"Save failed ({put_resp.status_code}): {detail}")
+                show_persistent_error(translate_error(detail), key="protocol_details")
         except requests.exceptions.RequestException as e:
-            st.error(f"Request failed: {e}")
+            show_persistent_error(translate_error(str(e)), key="protocol_details")

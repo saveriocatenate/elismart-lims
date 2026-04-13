@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, get_auth_headers, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -20,6 +20,7 @@ if st.button("← Back to Dashboard"):
     st.switch_page("pages/dashboard.py")
 
 st.title("Search Protocols")
+show_stored_errors("search_protocols")
 st.markdown("---")
 
 with st.form("search_protocol_form"):
@@ -53,10 +54,10 @@ if submitted or "proto_results" in st.session_state:
         if resp.status_code == 200:
             st.session_state["proto_results"] = resp.json()
         else:
-            st.error(f"Search failed (HTTP {resp.status_code})")
+            show_persistent_error(translate_error(f"Search failed (HTTP {resp.status_code})"), key="search_protocols")
             st.session_state.pop("proto_results", None)
     except requests.exceptions.RequestException as e:
-        st.error(f"Request failed: {e}")
+        show_persistent_error(translate_error(str(e)), key="search_protocols")
         st.session_state.pop("proto_results", None)
 
 results = st.session_state.get("proto_results")

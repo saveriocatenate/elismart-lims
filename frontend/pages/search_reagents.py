@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import datetime
 import requests
 import streamlit as st
-from utils import check_auth, format_date, get_auth_headers, resolve_backend_url
+from utils import check_auth, format_date, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -25,6 +25,7 @@ if st.button("← Back to Dashboard"):
     st.switch_page("pages/dashboard.py")
 
 st.title("Search Reagents")
+show_stored_errors("search_reagents")
 st.markdown("---")
 
 # ---------------------------------------------------------------------------
@@ -66,10 +67,10 @@ if submitted or "reagent_results" in st.session_state:
         if resp.status_code == 200:
             st.session_state["reagent_results"] = resp.json()
         else:
-            st.error(f"Search failed (HTTP {resp.status_code})")
+            show_persistent_error(translate_error(f"Search failed (HTTP {resp.status_code})"), key="search_reagents")
             st.session_state.pop("reagent_results", None)
     except requests.exceptions.RequestException as e:
-        st.error(f"Request failed: {e}")
+        show_persistent_error(translate_error(str(e)), key="search_reagents")
         st.session_state.pop("reagent_results", None)
 
 results = st.session_state.get("reagent_results")
@@ -176,9 +177,9 @@ for reagent in content:
 
             if register_btn:
                 if not new_lot.strip():
-                    st.error("Lot Number is required.")
+                    show_persistent_error("Lot Number is required.")
                 elif new_expiry is None:
-                    st.error("Expiry Date is required.")
+                    show_persistent_error("Expiry Date is required.")
                 else:
                     payload = {
                         "reagentId": reagent_id,
@@ -202,9 +203,9 @@ for reagent in content:
                             st.rerun()
                         else:
                             detail = post_r.json().get("message", post_r.text)
-                            st.error(f"Failed ({post_r.status_code}): {detail}")
+                            show_persistent_error(translate_error(detail), key="search_reagents")
                     except requests.exceptions.RequestException as e:
-                        st.error(f"Request failed: {e}")
+                        show_persistent_error(translate_error(str(e)), key="search_reagents")
 
 # ---------------------------------------------------------------------------
 # Pagination

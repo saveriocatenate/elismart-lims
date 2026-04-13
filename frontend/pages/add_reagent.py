@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import time
 import requests
 import streamlit as st
-from utils import check_auth, get_auth_headers, resolve_backend_url
+from utils import check_auth, get_auth_headers, resolve_backend_url, show_stored_errors, translate_error
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -20,6 +20,7 @@ if st.button("← Back to Dashboard"):
     st.switch_page("pages/dashboard.py")
 
 st.title("New Reagent")
+show_stored_errors("add_reagent")
 st.markdown("---")
 
 # Top-level error placeholder (filled by backend error responses)
@@ -73,13 +74,14 @@ if st.button(
                 message = body.get("message", resp.text)
             except Exception:
                 message = resp.text
+            translated = translate_error(message)
             if resp.status_code == 409:
-                top_error_ph.error(f"Conflitto ({resp.status_code}): {message}")
+                top_error_ph.error(f"Conflitto ({resp.status_code}): {translated}")
             elif "name" in message.lower():
-                name_ph.error(f"⚠️ {message}")
+                name_ph.error(f"⚠️ {translated}")
             elif "manufacturer" in message.lower():
-                mfr_ph.error(f"⚠️ {message}")
+                mfr_ph.error(f"⚠️ {translated}")
             else:
-                top_error_ph.error(f"Errore ({resp.status_code}): {message}")
+                top_error_ph.error(f"Errore ({resp.status_code}): {translated}")
     except requests.exceptions.RequestException as e:
-        top_error_ph.error(f"Errore di rete: {e}")
+        top_error_ph.error(translate_error(f"Errore di rete: {e}"))

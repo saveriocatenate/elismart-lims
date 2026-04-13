@@ -128,6 +128,73 @@ def color_code_qc(value: float | None, limit: float | None, metric_type: str) ->
 
 
 # ---------------------------------------------------------------------------
+# Error display helpers
+# ---------------------------------------------------------------------------
+
+#: Maps known backend error substrings to user-friendly Italian messages.
+ERROR_TRANSLATIONS: dict[str, str] = {
+    "Duplicate entry": "Esiste già un elemento con lo stesso nome. Scegli un nome diverso.",
+    "must not be blank": "Questo campo è obbligatorio.",
+    "must be greater than": "Il valore deve essere maggiore di",
+    "Connection refused": "Impossibile contattare il server. Verifica che il backend sia avviato.",
+}
+
+
+def translate_error(raw_message: str) -> str:
+    """Map known backend error substrings to user-friendly Italian messages.
+
+    Iterates :data:`ERROR_TRANSLATIONS` and returns the first matching
+    translation.  Falls back to *raw_message* unchanged if no pattern matches.
+
+    Parameters
+    ----------
+    raw_message:
+        The raw error string returned by the backend or raised by a network
+        exception.
+    """
+    for pattern, translation in ERROR_TRANSLATIONS.items():
+        if pattern.lower() in raw_message.lower():
+            return translation
+    return raw_message
+
+
+def show_persistent_error(message: str, key: str | None = None) -> None:
+    """Display an error message and optionally persist it across a ``st.rerun()``.
+
+    When *key* is provided the message is saved to ``st.session_state`` so
+    that :func:`show_stored_errors` can re-display it after the next rerun.
+    Without a key the function is equivalent to ``st.error(message)``.
+
+    Parameters
+    ----------
+    message:
+        The error text to display.
+    key:
+        Optional session-state key prefix.  If given, the message is stored
+        under ``f"error_{key}"`` and survives a rerun.
+    """
+    if key:
+        st.session_state[f"error_{key}"] = message
+    st.error(message)
+
+
+def show_stored_errors(key: str) -> None:
+    """Display and clear any error previously stored by :func:`show_persistent_error`.
+
+    Call this once near the top of each page that uses keyed errors so that
+    errors survive a ``st.rerun()`` and remain visible on the next render.
+
+    Parameters
+    ----------
+    key:
+        The same string that was passed as *key* to :func:`show_persistent_error`.
+    """
+    error_key = f"error_{key}"
+    if error_key in st.session_state:
+        st.error(st.session_state.pop(error_key))
+
+
+# ---------------------------------------------------------------------------
 # Global CSS palette
 # ---------------------------------------------------------------------------
 

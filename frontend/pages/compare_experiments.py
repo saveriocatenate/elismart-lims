@@ -23,7 +23,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-from utils import check_auth, format_date, get_auth_headers, resolve_backend_url
+from utils import check_auth, format_date, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
 
 # ---------------------------------------------------------------------------
 # Bootstrap
@@ -50,6 +50,7 @@ if st.button("← Back to Search"):
     st.switch_page("pages/search_experiments.py")
 
 st.title("Experiment Comparison")
+show_stored_errors("compare_experiments")
 st.markdown("---")
 
 # ---------------------------------------------------------------------------
@@ -149,10 +150,10 @@ if len(selected) < MAX_SLOTS:
                 if r.status_code == 200:
                     st.session_state["add_exp_results"] = r.json().get("content", [])
                 else:
-                    st.error(f"Search failed (HTTP {r.status_code})")
+                    show_persistent_error(translate_error(f"Search failed (HTTP {r.status_code})"), key="compare_experiments")
                     st.session_state.pop("add_exp_results", None)
             except requests.exceptions.RequestException as e:
-                st.error(f"Request failed: {e}")
+                show_persistent_error(translate_error(str(e)), key="compare_experiments")
 
         add_results = st.session_state.get("add_exp_results", [])
         if add_results:
@@ -203,7 +204,7 @@ with btn_clear:
 
 if load_clicked:
     if len(selected) < 2:
-        st.error("Select at least 2 experiments.")
+        show_persistent_error("Select at least 2 experiments.")
     else:
         ids_to_fetch = [s["id"] for s in selected]
         data_map: dict[int, dict] = {}
@@ -218,11 +219,11 @@ if load_clicked:
                     if r.status_code == 200:
                         data_map[eid] = r.json()
                     elif r.status_code == 404:
-                        st.error(f"Experiment {eid} not found.")
+                        show_persistent_error(f"Experiment {eid} not found.", key="compare_experiments")
                     else:
-                        st.error(f"Failed to load experiment {eid} (HTTP {r.status_code}).")
+                        show_persistent_error(translate_error(f"Failed to load experiment {eid} (HTTP {r.status_code})."), key="compare_experiments")
                 except requests.exceptions.RequestException as e:
-                    st.error(f"Request failed for experiment {eid}: {e}")
+                    show_persistent_error(translate_error(str(e)), key="compare_experiments")
         st.session_state["compare_data"] = data_map
 
 # ---------------------------------------------------------------------------
@@ -536,9 +537,9 @@ if run_analysis:
                 if resp.status_code == 200:
                     st.session_state["gemini_analysis"] = resp.json().get("analysis", "")
                 else:
-                    st.error(f"AI analysis failed (HTTP {resp.status_code}): {resp.text[:300]}")
+                    show_persistent_error(translate_error(resp.text[:300]), key="compare_experiments")
             except requests.exceptions.RequestException as e:
-                st.error(f"Request to backend failed: {e}")
+                show_persistent_error(translate_error(str(e)), key="compare_experiments")
 
 if st.session_state.get("gemini_analysis"):
     st.markdown("**Analysis Result:**")

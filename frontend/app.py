@@ -9,7 +9,7 @@ import os
 import requests
 import streamlit as st
 
-from utils import inject_global_css, render_logo, render_sidebar, resolve_backend_url
+from utils import inject_global_css, render_logo, render_sidebar, resolve_backend_url, show_persistent_error, translate_error
 
 BACKEND_URL = resolve_backend_url()
 _ASSETS = os.path.join(os.path.dirname(__file__), "..", "assets")
@@ -45,7 +45,7 @@ def _check_login():
         )
         if st.form_submit_button("🔑 Accedi", use_container_width=True):
             if not user.strip() or not pwd.strip():
-                st.error("Inserisci username e password.")
+                show_persistent_error("Inserisci username e password.")
                 st.stop()
             try:
                 resp = requests.post(
@@ -60,11 +60,11 @@ def _check_login():
                     st.session_state["role"] = data["role"]
                     st.rerun()
                 elif resp.status_code == 401:
-                    st.error("Credenziali non valide.")
+                    show_persistent_error("Credenziali non valide.")
                 else:
-                    st.error(f"Errore dal server ({resp.status_code}). Riprova.")
+                    show_persistent_error(translate_error(f"Errore dal server ({resp.status_code}). Riprova."))
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-                st.error(
+                show_persistent_error(
                     f"⚠️ Il backend non è raggiungibile su **{BACKEND_URL}**. "
                     "Verifica che sia avviato."
                 )

@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import datetime
 import requests
 import streamlit as st
-from utils import check_auth, color_code_qc, format_date, get_auth_headers, resolve_backend_url
+from utils import check_auth, color_code_qc, format_date, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -48,9 +48,9 @@ def _confirm_delete(exp_name: str) -> None:
                     st.switch_page("pages/search_experiments.py")
                 else:
                     detail = resp.json().get("message", resp.text)
-                    st.error(f"Delete failed ({resp.status_code}): {detail}")
+                    show_persistent_error(translate_error(detail), key="experiment_details")
             except requests.exceptions.RequestException as e:
-                st.error(f"Request failed: {e}")
+                show_persistent_error(translate_error(str(e)), key="experiment_details")
     with col_close:
         if st.button("Close", use_container_width=True):
             st.rerun()
@@ -67,11 +67,11 @@ try:
         timeout=10,
     )
     if resp.status_code != 200:
-        st.error(f"Failed to load (HTTP {resp.status_code})")
+        show_persistent_error(translate_error(f"Failed to load (HTTP {resp.status_code})"))
         st.stop()
     data = resp.json()
 except requests.exceptions.RequestException as e:
-    st.error(f"Request failed: {e}")
+    show_persistent_error(translate_error(str(e)))
     st.stop()
 
 # ---------------------------------------------------------------------------
@@ -120,9 +120,9 @@ with pdf_col:
                 if r.status_code == 200:
                     st.session_state[f"export_pdf_{exp_id}"] = r.content
                 else:
-                    st.error(f"PDF export failed ({r.status_code})")
+                    show_persistent_error(translate_error(f"PDF export failed ({r.status_code})"), key="experiment_details")
             except requests.exceptions.RequestException as e:
-                st.error(f"Request failed: {e}")
+                show_persistent_error(translate_error(str(e)), key="experiment_details")
 
 with xlsx_col:
     if st.button("📊 Export Excel", use_container_width=True, help="Download XLSX workbook"):
@@ -136,9 +136,9 @@ with xlsx_col:
                 if r.status_code == 200:
                     st.session_state[f"export_xlsx_{exp_id}"] = r.content
                 else:
-                    st.error(f"Excel export failed ({r.status_code})")
+                    show_persistent_error(translate_error(f"Excel export failed ({r.status_code})"), key="experiment_details")
             except requests.exceptions.RequestException as e:
-                st.error(f"Request failed: {e}")
+                show_persistent_error(translate_error(str(e)), key="experiment_details")
 
 # Show download buttons once bytes are ready (persist across reruns via session_state)
 _pdf_bytes = st.session_state.get(f"export_pdf_{exp_id}")
@@ -165,6 +165,7 @@ if _pdf_bytes or _xlsx_bytes:
             )
 
 st.title("Experiment Details")
+show_stored_errors("experiment_details")
 st.markdown("---")
 
 # ---------------------------------------------------------------------------
@@ -428,7 +429,7 @@ with st.form("edit_form"):
 
 if saved:
     if not edit_name.strip():
-        st.error("Name is required.")
+        show_persistent_error("Name is required.")
     else:
         reagent_batch_updates = [
             {
@@ -470,9 +471,9 @@ if saved:
                 st.rerun()
             else:
                 detail = put_resp.json().get("message", put_resp.text)
-                st.error(f"Save failed ({put_resp.status_code}): {detail}")
+                show_persistent_error(translate_error(detail), key="experiment_details")
         except requests.exceptions.RequestException as e:
-            st.error(f"Request failed: {e}")
+            show_persistent_error(translate_error(str(e)), key="experiment_details")
 
 # ---------------------------------------------------------------------------
 # AI Analysis section
@@ -532,9 +533,9 @@ if st.button("Analyze with AI", type="primary", key="ai_analyze_btn"):
                     st.rerun()
                 else:
                     detail = ai_resp.json().get("message", ai_resp.text[:300]) if ai_resp.content else ai_resp.text[:300]
-                    st.error(f"AI analysis failed (HTTP {ai_resp.status_code}): {detail}")
+                    show_persistent_error(translate_error(detail), key="experiment_details")
             except requests.exceptions.RequestException as e:
-                st.error(f"Request failed: {e}")
+                show_persistent_error(translate_error(str(e)), key="experiment_details")
 
 if st.session_state.get(f"ai_result_{exp_id}"):
     st.markdown("**Latest Analysis Result:**")
