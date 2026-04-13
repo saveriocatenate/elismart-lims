@@ -83,6 +83,51 @@ def format_date(iso_str: str | None) -> str:
 
 
 # ---------------------------------------------------------------------------
+# QC colour coding
+# ---------------------------------------------------------------------------
+
+def color_code_qc(value: float | None, limit: float | None, metric_type: str) -> str:
+    """Return a CSS background-color string for a QC metric cell.
+
+    Traffic-light thresholds:
+
+    - ``"cv"``: green if *value* ≤ *limit*, yellow if ≤ *limit* × 1.5, red otherwise.
+    - ``"recovery"``: green if *value* is within *100 ± limit*, yellow if within
+      *100 ± limit × 1.5*, red otherwise.
+
+    Returns ``""`` (no colouring) when *value* or *limit* is ``None``.
+
+    Parameters
+    ----------
+    value:
+        The metric value to evaluate (e.g. cvPct or recoveryPct).
+    limit:
+        The protocol acceptance limit (maxCvAllowed or maxErrorAllowed).
+    metric_type:
+        Either ``"cv"`` or ``"recovery"``.
+    """
+    if value is None or limit is None:
+        return ""
+
+    if metric_type == "cv":
+        if value <= limit:
+            return "background-color: #C8E6C9"   # light green
+        if value <= limit * 1.5:
+            return "background-color: #FFF9C4"   # light yellow
+        return "background-color: #FFCDD2"        # light red
+
+    if metric_type == "recovery":
+        deviation = abs(value - 100.0)
+        if deviation <= limit:
+            return "background-color: #C8E6C9"
+        if deviation <= limit * 1.5:
+            return "background-color: #FFF9C4"
+        return "background-color: #FFCDD2"
+
+    return ""
+
+
+# ---------------------------------------------------------------------------
 # Global CSS palette
 # ---------------------------------------------------------------------------
 

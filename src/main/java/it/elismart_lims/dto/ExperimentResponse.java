@@ -18,6 +18,10 @@ public record ExperimentResponse(
         ExperimentStatus status,
         String protocolName,
         CurveType protocolCurveType,
+        /** Maximum %CV allowed by the protocol; {@code null} if not configured. */
+        Double protocolMaxCvAllowed,
+        /** Maximum %Error (recovery deviation from 100%) allowed by the protocol; {@code null} if not configured. */
+        Double protocolMaxErrorAllowed,
         /** JSON-serialised calibration curve parameters; {@code null} before first validation. */
         String curveParameters,
         LocalDateTime createdAt,

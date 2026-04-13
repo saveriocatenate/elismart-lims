@@ -38,7 +38,12 @@ class ExperimentMapperTest {
 
     @Test
     void toResponse_shouldMapEntityToResponse() {
-        var protocol = Protocol.builder().name("IgG Test").curveType(CurveType.FOUR_PARAMETER_LOGISTIC).build();
+        var protocol = Protocol.builder()
+                .name("IgG Test")
+                .curveType(CurveType.FOUR_PARAMETER_LOGISTIC)
+                .maxCvAllowed(15.0)
+                .maxErrorAllowed(20.0)
+                .build();
         var entity = Experiment.builder()
                 .id(1L)
                 .name("Run 2026-04-05")
@@ -54,6 +59,8 @@ class ExperimentMapperTest {
         assertThat(response.id()).isEqualTo(1L);
         assertThat(response.protocolName()).isEqualTo("IgG Test");
         assertThat(response.protocolCurveType()).isEqualTo(CurveType.FOUR_PARAMETER_LOGISTIC);
+        assertThat(response.protocolMaxCvAllowed()).isEqualTo(15.0);
+        assertThat(response.protocolMaxErrorAllowed()).isEqualTo(20.0);
         assertThat(response.usedReagentBatches()).isEmpty();
         assertThat(response.measurementPairs()).isEmpty();
     }

@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import datetime
 import requests
 import streamlit as st
-from utils import check_auth, format_date, get_auth_headers, resolve_backend_url
+from utils import check_auth, color_code_qc, format_date, get_auth_headers, resolve_backend_url
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
@@ -303,25 +303,66 @@ with st.form("edit_form"):
     st.subheader(f"Measurement Pairs ({len(pairs)} pair{'s' if len(pairs) != 1 else ''})")
 
     if not edit_mode:
-        # Read-only dataframe view
+        # Read-only view with QC colour coding
         if pairs:
-            st.dataframe(
-                [
-                    {
-                        "Type": p.get("pairType"),
-                        "Conc.": p.get("concentrationNominal"),
-                        "Signal 1": p.get("signal1"),
-                        "Signal 2": p.get("signal2"),
-                        "Mean": p.get("signalMean"),
-                        "%CV": p.get("cvPct"),
-                        "%Recovery": p.get("recoveryPct"),
-                        "Outlier": p.get("isOutlier"),
-                    }
-                    for p in pairs
-                ],
-                use_container_width=True,
-                hide_index=True,
+            max_cv = data.get("protocolMaxCvAllowed")
+            max_err = data.get("protocolMaxErrorAllowed")
+
+            # Build a static HTML table — no user-supplied data is interpolated into
+            # style attributes; all CSS is generated from server-validated numeric values.
+            header_cells = "".join(
+                f"<th style='padding:6px 10px;text-align:left;border-bottom:2px solid #ccc'>{h}</th>"
+                for h in ["Type", "Conc.", "Signal 1", "Signal 2", "Mean", "%CV", "%Recovery", "Status", "Outlier"]
             )
+            rows_html = ""
+            for p in pairs:
+                is_outlier = p.get("isOutlier") or False
+                row_bg = "background-color:#FFFDE7" if is_outlier else ""
+
+                cv_val = p.get("cvPct")
+                rec_val = p.get("recoveryPct")
+                pair_status = p.get("pairStatus")
+
+                cv_style = color_code_qc(cv_val, max_cv, "cv")
+                rec_style = color_code_qc(rec_val, max_err, "recovery")
+
+                def _fmt(v: float | None, decimals: int = 4) -> str:
+                    return f"{v:.{decimals}f}" if v is not None else "—"
+
+                status_icon = "✅" if pair_status == "PASS" else ("❌" if pair_status == "FAIL" else "—")
+                outlier_icon = "⚠️" if is_outlier else ""
+
+                cell_style = f"padding:6px 10px;border-bottom:1px solid #eee;{row_bg}"
+                rows_html += (
+                    f"<tr>"
+                    f"<td style='{cell_style}'>{p.get('pairType','—')}</td>"
+                    f"<td style='{cell_style}'>{_fmt(p.get('concentrationNominal'))}</td>"
+                    f"<td style='{cell_style}'>{_fmt(p.get('signal1'))}</td>"
+                    f"<td style='{cell_style}'>{_fmt(p.get('signal2'))}</td>"
+                    f"<td style='{cell_style}'>{_fmt(p.get('signalMean'))}</td>"
+                    f"<td style='{cell_style};{cv_style}'>{_fmt(cv_val, 1)}{'%' if cv_val is not None else ''}</td>"
+                    f"<td style='{cell_style};{rec_style}'>{_fmt(rec_val, 1)}{'%' if rec_val is not None else ''}</td>"
+                    f"<td style='{cell_style};text-align:center'>{status_icon}</td>"
+                    f"<td style='{cell_style};text-align:center'>{outlier_icon}</td>"
+                    f"</tr>"
+                )
+
+            table_html = (
+                f"<table style='width:100%;border-collapse:collapse;font-size:0.9rem'>"
+                f"<thead><tr style='background:#f5f5f5'>{header_cells}</tr></thead>"
+                f"<tbody>{rows_html}</tbody>"
+                f"</table>"
+            )
+
+            if max_cv is not None or max_err is not None:
+                legend_parts = []
+                if max_cv is not None:
+                    legend_parts.append(f"max %CV: <b>{max_cv}%</b>")
+                if max_err is not None:
+                    legend_parts.append(f"max %Error: <b>{max_err}%</b>")
+                st.caption("Protocol limits — " + " | ".join(legend_parts))
+
+            st.markdown(table_html, unsafe_allow_html=True)
         else:
             st.info("No measurement pairs.")
         saved = False
