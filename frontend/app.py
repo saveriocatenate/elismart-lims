@@ -27,6 +27,16 @@ def _check_login():
     st.set_page_config(page_title="EliSmart LIMS", page_icon="🧪")
     st.title("Accesso riservato")
 
+    # Health check: warn immediately if the backend is unreachable
+    try:
+        requests.get(f"{BACKEND_URL}/api/health", timeout=3)
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        st.warning(
+            f"⚠️ Il backend non è raggiungibile su **{BACKEND_URL}**. "
+            "Verifica che sia avviato."
+        )
+        st.stop()
+
     with st.form("login_form"):
         user = st.text_input("Username", autocomplete="username", label_visibility="collapsed")
         pwd = st.text_input(
@@ -53,10 +63,11 @@ def _check_login():
                     st.error("Credenziali non valide.")
                 else:
                     st.error(f"Errore dal server ({resp.status_code}). Riprova.")
-            except requests.exceptions.ConnectionError:
-                st.error("Impossibile raggiungere il backend. Verificare che sia avviato.")
-            except requests.exceptions.Timeout:
-                st.error("Il backend non ha risposto in tempo. Riprova.")
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+                st.error(
+                    f"⚠️ Il backend non è raggiungibile su **{BACKEND_URL}**. "
+                    "Verifica che sia avviato."
+                )
     st.stop()
 
 
