@@ -475,6 +475,72 @@ if saved:
             st.error(f"Request failed: {e}")
 
 # ---------------------------------------------------------------------------
+# AI Analysis section
+# ---------------------------------------------------------------------------
+
+st.markdown("---")
+st.subheader("AI Analysis")
+
+# Load existing insights for this experiment (persisted across sessions)
+try:
+    insights_resp = requests.get(
+        f"{BACKEND_URL}/api/ai/insights",
+        params={"experimentId": exp_id},
+        headers=get_auth_headers(),
+        timeout=10,
+    )
+    existing_insights = insights_resp.json() if insights_resp.status_code == 200 else []
+except requests.exceptions.RequestException:
+    existing_insights = []
+
+if existing_insights:
+    with st.expander(f"Previous analyses ({len(existing_insights)})", expanded=False):
+        for ins in existing_insights:
+            gen_at = format_date(ins.get("generatedAt"))
+            gen_by = ins.get("generatedBy", "—")
+            st.markdown(f"**{gen_at}** — _{gen_by}_")
+            st.caption(f"**Q:** {ins.get('userQuestion', '')}")
+            st.info(ins.get("aiResponse", ""))
+            st.markdown("---")
+
+# New analysis input — outside a form so the spinner doesn't block the whole page
+ai_question = st.text_area(
+    "Ask the AI Analyst",
+    placeholder=(
+        "e.g. Why did the control fail? "
+        "Is the %CV within acceptable limits for all calibrators?"
+    ),
+    height=100,
+    key="ai_question_input",
+)
+
+if st.button("Analyze with AI", type="primary", key="ai_analyze_btn"):
+    question = (ai_question or "").strip()
+    if not question:
+        st.warning("Please enter a question before running the analysis.")
+    else:
+        with st.spinner("AI is analyzing this experiment…"):
+            try:
+                ai_resp = requests.post(
+                    f"{BACKEND_URL}/api/ai/analyze",
+                    json={"experimentIds": [exp_id], "userQuestion": question},
+                    headers=get_auth_headers(),
+                    timeout=120,
+                )
+                if ai_resp.status_code == 200:
+                    st.session_state[f"ai_result_{exp_id}"] = ai_resp.json().get("analysis", "")
+                    st.rerun()
+                else:
+                    detail = ai_resp.json().get("message", ai_resp.text[:300]) if ai_resp.content else ai_resp.text[:300]
+                    st.error(f"AI analysis failed (HTTP {ai_resp.status_code}): {detail}")
+            except requests.exceptions.RequestException as e:
+                st.error(f"Request failed: {e}")
+
+if st.session_state.get(f"ai_result_{exp_id}"):
+    st.markdown("**Latest Analysis Result:**")
+    st.success(st.session_state[f"ai_result_{exp_id}"])
+
+# ---------------------------------------------------------------------------
 # Audit footer
 # ---------------------------------------------------------------------------
 

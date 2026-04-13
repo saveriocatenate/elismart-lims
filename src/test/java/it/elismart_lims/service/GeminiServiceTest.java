@@ -1,6 +1,7 @@
 package it.elismart_lims.service;
 
 import dev.langchain4j.model.chat.ChatLanguageModel;
+import it.elismart_lims.dto.AiInsightResponse;
 import it.elismart_lims.dto.ExperimentResponse;
 import it.elismart_lims.dto.GeminiAnalysisRequest;
 import it.elismart_lims.dto.GeminiAnalysisResponse;
@@ -22,11 +23,19 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -47,14 +56,26 @@ class GeminiServiceTest {
     @Mock
     private ProtocolService protocolService;
 
+    @Mock
+    private AiInsightService aiInsightService;
+
     private GeminiService geminiService;
 
     private ExperimentResponse sampleExperiment;
     private ProtocolResponse sampleProtocol;
 
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
     @BeforeEach
     void setUp() {
-        geminiService = new GeminiService(chatLanguageModel, experimentService, protocolService);
+        geminiService = new GeminiService(chatLanguageModel, experimentService, protocolService, aiInsightService);
+
+        // Set up a test security context so resolveCurrentUsername() returns "testuser"
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("testuser", null, List.of()));
 
         sampleProtocol = ProtocolResponse.builder()
                 .id(1L)
@@ -297,5 +318,29 @@ class GeminiServiceTest {
                 .isInstanceOf(GeminiServiceException.class)
                 .hasMessageContaining("Gemini API rate limit exceeded")
                 .satisfies(ex -> assertThat(((GeminiServiceException) ex).getHttpStatus()).isEqualTo(429));
+    }
+
+    /**
+     * Verifies that a successful analyze() call persists the insight via AiInsightService,
+     * passing the question, response text, current username, and experiment IDs.
+     */
+    @Test
+    void analyze_persistsAiInsight_afterSuccessfulAnalysis() {
+        // given
+        when(chatLanguageModel.generate(anyString())).thenReturn("Insight text");
+        when(experimentService.getById(1L)).thenReturn(sampleExperiment);
+        when(protocolService.getByName("ELISA Dose-Response")).thenReturn(sampleProtocol);
+        when(aiInsightService.save(anyString(), anyString(), anyString(), anyList()))
+                .thenReturn(AiInsightResponse.builder()
+                        .id(1L).userQuestion("Q").aiResponse("Insight text")
+                        .generatedBy("testuser").experimentIds(List.of(1L)).build());
+
+        GeminiAnalysisRequest request = new GeminiAnalysisRequest(List.of(1L), "Q");
+
+        // when
+        geminiService.analyze(request);
+
+        // then
+        verify(aiInsightService).save(eq("Q"), eq("Insight text"), eq("testuser"), eq(List.of(1L)));
     }
 }

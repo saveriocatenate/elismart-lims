@@ -11,6 +11,8 @@ import it.elismart_lims.exception.model.GeminiServiceException;
 import it.elismart_lims.model.PairType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -22,6 +24,9 @@ import java.util.OptionalDouble;
  *
  * <p>The prompt follows a three-section structure:
  * {@code [SYSTEM_CONTEXT]}, {@code [EXPERIMENT_DATA]}, and {@code [USER_QUERY]}.</p>
+ *
+ * <p>After a successful response from the model, the question and answer are persisted via
+ * {@link AiInsightService} so that the frontend can display past analyses without re-running them.</p>
  *
  * <p>The {@link ChatLanguageModel} bean is configured in {@link it.elismart_lims.config.GeminiConfig}
  * from the following properties:
@@ -45,6 +50,7 @@ public class GeminiService {
     private final ChatLanguageModel chatLanguageModel;
     private final ExperimentService experimentService;
     private final ProtocolService protocolService;
+    private final AiInsightService aiInsightService;
 
     /**
      * Fetches each experiment, builds a structured prompt, calls the Gemini API via LangChain4j,
@@ -76,7 +82,31 @@ public class GeminiService {
         String analysisText = callWithRetry(prompt);
         log.debug("Gemini response:\n{}", analysisText);
         log.info("Gemini analysis completed successfully for experiments: {}", request.experimentIds());
+
+        String currentUser = resolveCurrentUsername();
+        aiInsightService.save(request.userQuestion(), analysisText, currentUser, request.experimentIds());
+
         return GeminiAnalysisResponse.builder().analysis(analysisText).build();
+    }
+
+    // -------------------------------------------------------------------------
+    // Security context helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the username of the currently authenticated principal, or {@code "anonymous"}
+     * if no authentication is present in the security context.
+     *
+     * <p>Declared {@code protected} so that unit tests can override it via a Mockito spy.</p>
+     *
+     * @return the authenticated username
+     */
+    protected String resolveCurrentUsername() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated()) {
+            return auth.getName();
+        }
+        return "anonymous";
     }
 
     // -------------------------------------------------------------------------
