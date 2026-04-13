@@ -14,6 +14,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+import time
 import requests
 import streamlit as st
 from utils import check_auth, get_auth_headers, resolve_backend_url
@@ -26,6 +27,9 @@ if st.button("← Back to Dashboard"):
 
 st.title("New Protocol")
 st.markdown("---")
+
+# Top-level error placeholder (filled by backend error responses)
+top_error_ph = st.empty()
 
 # --- Load existing reagents from catalog (full data for duplicate check) ---
 reagent_list: list[dict] = []
@@ -54,7 +58,10 @@ existing_pairs: set[tuple[str, str]] = {
 # ---------------------------------------------------------------------------
 
 st.subheader("Protocol Details")
-name = st.text_input("Name", placeholder="e.g. IgG Test Protocol", key="proto_name")
+name = st.text_input("Name *", placeholder="e.g. IgG Test Protocol", key="proto_name")
+name_ph = st.empty()
+if not name.strip():
+    name_ph.warning("⚠️ Name è obbligatorio")
 
 # Curve type options: display label → enum value sent to the API
 _CURVE_TYPE_OPTIONS: dict[str, str] = {
@@ -119,6 +126,7 @@ if st.button("➕ Add reagent row", key="add_reagent_row"):
 
 rows: list[int] = st.session_state["reagent_rows"]
 
+rows_partial = False
 for row_id in rows:
     c1, c2, c3, c_del = st.columns([2, 2, 3, 0.5])
     with c1:
@@ -134,97 +142,135 @@ for row_id in rows:
             st.session_state["reagent_rows"].remove(row_id)
             st.rerun()
 
+    row_nm = st.session_state.get(f"new_r_name_{row_id}", "").strip()
+    row_mfr = st.session_state.get(f"new_r_mfr_{row_id}", "").strip()
+    if row_nm and not row_mfr:
+        st.warning(f"⚠️ Row #{row_id}: Manufacturer è obbligatorio")
+        rows_partial = True
+    elif row_mfr and not row_nm:
+        st.warning(f"⚠️ Row #{row_id}: Name è obbligatorio")
+        rows_partial = True
+
 st.markdown("---")
 
 # ---------------------------------------------------------------------------
 # Submit
 # ---------------------------------------------------------------------------
 
-if st.button("Create Protocol", type="primary", use_container_width=True, key="proto_submit"):
-    if not name.strip():
-        st.error("Protocol name is required.")
-    else:
-        # Client-side duplicate check for new reagents
-        duplicate_found = False
-        for row_id in rows:
-            nm = st.session_state.get(f"new_r_name_{row_id}", "").strip()
-            mfr = st.session_state.get(f"new_r_mfr_{row_id}", "").strip()
-            if not nm or not mfr:
-                continue
-            if (nm.lower(), mfr.lower()) in existing_pairs:
-                st.warning(
-                    f"⚠️ A reagent named **{nm}** from **{mfr}** already exists in the catalog. "
-                    "Remove this row or use 'Select existing reagents' instead."
-                )
-                duplicate_found = True
+has_errors = not name.strip() or rows_partial
 
-        if not duplicate_found:
-            try:
-                # 1. Create the protocol
-                resp = requests.post(
-                    f"{BACKEND_URL}/api/protocols",
+if st.button(
+    "Create Protocol",
+    type="primary",
+    use_container_width=True,
+    disabled=has_errors,
+    key="proto_submit",
+):
+    name_ph.empty()
+    top_error_ph.empty()
+
+    # Client-side duplicate check for new reagents
+    duplicate_found = False
+    for row_id in rows:
+        nm = st.session_state.get(f"new_r_name_{row_id}", "").strip()
+        mfr = st.session_state.get(f"new_r_mfr_{row_id}", "").strip()
+        if not nm or not mfr:
+            continue
+        if (nm.lower(), mfr.lower()) in existing_pairs:
+            st.warning(
+                f"⚠️ A reagent named **{nm}** from **{mfr}** already exists in the catalog. "
+                "Remove this row or use 'Select existing reagents' instead."
+            )
+            duplicate_found = True
+
+    if not duplicate_found:
+        try:
+            # 1. Create the protocol
+            resp = requests.post(
+                f"{BACKEND_URL}/api/protocols",
+                json={
+                    "name": name.strip(),
+                    "curveType": curve_type,
+                    "numCalibrationPairs": int(num_cal),
+                    "numControlPairs": int(num_ctrl),
+                    "maxCvAllowed": max_cv,
+                    "maxErrorAllowed": max_error,
+                },
+                headers=get_auth_headers(),
+                timeout=10,
+            )
+            if resp.status_code != 201:
+                try:
+                    body = resp.json()
+                    message = body.get("message", resp.text)
+                except Exception:
+                    message = resp.text
+                if resp.status_code == 409:
+                    top_error_ph.error(f"Conflitto ({resp.status_code}): {message}")
+                elif "name" in message.lower():
+                    name_ph.error(f"⚠️ {message}")
+                else:
+                    top_error_ph.error(f"Errore ({resp.status_code}): {message}")
+                st.stop()
+
+            protocol_id = resp.json()["id"]
+
+            # 2. Create any new reagents
+            new_reagent_ids: list[int] = []
+            reagent_errors: list[str] = []
+            for row_id in rows:
+                nm = st.session_state.get(f"new_r_name_{row_id}", "").strip()
+                mfr = st.session_state.get(f"new_r_mfr_{row_id}", "").strip()
+                if not nm or not mfr:
+                    continue
+                r_resp = requests.post(
+                    f"{BACKEND_URL}/api/reagent-catalogs",
                     json={
-                        "name": name.strip(),
-                        "curveType": curve_type,
-                        "numCalibrationPairs": int(num_cal),
-                        "numControlPairs": int(num_ctrl),
-                        "maxCvAllowed": max_cv,
-                        "maxErrorAllowed": max_error,
+                        "name": nm,
+                        "manufacturer": mfr,
+                        "description": st.session_state.get(f"new_r_desc_{row_id}", "").strip(),
                     },
                     headers=get_auth_headers(),
                     timeout=10,
                 )
-                if resp.status_code != 201:
-                    detail = resp.json().get("message", resp.text)
-                    st.error(f"Failed to create protocol ({resp.status_code}): {detail}")
-                    st.stop()
+                if r_resp.status_code == 201:
+                    new_reagent_ids.append(r_resp.json()["id"])
+                else:
+                    rd = r_resp.json().get("message", r_resp.text)
+                    reagent_errors.append(f"'{nm}' ({r_resp.status_code}): {rd}")
 
-                protocol_id = resp.json()["id"]
-                st.success(f"Protocol created — ID {protocol_id}")
+            if reagent_errors:
+                top_error_ph.error(
+                    "Errori nella creazione di alcuni reagenti:\n"
+                    + "\n".join(reagent_errors)
+                )
+                st.stop()
 
-                # 2. Create any new reagents
-                new_reagent_ids: list[int] = []
-                for row_id in rows:
-                    nm = st.session_state.get(f"new_r_name_{row_id}", "").strip()
-                    mfr = st.session_state.get(f"new_r_mfr_{row_id}", "").strip()
-                    if not nm or not mfr:
-                        st.error(f"New reagent row {row_id} requires Name and Manufacturer.")
-                        continue
-                    r_resp = requests.post(
-                        f"{BACKEND_URL}/api/reagent-catalogs",
-                        json={
-                            "name": nm,
-                            "manufacturer": mfr,
-                            "description": st.session_state.get(f"new_r_desc_{row_id}", "").strip(),
-                        },
-                        headers=get_auth_headers(),
-                        timeout=10,
-                    )
-                    if r_resp.status_code == 201:
-                        rid = r_resp.json()["id"]
-                        new_reagent_ids.append(rid)
-                        st.info(f"New reagent added — ID {rid}: {nm}")
-                    else:
-                        rd = r_resp.json().get("message", r_resp.text)
-                        st.error(f"Failed to add reagent '{nm}' ({r_resp.status_code}): {rd}")
+            # 3. Link all selected + new reagents to the protocol
+            link_errors: list[str] = []
+            for rid in selected_reagent_ids + new_reagent_ids:
+                s_resp = requests.post(
+                    f"{BACKEND_URL}/api/protocol-reagent-specs",
+                    json={"protocolId": protocol_id, "reagentId": rid, "isMandatory": True},
+                    headers=get_auth_headers(),
+                    timeout=10,
+                )
+                if s_resp.status_code != 201:
+                    sd = s_resp.json().get("message", s_resp.text)
+                    link_errors.append(f"Reagent {rid} ({s_resp.status_code}): {sd}")
 
-                # 3. Link all selected + new reagents to the protocol
-                for rid in selected_reagent_ids + new_reagent_ids:
-                    s_resp = requests.post(
-                        f"{BACKEND_URL}/api/protocol-reagent-specs",
-                        json={"protocolId": protocol_id, "reagentId": rid, "isMandatory": True},
-                        headers=get_auth_headers(),
-                        timeout=10,
-                    )
-                    if s_resp.status_code == 201:
-                        st.success(f"Reagent {rid} linked to protocol")
-                    else:
-                        sd = s_resp.json().get("message", s_resp.text)
-                        st.error(f"Failed to link reagent {rid} ({s_resp.status_code}): {sd}")
+            if link_errors:
+                st.warning(
+                    "Protocollo creato ma alcuni collegamenti ai reagenti sono falliti:\n"
+                    + "\n".join(link_errors)
+                )
 
-                # Reset new-reagent rows after successful submission
-                st.session_state["reagent_rows"] = []
-                st.session_state["reagent_row_counter"] = 0
+            # Reset new-reagent rows after successful submission
+            st.session_state["reagent_rows"] = []
+            st.session_state["reagent_row_counter"] = 0
+            st.success("✅ Protocollo salvato con successo!")
+            time.sleep(3)
+            st.switch_page("pages/dashboard.py")
 
-            except requests.exceptions.RequestException as e:
-                st.error(f"Request failed: {e}")
+        except requests.exceptions.RequestException as e:
+            top_error_ph.error(f"Errore di rete: {e}")

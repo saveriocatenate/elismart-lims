@@ -8,6 +8,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+import time
 import requests
 import streamlit as st
 from utils import check_auth, get_auth_headers, resolve_backend_url
@@ -21,32 +22,64 @@ if st.button("← Back to Dashboard"):
 st.title("New Reagent")
 st.markdown("---")
 
-with st.form("reagent_form"):
-    name = st.text_input("Name", placeholder="e.g. Anti-Human IgG")
-    manufacturer = st.text_input("Manufacturer", placeholder="e.g. Sigma-Aldrich")
-    description = st.text_area("Description", placeholder="Optional notes")
-    submitted = st.form_submit_button("Add Reagent", type="primary", use_container_width=True)
-    if submitted:
-        if not name.strip() or not manufacturer.strip():
-            st.error("Name and Manufacturer are required.")
+# Top-level error placeholder (filled by backend error responses)
+top_error_ph = st.empty()
+
+name = st.text_input("Name *", placeholder="e.g. Anti-Human IgG", key="rgt_name")
+name_ph = st.empty()
+if not name.strip():
+    name_ph.warning("⚠️ Name è obbligatorio")
+
+manufacturer = st.text_input("Manufacturer *", placeholder="e.g. Sigma-Aldrich", key="rgt_mfr")
+mfr_ph = st.empty()
+if not manufacturer.strip():
+    mfr_ph.warning("⚠️ Manufacturer è obbligatorio")
+
+description = st.text_area("Description", placeholder="Optional notes", key="rgt_desc")
+
+has_errors = not name.strip() or not manufacturer.strip()
+
+if st.button(
+    "Add Reagent",
+    type="primary",
+    use_container_width=True,
+    disabled=has_errors,
+    key="rgt_submit",
+):
+    name_ph.empty()
+    mfr_ph.empty()
+    top_error_ph.empty()
+
+    payload = {
+        "name": name.strip(),
+        "manufacturer": manufacturer.strip(),
+        "description": description.strip(),
+    }
+    try:
+        resp = requests.post(
+            f"{BACKEND_URL}/api/reagent-catalogs",
+            json=payload,
+            headers=get_auth_headers(),
+            timeout=10,
+        )
+        if resp.status_code == 201:
+            data = resp.json()
+            st.success(f"✅ Reagente salvato con successo! (ID {data['id']})")
+            time.sleep(3)
+            st.switch_page("pages/dashboard.py")
         else:
-            payload = {
-                "name": name.strip(),
-                "manufacturer": manufacturer.strip(),
-                "description": description.strip(),
-            }
             try:
-                resp = requests.post(
-                    f"{BACKEND_URL}/api/reagent-catalogs",
-                    json=payload,
-                    headers=get_auth_headers(),
-                    timeout=10,
-                )
-                if resp.status_code == 201:
-                    data = resp.json()
-                    st.success(f"Reagent added — ID {data['id']}")
-                else:
-                    detail = resp.json().get("message", resp.text)
-                    st.error(f"Failed ({resp.status_code}): {detail}")
-            except requests.exceptions.RequestException as e:
-                st.error(f"Request failed: {e}")
+                body = resp.json()
+                message = body.get("message", resp.text)
+            except Exception:
+                message = resp.text
+            if resp.status_code == 409:
+                top_error_ph.error(f"Conflitto ({resp.status_code}): {message}")
+            elif "name" in message.lower():
+                name_ph.error(f"⚠️ {message}")
+            elif "manufacturer" in message.lower():
+                mfr_ph.error(f"⚠️ {message}")
+            else:
+                top_error_ph.error(f"Errore ({resp.status_code}): {message}")
+    except requests.exceptions.RequestException as e:
+        top_error_ph.error(f"Errore di rete: {e}")

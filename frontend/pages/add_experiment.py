@@ -17,6 +17,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import datetime
+import time
 import pandas as pd
 import requests
 import streamlit as st
@@ -227,13 +228,20 @@ st.markdown("---")
 # ---------------------------------------------------------------------------
 
 st.subheader("Experiment Details")
+
+# Top-level error placeholder (filled by backend error responses)
+exp_top_error_ph = st.empty()
+
 col_name, col_status = st.columns([3, 1])
 with col_name:
-    exp_name = st.text_input("Name", placeholder="e.g. IgG Run 2026-04-06", key="exp_name")
+    exp_name = st.text_input("Name *", placeholder="e.g. IgG Run 2026-04-06", key="exp_name")
 with col_status:
     exp_status = st.selectbox(
         "Status", ["COMPLETED", "PENDING", "OK", "KO", "VALIDATION_ERROR"], key="exp_status"
     )
+exp_name_ph = st.empty()
+if not exp_name.strip():
+    exp_name_ph.warning("⚠️ Name è obbligatorio")
 exp_date = st.date_input("Date", value=datetime.date.today(), key="exp_date")
 
 st.markdown("---")
@@ -384,10 +392,15 @@ if input_mode == "Manual entry":
 
     st.markdown("---")
 
-    if st.button("Create Experiment", type="primary", use_container_width=True, key="btn_manual"):
-        if not exp_name.strip():
-            st.error("Experiment name is required.")
-            st.stop()
+    if st.button(
+        "Create Experiment",
+        type="primary",
+        use_container_width=True,
+        disabled=not exp_name.strip(),
+        key="btn_manual",
+    ):
+        exp_name_ph.empty()
+        exp_top_error_ph.empty()
 
         used_batches = _build_used_batches()
         if used_batches is None:
@@ -414,14 +427,24 @@ if input_mode == "Manual entry":
                                  headers=get_auth_headers(), timeout=15)
             if resp.status_code == 201:
                 exp_id = resp.json().get("id")
-                st.success(f"Experiment created — ID {exp_id}")
                 st.session_state["selected_exp_id"] = exp_id
-                if st.button("View Details"):
-                    st.switch_page("pages/experiment_details.py")
+                st.success(f"✅ Esperimento salvato con successo! (ID {exp_id})")
+                time.sleep(3)
+                st.switch_page("pages/experiment_details.py")
             else:
-                st.error(f"Failed ({resp.status_code}): {resp.json().get('message', resp.text)}")
+                try:
+                    body = resp.json()
+                    message = body.get("message", resp.text)
+                except Exception:
+                    message = resp.text
+                if resp.status_code in (409, 500):
+                    exp_top_error_ph.error(f"Errore ({resp.status_code}): {message}")
+                elif "name" in message.lower():
+                    exp_name_ph.error(f"⚠️ {message}")
+                else:
+                    exp_top_error_ph.error(f"Errore ({resp.status_code}): {message}")
         except requests.exceptions.RequestException as e:
-            st.error(f"Request failed: {e}")
+            exp_top_error_ph.error(f"Errore di rete: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -574,14 +597,12 @@ else:
             type="primary",
             use_container_width=True,
             key="btn_csv_import",
-            disabled=(len(mapped_wells) == 0),
+            disabled=(len(mapped_wells) == 0 or not exp_name.strip()),
         )
 
     if do_import:
-        # ── Validation ───────────────────────────────────────────────────
-        if not exp_name.strip():
-            st.error("Experiment name is required.")
-            st.stop()
+        exp_name_ph.empty()
+        exp_top_error_ph.empty()
 
         used_batches = _build_used_batches()
         if used_batches is None:
@@ -610,8 +631,17 @@ else:
                 st.stop()
 
         if create_resp.status_code != 201:
-            detail = create_resp.json().get("message", create_resp.text)
-            st.error(f"Failed to create experiment ({create_resp.status_code}): {detail}")
+            try:
+                body = create_resp.json()
+                detail = body.get("message", create_resp.text)
+            except Exception:
+                detail = create_resp.text
+            if create_resp.status_code in (409, 500):
+                exp_top_error_ph.error(f"Errore ({create_resp.status_code}): {detail}")
+            elif "name" in detail.lower():
+                exp_name_ph.error(f"⚠️ {detail}")
+            else:
+                exp_top_error_ph.error(f"Errore ({create_resp.status_code}): {detail}")
             st.stop()
 
         exp_id = create_resp.json().get("id")
@@ -672,14 +702,14 @@ else:
 
         # ── Step 4: Display results ──────────────────────────────────────
         imported_pairs = import_resp.json().get("measurementPairs", [])
-        st.success(
-            f"Experiment **{exp_id}** created with **{len(imported_pairs)}** "
-            "imported measurement pairs."
-        )
 
         if imported_pairs:
             _display_imported_pairs(imported_pairs, max_cv)
 
-        if st.button("View Experiment Details", key="btn_view_csv"):
-            st.switch_page("pages/experiment_details.py")
+        st.success(
+            f"✅ Esperimento salvato con successo! (ID {exp_id}, "
+            f"{len(imported_pairs)} coppie importate)"
+        )
+        time.sleep(3)
+        st.switch_page("pages/experiment_details.py")
 
