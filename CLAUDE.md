@@ -229,13 +229,15 @@ The AI prompt uses a generic "laboratory assay" context (not ELISA-specific) to 
 
 ## Project Status
 
-Phase 1 complete. Phases 2–5 in progress.
+Phases 1–5 complete. Development paused pending Phase 6 planning.
 
-- **Phase 1 (Complete)**: Backend REST API with full CRUD for Protocol, ReagentCatalog, Experiment, and ProtocolReagentSpec. AI analysis via Google Gemini. Frontend 10-page Streamlit app with auth gate. 120 tests passing.
-- **Phase 2 (In Progress)**: Spring Security + JWT authentication, per-user audit trail (`createdBy`/`updatedBy` from SecurityContext), change history table (`audit_log`), CORS configuration, RBAC (Analyst/Reviewer/Admin), user management.
-- **Phase 3 (Planned)**: Automated validation engine (OK/KO enforcement), 4PL curve fitting, %Recovery auto-calculation, outlier detection (Grubbs test), live %CV feedback during creation.
-- **Phase 4 (Planned)**: CSV plate reader import (Tecan, BioTek, Molecular Devices), PDF Certificate of Analysis, Excel export, Sample entity, reagent expiry alerts.
-- **Phase 5 (Planned)**: QC color coding in results view, AI analysis shortcut from experiment detail, startup wrapper script, inline form validation, persistent error messages, edit/view mode distinction, UI tooltips and labels.
+- **Phase 1 (Complete)**: Backend REST API with full CRUD for Protocol, ReagentCatalog, Experiment, and ProtocolReagentSpec. AI analysis via Google Gemini. Frontend 11-page Streamlit app with auth gate.
+- **Phase 2 (Complete)**: Spring Security + JWT authentication, per-user audit trail (`createdBy`/`updatedBy` from SecurityContext), change history table (`audit_log`), CORS configuration, RBAC (Analyst/Reviewer/Admin), user management.
+- **Phase 3 (Complete)**: Automated validation engine (OK/KO enforcement), 4PL/5PL/3PL/Linear/Semi-log/P2P curve fitting, %Recovery auto-calculation, outlier detection (Grubbs test), live %CV feedback during creation.
+- **Phase 4 (Complete)**: CSV plate reader import (Tecan, BioTek, Molecular Devices), PDF Certificate of Analysis, Excel export (single + batch), Sample entity, reagent batch management, expiry alerts.
+- **Phase 5 (Complete)**: QC color coding in results view, AI analysis shortcut from experiment detail, startup wrapper script, inline form validation, persistent error messages, edit/view mode distinction, UI tooltips and labels, post-save confirm flow, dashboard stats, sidebar user info.
+- **Phase 6 (Planned)**: PostgreSQL migration, electronic signatures, multi-tenancy, compliance docs (21 CFR Part 11).
+- **Phase 7 (Planned)**: PCR support, SaaS infrastructure, public API.
 
 ### Current Controllers
 - Health (GET /api/health)
@@ -243,22 +245,29 @@ Phase 1 complete. Phases 2–5 in progress.
 - User (GET /api/users, PUT /api/users/{id}/role, DELETE /api/users/{id})
 - Protocol (GET all, GET /search paged, GET by ID, POST, PUT, DELETE)
 - ReagentCatalog (GET all paged, GET by ID, POST, DELETE)
+- ReagentBatch (GET by reagentId, GET /expiring, POST)
 - ProtocolReagentSpec (GET by protocolId, POST)
 - Experiment (GET by ID, POST, PUT, DELETE, POST /search, POST /{id}/validate, POST /{id}/import-csv)
 - MeasurementPair (GET by experimentId, PUT /{id}, PATCH /{id}/outlier)
-- Export (GET /api/export/experiments/{id}/pdf, GET /api/export/experiments/{id}/xlsx)
-- AI/Gemini (POST /api/ai/analyze)
+- Sample (GET by ID, POST)
+- Export (GET /api/export/experiments/{id}/pdf, GET /api/export/experiments/{id}/xlsx, POST /api/export/experiments/xlsx)
+- AI/Gemini (POST /api/ai/analyze, GET /api/ai/insights)
 
 ### Current Flyway Migrations
-- V1–V4: original schema (6 tables) + enum constraints + audit columns + curve_type
-- V5: UNIQUE constraint on reagent_catalog(name, manufacturer)
-- V6: user table + roles
-- V7: audit_log table
-- V8: sample table + FK on measurement_pair
-- V9: updated_by column on all auditable tables
-- V10: AI_insight table
-- V11: curve_parameters column on experiment
-- V12: NOT NULL constraints on signal_1, signal_2
+- V1: initial schema — `protocol`, `experiment`, `measurement_pair`, `reagent_catalog`, `protocol_reagent_spec`, `used_reagent_batch`
+- V2: enum CHECK constraints on `curve_type`, `pair_type`, `status`
+- V3: audit columns — `created_at`, `updated_at`, `created_by` on all tables
+- V4: `curve_type` column on `protocol`
+- V5: UNIQUE constraint on `reagent_catalog(name, manufacturer)`
+- V6: NOT NULL constraints on `measurement_pair.signal_1` and `signal_2`
+- V7: `app_user` table with `username`, `password`, `role`, `enabled`
+- V8: `updated_by` column on all auditable tables
+- V9: `audit_log` table
+- V10: `curve_parameters` JSON column on `experiment`
+- V11: `sample` table + `sample_id` FK on `measurement_pair`
+- V12: `reagent_batch` table with `lot_number`, `expiry_date`, `supplier`, `notes`
+- V13: migrate `used_reagent_batch` from inline lot columns to `reagent_batch_id` FK
+- V14: `ai_insight` table + join table `ai_insight_experiments`
 
 ### Model Enums
 - `ExperimentStatus` (5 values): PENDING, COMPLETED, OK, KO, VALIDATION_ERROR
@@ -267,15 +276,16 @@ Phase 1 complete. Phases 2–5 in progress.
 - `UserRole` (3 values): ANALYST, REVIEWER, ADMIN
 
 ### Frontend Pages
-- `app.py`: Entry point with JWT-based login
-- `pages/dashboard.py`: Health check + navigation + expiry alerts
-- `pages/add_protocol.py`: Protocol creation with curve type selector, inline reagent linking, tooltips
-- `pages/add_reagent.py`: Reagent catalog form
-- `pages/add_experiment.py`: Experiment creation with reagent batches, measurement pairs, live %CV, CSV import
-- `pages/search_experiments.py`: Filtered search with pagination, Details links, multi-select for comparison
-- `pages/experiment_details.py`: Read/write experiment view with color-coded QC, edit/view distinction, AI shortcut, PDF/Excel export
+- `app.py`: Entry point with JWT-based login; navigation sections (ADD, SEARCH, DETAILS, AI, ADMIN)
+- `pages/dashboard.py`: Health check, summary stats (protocol/experiment/OK/KO counts), expiry alerts, navigation
+- `pages/add_protocol.py`: Protocol creation with curve type selector, inline reagent linking, curve description captions, post-save flow
+- `pages/add_reagent.py`: Reagent catalog form with post-save flow
+- `pages/add_experiment.py`: Experiment creation with reagent batches (mandatory badges), measurement pairs, live %CV, CSV import, post-save flow
+- `pages/search_experiments.py`: Filtered search with pagination, multi-select counter, Details links, Compare/Export batch actions
+- `pages/experiment_details.py`: Read/write experiment view with color-coded QC, edit/view distinction, status tooltip, protocol details expander, AI shortcut, PDF/Excel export
 - `pages/compare_experiments.py`: Side-by-side comparison with lockable sections and Gemini AI analysis (persistent)
 - `pages/search_protocols.py`: Protocol search with name filter and pagination
+- `pages/protocol_details.py`: Read/write protocol view with reagent spec list, edit/delete mode
 - `pages/search_reagents.py`: Reagent search with name/manufacturer filter and pagination
 - `pages/user_management.py`: Admin-only user CRUD and role assignment
 

@@ -26,9 +26,11 @@ Dashboard (/)
   ├── Add Experiment (/add_experiment)
   ├── Search Reagents (/search_reagents)
   ├── Search Protocols (/search_protocols)
-  └── Search Experiments (/search_experiments)
-        ├── Experiment Details (/experiment_details?id=...)
-        └── Compare Experiments (/compare_experiments)
+  │     └── Protocol Details (/protocol_details?id=...)
+  ├── Search Experiments (/search_experiments)
+  │     ├── Experiment Details (/experiment_details?id=...)
+  │     └── Compare Experiments (/compare_experiments)
+  └── [ADMIN only] User Management (/user_management)
 ```
 
 ---
@@ -321,6 +323,65 @@ Side-by-side comparison of 2–4 experiments with lockable sections and AI analy
 
 ---
 
+---
+
+## 10. Protocol Details `/protocol_details`
+
+Read/write view of a single protocol. Accessed from Search Protocols → Details button.
+Displays protocol metadata and the linked reagent spec list.
+
+```
++--------------------------------------------------------+
+|  ← Back to Search                        [✏️ Edit]    |
+|                                                        |
+|  Protocol: IgG Test Protocol                           |
+|  Curve Type: 4PL  | Cal. Pairs: 7 | Ctrl Pairs: 3     |
+|  Max %CV: 10%     | Max %Error: 15%                    |
+|                                                        |
+|  ── Reagents Required ──────────────────────────────   |
+|  🧪 Anti-IgG Antibody      [obbligatorio]              |
+|  🧪 TMB Substrate           [opzionale]                |
++--------------------------------------------------------+
+```
+
+| Element     | Behaviour                                           |
+|-------------|-----------------------------------------------------|
+| Load        | `GET /api/protocols/{id}` via `selected_protocol_id` |
+| Edit button | Toggles edit mode (green banner)                    |
+| Save        | `PUT /api/protocols/{id}`                           |
+| Delete      | `DELETE /api/protocols/{id}` with confirmation dialog (ADMIN only) |
+
+---
+
+## 11. User Management `/user_management`
+
+**Admin-only page.** Manage registered users: view role, promote/demote, delete.
+Visible in navigation only for ADMIN role.
+
+```
++--------------------------------------------------------+
+|  User Management                                       |
+|                                                        |
+|  ID | Username   | Role      | Actions                 |
+|  1  | admin      | ADMIN     | [—]                     |
+|  2  | analyst1   | ANALYST   | [Change Role] [Delete]  |
+|  3  | reviewer   | REVIEWER  | [Change Role] [Delete]  |
+|                                                        |
+|  ── Add New User ──────────────────────────────────    |
+|  Username: [___]  Password: [___]  Role: [ANALYST ▼]  |
+|                          [ Register User ]             |
++--------------------------------------------------------+
+```
+
+| Element      | Behaviour                                               |
+|--------------|---------------------------------------------------------|
+| Load         | `GET /api/users`                                        |
+| Change Role  | `PUT /api/users/{id}/role` with role dropdown           |
+| Delete       | `DELETE /api/users/{id}` with confirmation dialog       |
+| Register     | `POST /api/auth/register` with username, password, role |
+
+---
+
 ## Navigation Summary
 
 ```
@@ -332,10 +393,20 @@ Dashboard
   ├── Add Experiment ─────────── GET  /api/protocols
   │                               GET  /api/protocol-reagent-specs
   │                               POST /api/experiments
+  │                               POST /api/experiments/{id}/import-csv
   ├── Search Reagents ──────────  GET  /api/reagent-catalogs (paged)
   ├── Search Protocols ─────────  GET  /api/protocols/search (paged)
-  └── Search Experiments ──────  POST /api/experiments/search
-        ├── Details ─────────────  GET  /api/experiments/{id}
-        └── Compare ─────────────  GET  /api/experiments/{id} (×N)
-                                   POST /api/ai/analyze
+  │     └── Protocol Details ───  GET  /api/protocols/{id}
+  │                               PUT  /api/protocols/{id}
+  ├── Search Experiments ──────  POST /api/experiments/search
+  │     ├── Details ─────────────  GET  /api/experiments/{id}
+  │     │                          PUT  /api/experiments/{id}
+  │     │                          POST /api/experiments/{id}/validate
+  │     │                          POST /api/ai/analyze
+  │     └── Compare ─────────────  GET  /api/experiments/{id} (×N)
+  │                                POST /api/ai/analyze
+  └── [ADMIN] User Management ──  GET  /api/users
+                                   PUT  /api/users/{id}/role
+                                   DELETE /api/users/{id}
+                                   POST /api/auth/register
 ```

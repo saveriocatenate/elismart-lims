@@ -1,6 +1,7 @@
 package it.elismart_lims.service.curve;
 
 import it.elismart_lims.model.CurveType;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
@@ -19,6 +20,7 @@ import java.util.Map;
  * <p>The fitter registry is built once at construction time. All registered fitters
  * are stateless and safe for concurrent use.</p>
  */
+@Slf4j
 @Service
 public class CurveFittingService {
 
@@ -60,7 +62,10 @@ public class CurveFittingService {
      *                                       minimum point requirement
      */
     public CurveParameters fitCurve(CurveType type, List<CalibrationPoint> points) {
-        return getFitter(type).fit(points);
+        log.debug("Fitting {} curve with {} calibration points", type, points == null ? 0 : points.size());
+        CurveParameters params = getFitter(type).fit(points);
+        log.debug("Curve fitting complete for {}: parameters={}", type, params.values());
+        return params;
     }
 
     /**
@@ -74,7 +79,10 @@ public class CurveFittingService {
      * @throws IllegalArgumentException      if {@code signal} is outside the interpolable range
      */
     public double interpolateConcentration(CurveType type, double signal, CurveParameters params) {
-        return getFitter(type).interpolate(signal, params);
+        log.debug("Back-interpolating concentration for {} curve, signal={}", type, signal);
+        double concentration = getFitter(type).interpolate(signal, params);
+        log.debug("Interpolated concentration={} from signal={} using {} curve", concentration, signal, type);
+        return concentration;
     }
 
     /**
@@ -88,6 +96,7 @@ public class CurveFittingService {
     private CurveFitter getFitter(CurveType type) {
         CurveFitter fitter = fitters.get(type);
         if (fitter == null) {
+            log.error("No CurveFitter registered for CurveType: {}. Check the fitter registry in the constructor.", type);
             throw new UnsupportedOperationException(
                     "No CurveFitter registered for CurveType: " + type
                     + ". Register a fitter in CurveFittingService constructor.");

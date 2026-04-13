@@ -122,11 +122,11 @@ elismart-lims/
 │   ├── repository/      # Spring Data JPA interfaces
 │   └── exception/       # Custom exceptions + GlobalExceptionHandler
 ├── src/main/resources/
-│   └── db/migration/    # Flyway SQL migrations (V1–V12)
+│   └── db/migration/    # Flyway SQL migrations (V1–V14)
 ├── src/test/java/       # JUnit 5 + Mockito tests
 ├── frontend/
 │   ├── app.py           # Streamlit entry point
-│   ├── pages/           # 11 Streamlit pages
+│   ├── pages/           # 12 Streamlit pages
 │   ├── utils.py         # Shared utilities
 │   └── requirements.txt
 ├── documentation/       # API contracts, ER diagram, wireframes, validation formulas
@@ -160,12 +160,12 @@ elismart-lims/
 
 ## 🗺️ Roadmap
 
-- [x] **Phase 1** — Core CRUD, Gemini AI integration, Streamlit frontend
-- [ ] **Phase 2** — Authentication, audit trail, RBAC
-- [ ] **Phase 3** — Validation engine, curve fitting, outlier detection
-- [ ] **Phase 4** — CSV import, PDF/Excel export, Sample entity
-- [ ] **Phase 5** — UX polish (QC color coding, inline validation, error handling)
-- [ ] **Phase 6** — PostgreSQL migration, electronic signatures, multi-tenancy, compliance docs
+- [x] **Phase 1** — Core CRUD, Gemini AI integration, Streamlit frontend (11 pages)
+- [x] **Phase 2** — Spring Security + JWT, audit trail, RBAC (Analyst/Reviewer/Admin), user management
+- [x] **Phase 3** — Automated validation engine (OK/KO), 4PL/3PL/Linear/Semi-log curve fitting, outlier detection (Grubbs test), %Recovery auto-calculation
+- [x] **Phase 4** — CSV plate reader import, PDF Certificate of Analysis, Excel export (single + batch), Sample entity, reagent batch management, expiry alerts
+- [x] **Phase 5** — QC color coding, inline validation, persistent error messages, edit/view mode, UI tooltips, post-save flow, dashboard stats, sidebar user info
+- [ ] **Phase 6** — PostgreSQL migration, electronic signatures, multi-tenancy, compliance docs (21 CFR Part 11)
 - [ ] **Phase 7** — PCR support, SaaS infrastructure, public API
 
 ---

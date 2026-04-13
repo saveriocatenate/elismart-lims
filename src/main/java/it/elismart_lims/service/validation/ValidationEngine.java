@@ -7,6 +7,7 @@ import it.elismart_lims.model.PairType;
 import it.elismart_lims.model.Protocol;
 import it.elismart_lims.service.curve.CurveFittingService;
 import it.elismart_lims.service.curve.CurveParameters;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -37,6 +38,7 @@ import java.util.List;
  * Manual status overrides must be handled externally and persisted via
  * {@link it.elismart_lims.service.audit.AuditLogService}.</p>
  */
+@Slf4j
 @Service
 public class ValidationEngine {
 
@@ -66,10 +68,14 @@ public class ValidationEngine {
      * @throws IllegalArgumentException if no CALIBRATION pairs are found in the experiment
      */
     public ValidationResult evaluate(Experiment experiment, Protocol protocol, CurveParameters curveParams) {
+        log.info("Starting validation for experiment id={}, protocol='{}', curveType={}",
+                experiment.getId(), protocol.getName(), protocol.getCurveType());
+
         boolean hasCalibration = experiment.getMeasurementPairs().stream()
                 .anyMatch(p -> p.getPairType() == PairType.CALIBRATION);
 
         if (!hasCalibration) {
+            log.error("Validation aborted for experiment id={}: no CALIBRATION pairs found", experiment.getId());
             throw new IllegalArgumentException(
                     "Cannot validate experiment id=" + experiment.getId()
                     + ": no CALIBRATION pairs found. At least one CALIBRATION pair is required "
@@ -84,6 +90,7 @@ public class ValidationEngine {
                 continue;
             }
             if (Boolean.TRUE.equals(pair.getIsOutlier())) {
+                log.debug("Pair id={} skipped: flagged as outlier", pair.getId());
                 continue;
             }
 
@@ -100,6 +107,11 @@ public class ValidationEngine {
 
             if (!cvPass || !recoveryPass) {
                 allPass = false;
+                log.debug("Pair id={} FAILED — cvPass={} (cvPct={}), recoveryPass={} (recovery={}%)",
+                        pair.getId(), cvPass, pair.getCvPct(), recoveryPass, String.format("%.2f", recovery));
+            } else {
+                log.debug("Pair id={} PASSED — cvPct={}, recovery={}%",
+                        pair.getId(), pair.getCvPct(), String.format("%.2f", recovery));
             }
 
             pairResults.add(new PairValidationResult(
@@ -107,6 +119,8 @@ public class ValidationEngine {
         }
 
         ExperimentStatus overallStatus = allPass ? ExperimentStatus.OK : ExperimentStatus.KO;
+        log.info("Validation complete for experiment id={}: status={}, evaluated {} pairs",
+                experiment.getId(), overallStatus, pairResults.size());
         return new ValidationResult(overallStatus, pairResults, curveParams);
     }
 }

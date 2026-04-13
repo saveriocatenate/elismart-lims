@@ -199,3 +199,59 @@ Results are sorted by `date` descending.
   "last": false
 }
 ```
+
+---
+
+### POST /api/experiments/{id}/validate
+
+Trigger the automated validation engine on an experiment. Fits the calibration curve,
+back-interpolates concentrations for all non-outlier CONTROL and SAMPLE pairs, calculates
+%Recovery, and sets the experiment status to `OK` or `KO`.
+
+**Path params**:
+- `id` (Long) — the experiment ID
+
+**Response 200**: same shape as GET response, with updated `status`, `recoveryPct`, and `pairStatus` on each pair.
+
+**Response 400**: no CALIBRATION pairs found; insufficient points for the curve type.
+
+**Response 404**: experiment not found.
+
+**Response 500**: curve fitting failed (e.g. optimizer did not converge).
+
+---
+
+### POST /api/experiments/{id}/import-csv
+
+Import measurement pairs from a plate-reader CSV file into an existing experiment.
+Supported formats: `GENERIC` (configurable column mapping), `TECAN`, `BIOTEK`, `SOFTMAX`.
+
+**Path params**:
+- `id` (Long) — the experiment ID (must already exist with 0 measurement pairs)
+
+**Request**: `multipart/form-data` with two parts:
+- `file` — the CSV file (`text/csv`)
+- `config` — JSON configuration blob (`application/json`):
+
+```json
+{
+  "format": "GENERIC",
+  "wellColumn": "Well",
+  "signal1Column": "Signal1",
+  "signal2Column": "Signal2",
+  "wellMapping": {
+    "A1": { "pairType": "CALIBRATION", "concentrationNominal": 200.0 },
+    "A2": { "pairType": "CALIBRATION", "concentrationNominal": 100.0 },
+    "B1": { "pairType": "CONTROL",     "concentrationNominal": 50.0  },
+    "C1": { "pairType": "SAMPLE",      "concentrationNominal": null  }
+  }
+}
+```
+
+**Response 200**: same shape as GET response, with `measurementPairs` populated from the import.
+
+**Response 400**: missing required config fields; unknown well column; signal parsing error.
+
+**Response 404**: experiment not found.
+
+**Response 415**: unsupported file format.
