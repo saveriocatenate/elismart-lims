@@ -3,6 +3,7 @@ package it.elismart_lims.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+
 /**
  * A single replicate measurement within an experiment, storing raw signals,
  * calculated mean, precision (%CV), and accuracy (%Recovery).
@@ -61,6 +62,15 @@ public class MeasurementPair extends Auditable {
     /** {@code true} if this pair has been flagged as an outlier (manually or automatically). */
     @Column(name = "is_outlier", nullable = false)
     private Boolean isOutlier;
+
+    /**
+     * The biological sample associated with this replicate.
+     * Populated only for pairs of type {@link PairType#SAMPLE}; {@code null} for
+     * CALIBRATION and CONTROL pairs.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sample_id")
+    private Sample sample;
 
     @Override
     public boolean equals(Object o) {

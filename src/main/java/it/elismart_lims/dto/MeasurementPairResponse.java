@@ -5,6 +5,9 @@ import lombok.Builder;
 
 /**
  * Response payload for MeasurementPair entities.
+ *
+ * <p>{@code sample} is non-null only for pairs of type {@link PairType#SAMPLE} that
+ * have an associated {@link it.elismart_lims.model.Sample} entity.</p>
  */
 @Builder
 public record MeasurementPairResponse(
@@ -16,6 +19,7 @@ public record MeasurementPairResponse(
         Double signalMean,
         Double cvPct,
         Double recoveryPct,
-        Boolean isOutlier
+        Boolean isOutlier,
+        SampleResponse sample
 ) {
 }

@@ -5,6 +5,7 @@ import it.elismart_lims.dto.MeasurementPairResponse;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.MeasurementPair;
 import it.elismart_lims.service.validation.ValidationConstants;
+import it.elismart_lims.dto.SampleResponse;
 
 import java.util.List;
 
@@ -74,6 +75,9 @@ public final class MeasurementPairMapper {
      * @return the response DTO
      */
     public static MeasurementPairResponse toResponse(MeasurementPair entity) {
+        SampleResponse sampleResponse = entity.getSample() != null
+                ? SampleMapper.toResponse(entity.getSample())
+                : null;
         return MeasurementPairResponse.builder()
                 .id(entity.getId())
                 .pairType(entity.getPairType())
@@ -84,6 +88,7 @@ public final class MeasurementPairMapper {
                 .cvPct(entity.getCvPct())
                 .recoveryPct(entity.getRecoveryPct())
                 .isOutlier(entity.getIsOutlier() != null && entity.getIsOutlier())
+                .sample(sampleResponse)
                 .build();
     }
 

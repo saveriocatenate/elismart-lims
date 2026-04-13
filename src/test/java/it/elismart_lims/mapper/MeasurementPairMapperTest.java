@@ -4,6 +4,7 @@ import it.elismart_lims.dto.MeasurementPairRequest;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.MeasurementPair;
 import it.elismart_lims.model.PairType;
+import it.elismart_lims.model.Sample;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -100,6 +101,41 @@ class MeasurementPairMapperTest {
         var entity = MeasurementPairMapper.toEntity(request);
 
         assertThat(entity.getCvPct()).isCloseTo(6.734, offset(1e-3));
+    }
+
+    @Test
+    void toResponse_shouldIncludeSample_whenLinked() {
+        var sample = Sample.builder()
+                .id(5L)
+                .barcode("BC-999")
+                .matrixType("Urine")
+                .build();
+        var entity = MeasurementPair.builder()
+                .id(10L)
+                .pairType(PairType.SAMPLE)
+                .isOutlier(false)
+                .sample(sample)
+                .build();
+
+        var response = MeasurementPairMapper.toResponse(entity);
+
+        assertThat(response.sample()).isNotNull();
+        assertThat(response.sample().id()).isEqualTo(5L);
+        assertThat(response.sample().barcode()).isEqualTo("BC-999");
+        assertThat(response.sample().matrixType()).isEqualTo("Urine");
+    }
+
+    @Test
+    void toResponse_shouldHaveNullSample_whenNotLinked() {
+        var entity = MeasurementPair.builder()
+                .id(11L)
+                .pairType(PairType.CALIBRATION)
+                .isOutlier(false)
+                .build();
+
+        var response = MeasurementPairMapper.toResponse(entity);
+
+        assertThat(response.sample()).isNull();
     }
 
     @Test
