@@ -73,6 +73,32 @@ _CURVE_TYPE_OPTIONS: dict[str, str] = {
     "Semi-log Linear (log X-axis)": "SEMI_LOG_LINEAR",
     "Point-to-Point (not recommended)": "POINT_TO_POINT",
 }
+_CURVE_TYPE_DESCRIPTIONS: dict[str, str] = {
+    "FOUR_PARAMETER_LOGISTIC": (
+        "Curva sigmoide simmetrica — standard per ELISA e immunoassay. "
+        "Parametri stimati: A (segnale minimo), B (pendenza), C (EC₅₀), D (segnale massimo)."
+    ),
+    "FIVE_PARAMETER_LOGISTIC": (
+        "Curva sigmoide asimmetrica — per curve con pendenza diversa ai due estremi della sigmoide. "
+        "Aggiunge il parametro di asimmetria E alla 4PL."
+    ),
+    "LOG_LOGISTIC_3P": (
+        "Variante della 4PL con minimo fissato a zero — riduce il numero di parametri da stimare. "
+        "Adatta quando il segnale di fondo è trascurabile."
+    ),
+    "LINEAR": (
+        "Regressione lineare y = mx + q — ideale per range di risposta ristretti e lineari. "
+        "Richiede almeno 2 calibratori."
+    ),
+    "SEMI_LOG_LINEAR": (
+        "Regressione lineare sull'asse X logaritmico — estende il range lineare per dati con "
+        "distribuzione log-normale (es. RIA, EIA a basse concentrazioni)."
+    ),
+    "POINT_TO_POINT": (
+        "Interpolazione non parametrica tra punti adiacenti — non raccomandata per uso clinico. "
+        "Non estrapolazione oltre l'ultimo calibratore."
+    ),
+}
 curve_label = st.selectbox(
     "Curve Type",
     options=list(_CURVE_TYPE_OPTIONS.keys()),
@@ -81,6 +107,7 @@ curve_label = st.selectbox(
     key="proto_curve",
 )
 curve_type = _CURVE_TYPE_OPTIONS[curve_label]
+st.caption(f"ℹ️ {_CURVE_TYPE_DESCRIPTIONS.get(curve_type, '')}")
 
 col1, col2, col3 = st.columns(3)
 with col1:

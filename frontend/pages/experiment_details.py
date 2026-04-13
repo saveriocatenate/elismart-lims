@@ -34,6 +34,15 @@ _CURVE_DISPLAY = {
     "POINT_TO_POINT": "Point-to-Point",
 }
 
+# Status icon and description shown in view mode
+_STATUS_META: dict[str, tuple[str, str]] = {
+    "PENDING":          ("⏳", "Esperimento in attesa di validazione"),
+    "COMPLETED":        ("📋", "Dati inseriti, in attesa di validazione automatica"),
+    "OK":               ("✅", "Tutti i parametri entro i limiti del protocollo"),
+    "KO":               ("❌", "Uno o più parametri fuori dai limiti del protocollo"),
+    "VALIDATION_ERROR": ("⚠️", "Errore durante la validazione automatica (es. dati insufficienti per il fit)"),
+}
+
 exp_id = st.session_state.get("selected_exp_id")
 if not exp_id:
     st.warning("No experiment selected.")
@@ -257,13 +266,30 @@ if not edit_mode:
     st.subheader("Experiment Details")
     col_name, col_status = st.columns([3, 1])
     col_name.metric("Name", data.get("name", "—"))
-    col_status.metric("Status", data.get("status", "—"))
+
+    status_val = data.get("status", "—")
+    status_icon, status_desc = _STATUS_META.get(status_val, ("", status_val))
+    col_status.metric(
+        "Status",
+        f"{status_icon} {status_val}",
+        help=status_desc,
+    )
 
     col_date, col_proto, col_curve = st.columns(3)
     col_date.metric("Date", format_date(data.get("date")))
     col_proto.metric("Protocol", data.get("protocolName", "—"))
     curve_raw = data.get("protocolCurveType", "")
     col_curve.metric("Curve Type", _CURVE_DISPLAY.get(curve_raw, curve_raw or "—"))
+
+    # Protocol details expander
+    proto_name = data.get("protocolName", "—")
+    proto_max_cv = data.get("protocolMaxCvAllowed")
+    proto_max_err = data.get("protocolMaxErrorAllowed")
+    with st.expander(f"Dettagli protocollo — {proto_name}"):
+        p1, p2, p3, p4 = st.columns(4)
+        p1.metric("Curve Type", _CURVE_DISPLAY.get(curve_raw, curve_raw or "—"))
+        p2.metric("Max %CV", f"{proto_max_cv}%" if proto_max_cv is not None else "—")
+        p3.metric("Max %Error", f"{proto_max_err}%" if proto_max_err is not None else "—")
 
     st.markdown("---")
 

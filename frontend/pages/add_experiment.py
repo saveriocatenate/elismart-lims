@@ -260,12 +260,22 @@ selected_batch_ids: list[int | None] = []
 
 for i, spec in enumerate(reagent_specs):
     reagent_id = spec["reagentId"]
-    mandatory_label = " *(mandatory)*" if spec.get("isMandatory") else " *(optional)*"
+    is_mandatory = spec.get("isMandatory", False)
+    mandatory_badge = (
+        "&nbsp;<span style='background:#C62828;color:white;border-radius:4px;"
+        "padding:2px 7px;font-size:0.75em;font-weight:600'>obbligatorio</span>"
+        if is_mandatory else
+        "&nbsp;<span style='background:#546E7A;color:white;border-radius:4px;"
+        "padding:2px 7px;font-size:0.75em'>opzionale</span>"
+    )
 
     batches = _load_batches(BACKEND_URL, reagent_id, token)
 
     with st.container(border=True):
-        st.markdown(f"**{spec['reagentName']}**{mandatory_label}")
+        st.markdown(
+            f"**🧪 {spec['reagentName']}**{mandatory_badge}",
+            unsafe_allow_html=True,
+        )
 
         if batches:
             batch_map = {b["id"]: b for b in batches}
@@ -381,6 +391,7 @@ if input_mode == "Manual entry":
     for i in range(num_cal):
         s1, s2, c = _pair_row("cal", i)
         cal_s1.append(s1); cal_s2.append(s2); cal_conc.append(c)
+    st.caption("Inserisci la concentrazione nominale nella stessa unità di misura usata per i calibratori.")
 
     st.markdown("---")
 
@@ -390,6 +401,7 @@ if input_mode == "Manual entry":
     for i in range(num_ctrl):
         s1, s2, c = _pair_row("ctrl", i)
         ctrl_s1.append(s1); ctrl_s2.append(s2); ctrl_conc.append(c)
+    st.caption("Inserisci la concentrazione nominale nella stessa unità di misura usata per i calibratori.")
 
     st.markdown("---")
 
