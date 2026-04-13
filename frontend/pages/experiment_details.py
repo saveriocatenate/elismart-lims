@@ -213,36 +213,88 @@ with st.form("edit_form"):
 
     st.markdown("---")
 
-    # Reagent batches (lot + expiry editable)
+    # Reagent batches
     st.subheader(f"Reagent Batches ({len(batches)} reagent{'s' if len(batches) != 1 else ''})")
 
-    batch_lots: list[str] = []
-    batch_expiries: list[datetime.date | None] = []
+    # selected_batch_ids[i] = the ReagentBatch.id chosen for update (edit mode only)
+    selected_batch_ids: list[int | None] = []
+
+    exp_date_str = data.get("date", "")[:10]  # "YYYY-MM-DD" for expiry comparison
+
     for i, b in enumerate(batches):
-        c1, c2, c3 = st.columns([3, 3, 2])
-        c1.markdown(f"**{b.get('reagentName', '—')}**")
-        lot = c2.text_input(
-            "Lot Number",
-            value=b.get("lotNumber", ""),
-            key=f"edit_lot_{i}",
-            label_visibility="collapsed",
-            disabled=not edit_mode,
-        )
-        existing_expiry = None
-        if b.get("expiryDate"):
-            try:
-                existing_expiry = datetime.date.fromisoformat(b["expiryDate"])
-            except ValueError:
-                pass
-        expiry = c3.date_input(
-            "Expiry Date",
-            value=existing_expiry,
-            key=f"edit_expiry_{i}",
-            label_visibility="collapsed",
-            disabled=not edit_mode,
-        )
-        batch_lots.append(lot)
-        batch_expiries.append(expiry)
+        rb = b.get("reagentBatch") or {}
+        reagent_name = rb.get("reagentName", "—")
+        reagent_id = rb.get("reagentId")
+        lot_number = rb.get("lotNumber", "—")
+        expiry_str = rb.get("expiryDate")
+        supplier = rb.get("supplier") or "—"
+
+        if not edit_mode:
+            # ── Read-only view ────────────────────────────────────────────
+            c1, c2, c3, c4 = st.columns([3, 2, 2, 2])
+            c1.markdown(f"**{reagent_name}**")
+            c2.caption(f"Lotto: {lot_number}")
+            c3.caption(f"Scad.: {format_date(expiry_str)}")
+            c4.caption(f"Fornitore: {supplier}")
+
+            # Warn if batch was expired on experiment date
+            if expiry_str and exp_date_str:
+                try:
+                    if expiry_str < exp_date_str:
+                        st.warning(
+                            f"⚠️ Il lotto **{lot_number}** era scaduto alla data "
+                            f"dell'esperimento ({format_date(exp_date_str)})."
+                        )
+                except Exception:
+                    pass
+            selected_batch_ids.append(None)  # not used in read mode
+
+        else:
+            # ── Edit mode — selectbox to pick a different batch ───────────
+            available: list = []
+            if reagent_id:
+                try:
+                    r = requests.get(
+                        f"{BACKEND_URL}/api/reagent-batches",
+                        params={"reagentId": reagent_id},
+                        headers=get_auth_headers(),
+                        timeout=10,
+                    )
+                    available = r.json() if r.status_code == 200 else []
+                except requests.exceptions.RequestException:
+                    available = []
+
+            st.markdown(f"**{reagent_name}**")
+            if available:
+                batch_map = {ab["id"]: ab for ab in available}
+                batch_ids = [ab["id"] for ab in available]
+                current_bid = rb.get("id")
+                default_idx = batch_ids.index(current_bid) if current_bid in batch_ids else 0
+
+                def _blabel(bid: int, bm: dict = batch_map) -> str:
+                    ab = bm[bid]
+                    lot = ab.get("lotNumber", "?")
+                    exp = ab.get("expiryDate", "")
+                    if exp:
+                        try:
+                            ed = datetime.date.fromisoformat(exp)
+                            return f"Lotto {lot} — Scad. {ed.strftime('%d/%m/%Y')}"
+                        except ValueError:
+                            pass
+                    return f"Lotto {lot}"
+
+                sel = st.selectbox(
+                    "Batch",
+                    options=batch_ids,
+                    index=default_idx,
+                    format_func=_blabel,
+                    key=f"edit_batch_sel_{i}",
+                    label_visibility="collapsed",
+                )
+                selected_batch_ids.append(sel)
+            else:
+                st.caption(f"Lotto attuale: {lot_number} — nessun altro lotto disponibile")
+                selected_batch_ids.append(rb.get("id"))
 
     # ---------------------------------------------------------------------------
     # Measurement Pairs section
@@ -340,11 +392,10 @@ if saved:
         reagent_batch_updates = [
             {
                 "id": batches[i]["id"],
-                "lotNumber": batch_lots[i].strip(),
-                "expiryDate": batch_expiries[i].isoformat() if batch_expiries[i] else None,
+                "reagentBatchId": selected_batch_ids[i],
             }
             for i in range(len(batches))
-            if batch_lots[i].strip()
+            if selected_batch_ids[i] is not None
         ]
 
         measurement_pair_updates = [

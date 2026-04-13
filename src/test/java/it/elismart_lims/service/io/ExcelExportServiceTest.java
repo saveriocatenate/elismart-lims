@@ -93,9 +93,9 @@ class ExcelExportServiceTest {
 
         UsedReagentBatchResponse batch = UsedReagentBatchResponse.builder()
                 .id(1L)
-                .reagentName("Anti-IgG antibody")
-                .lotNumber("LOT-2024-001")
-                .expiryDate(LocalDate.of(2026, 12, 31))
+                .reagentBatch(it.elismart_lims.dto.ReagentBatchResponse.builder()
+                        .id(5L).reagentId(1L).reagentName("Anti-IgG antibody").manufacturer("Sigma")
+                        .lotNumber("LOT-2024-001").expiryDate(LocalDate.of(2026, 12, 31)).build())
                 .build();
 
         experiment = ExperimentResponse.builder()

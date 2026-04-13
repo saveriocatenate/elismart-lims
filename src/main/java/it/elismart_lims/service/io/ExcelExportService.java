@@ -312,10 +312,12 @@ public class ExcelExportService {
         int rowIdx = 1;
         for (UsedReagentBatchResponse batch : batches) {
             Row row = sheet.createRow(rowIdx++);
-            row.createCell(0).setCellValue(batch.reagentName() != null ? batch.reagentName() : "");
-            row.createCell(1).setCellValue(batch.lotNumber() != null ? batch.lotNumber() : "");
-            row.createCell(2).setCellValue(
-                    batch.expiryDate() != null ? batch.expiryDate().format(DATE_FMT) : "—");
+            row.createCell(0).setCellValue(batch.reagentBatch().reagentName() != null
+                    ? batch.reagentBatch().reagentName() : "");
+            row.createCell(1).setCellValue(batch.reagentBatch().lotNumber() != null
+                    ? batch.reagentBatch().lotNumber() : "");
+            row.createCell(2).setCellValue(batch.reagentBatch().expiryDate() != null
+                    ? batch.reagentBatch().expiryDate().format(DATE_FMT) : "—");
         }
     }
 

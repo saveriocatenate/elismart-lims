@@ -265,7 +265,7 @@ public class GeminiService {
         List<UsedReagentBatchResponse> batches = exp.usedReagentBatches();
         if (batches != null && !batches.isEmpty()) {
             String lots = batches.stream()
-                    .map(b -> b.reagentName() + "=" + b.lotNumber())
+                    .map(b -> b.reagentBatch().reagentName() + "=" + b.reagentBatch().lotNumber())
                     .reduce((a, b) -> a + "; " + b)
                     .orElse("—");
             sb.append(" Reagent Lots: [").append(lots).append("].");

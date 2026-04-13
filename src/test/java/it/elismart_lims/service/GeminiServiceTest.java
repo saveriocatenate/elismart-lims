@@ -91,9 +91,9 @@ class GeminiServiceTest {
 
         UsedReagentBatchResponse batch = UsedReagentBatchResponse.builder()
                 .id(1L)
-                .reagentName("Capture Ab")
-                .lotNumber("A1")
-                .expiryDate(LocalDate.of(2026, 12, 31))
+                .reagentBatch(it.elismart_lims.dto.ReagentBatchResponse.builder()
+                        .id(5L).reagentId(1L).reagentName("Capture Ab").manufacturer("Sigma")
+                        .lotNumber("A1").expiryDate(LocalDate.of(2026, 12, 31)).build())
                 .build();
 
         sampleExperiment = ExperimentResponse.builder()

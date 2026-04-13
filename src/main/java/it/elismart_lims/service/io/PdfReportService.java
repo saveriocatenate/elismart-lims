@@ -191,9 +191,10 @@ public class PdfReportService {
         addHeaderRow(table, "Reagent Name", "Lot Number", "Expiry Date");
 
         for (UsedReagentBatchResponse batch : batches) {
-            table.addCell(bodyCell(batch.reagentName()));
-            table.addCell(bodyCell(batch.lotNumber()));
-            table.addCell(bodyCell(batch.expiryDate() != null ? batch.expiryDate().format(DATE_FMT) : "—"));
+            table.addCell(bodyCell(batch.reagentBatch().reagentName()));
+            table.addCell(bodyCell(batch.reagentBatch().lotNumber()));
+            table.addCell(bodyCell(batch.reagentBatch().expiryDate() != null
+                    ? batch.reagentBatch().expiryDate().format(DATE_FMT) : "—"));
         }
 
         doc.add(table);

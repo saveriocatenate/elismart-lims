@@ -248,11 +248,12 @@ def _render_reagent_lots(experiments: list[dict]):
     lookup: dict[str, dict[int, dict]] = {}
     for exp in experiments:
         for batch in exp.get("usedReagentBatches", []):
-            name = batch.get("reagentName", "")
+            rb = batch.get("reagentBatch") or {}
+            name = rb.get("reagentName", "")
             all_reagents.add(name)
             lookup.setdefault(name, {})[exp["id"]] = {
-                "lot": batch.get("lotNumber", "—"),
-                "expiry": batch.get("expiryDate") or "—",
+                "lot": rb.get("lotNumber", "—"),
+                "expiry": rb.get("expiryDate") or "—",
             }
     if not all_reagents:
         st.info("No reagent batches recorded for the selected experiments.")

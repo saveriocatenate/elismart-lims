@@ -67,6 +67,38 @@ def _load_reagent_specs(backend: str, protocol_id: int, token: str) -> list:
         return []
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def _load_batches(backend: str, reagent_id: int, token: str) -> list:
+    """Return all registered batches for a given reagent catalog entry."""
+    try:
+        r = requests.get(f"{backend}/api/reagent-batches",
+                         params={"reagentId": reagent_id},
+                         headers={"Authorization": f"Bearer {token}"}, timeout=10)
+        return r.json() if r.status_code == 200 else []
+    except requests.exceptions.RequestException:
+        return []
+
+
+def _batch_label(b: dict) -> str:
+    """Format a ReagentBatch dict as a human-readable selectbox label."""
+    lot = b.get("lotNumber", "?")
+    exp_str = b.get("expiryDate")
+    if not exp_str:
+        return f"Lotto {lot} — no expiry"
+    try:
+        exp_date = datetime.date.fromisoformat(exp_str)
+        today = datetime.date.today()
+        days_left = (exp_date - today).days
+        exp_fmt = exp_date.strftime("%d/%m/%Y")
+        if days_left < 0:
+            return f"Lotto {lot} — Scad. {exp_fmt}  ⚠️ (SCADUTO)"
+        if days_left <= 30:
+            return f"Lotto {lot} — Scad. {exp_fmt}  ⏰ (Scade tra {days_left} giorni)"
+        return f"Lotto {lot} — Scad. {exp_fmt}"
+    except ValueError:
+        return f"Lotto {lot} — Scad. {exp_str}"
+
+
 # ---------------------------------------------------------------------------
 # Live %CV helpers (manual mode)
 # ---------------------------------------------------------------------------
@@ -207,26 +239,83 @@ exp_date = st.date_input("Date", value=datetime.date.today(), key="exp_date")
 st.markdown("---")
 
 # ---------------------------------------------------------------------------
-# Shared: Reagent Batches
+# Shared: Reagent Batches — selectbox per reagent + inline "New Lot" form
 # ---------------------------------------------------------------------------
 
 st.subheader(f"Reagent Batches ({len(reagent_specs)} reagent{'s' if len(reagent_specs) != 1 else ''})")
 if not reagent_specs:
     st.info("This protocol has no reagents defined.")
 
-lot_numbers: list[str] = []
-expiry_dates: list = []
+# selected_batch_ids[i] = the ReagentBatch.id chosen for reagent_specs[i], or None
+selected_batch_ids: list[int | None] = []
 
 for i, spec in enumerate(reagent_specs):
+    reagent_id = spec["reagentId"]
     mandatory_label = " *(mandatory)*" if spec.get("isMandatory") else " *(optional)*"
-    c1, c2, c3 = st.columns([3, 3, 2])
-    c1.markdown(f"**{spec['reagentName']}**{mandatory_label}")
-    lot = c2.text_input("Lot Number", key=f"lot_{i}", placeholder="e.g. LOT-2025-001",
-                        label_visibility="collapsed")
-    exp = c3.date_input("Expiry Date", key=f"expiry_{i}", value=None,
-                        label_visibility="collapsed")
-    lot_numbers.append(lot)
-    expiry_dates.append(exp)
+
+    batches = _load_batches(BACKEND_URL, reagent_id, token)
+
+    with st.container(border=True):
+        st.markdown(f"**{spec['reagentName']}**{mandatory_label}")
+
+        if batches:
+            batch_map = {b["id"]: b for b in batches}
+            batch_ids = [b["id"] for b in batches]
+
+            sel_id = st.selectbox(
+                "Select batch",
+                options=batch_ids,
+                format_func=lambda bid, bm=batch_map: _batch_label(bm[bid]),
+                key=f"batch_sel_{i}",
+                label_visibility="collapsed",
+            )
+            selected_batch_ids.append(sel_id)
+        else:
+            st.warning(f"No batches registered for **{spec['reagentName']}**. Create one below.")
+            selected_batch_ids.append(None)
+
+        # ── Inline "New Lot" form ────────────────────────────────────────
+        with st.expander("➕ Register new batch", expanded=False):
+            with st.form(f"new_batch_{i}", clear_on_submit=True):
+                fc1, fc2, fc3 = st.columns([3, 2, 3])
+                nl_lot = fc1.text_input("Lot Number *", placeholder="LOT-2026-001",
+                                        key=f"nl_lot_{i}")
+                nl_expiry = fc2.date_input("Expiry Date *", value=None,
+                                           key=f"nl_expiry_{i}")
+                nl_supplier = fc3.text_input("Supplier (optional)", key=f"nl_supplier_{i}")
+                nl_notes = st.text_input("Notes (optional)", key=f"nl_notes_{i}")
+                register_btn = st.form_submit_button("Register", type="primary",
+                                                     use_container_width=True)
+
+            if register_btn:
+                if not nl_lot.strip():
+                    st.error("Lot Number is required.")
+                elif nl_expiry is None:
+                    st.error("Expiry Date is required.")
+                else:
+                    payload = {
+                        "reagentId": reagent_id,
+                        "lotNumber": nl_lot.strip(),
+                        "expiryDate": nl_expiry.isoformat(),
+                        "supplier": nl_supplier.strip() or None,
+                        "notes": nl_notes.strip() or None,
+                    }
+                    try:
+                        pr = requests.post(
+                            f"{BACKEND_URL}/api/reagent-batches",
+                            json=payload,
+                            headers=get_auth_headers(),
+                            timeout=10,
+                        )
+                        if pr.status_code == 201:
+                            st.success(f"Batch **{nl_lot.strip()}** registered.")
+                            _load_batches.clear()
+                            st.rerun()
+                        else:
+                            detail = pr.json().get("message", pr.text)
+                            st.error(f"Failed ({pr.status_code}): {detail}")
+                    except requests.exceptions.RequestException as e:
+                        st.error(f"Request failed: {e}")
 
 st.markdown("---")
 
@@ -235,25 +324,23 @@ st.markdown("---")
 # ---------------------------------------------------------------------------
 
 def _build_used_batches() -> list | None:
-    """Returns the batches list, or None if mandatory reagents are missing."""
+    """Returns the usedReagentBatches list, or None if mandatory reagents are missing."""
     missing = [
         reagent_specs[i]["reagentName"]
         for i in range(len(reagent_specs))
-        if reagent_specs[i].get("isMandatory") and not lot_numbers[i].strip()
+        if reagent_specs[i].get("isMandatory") and selected_batch_ids[i] is None
     ]
     if missing:
-        st.error(f"Lot number is required for mandatory reagents: {', '.join(missing)}")
+        st.error(
+            f"A batch must be selected (or created) for mandatory reagents: "
+            f"{', '.join(missing)}"
+        )
         return None
-    result = []
-    for i, spec in enumerate(reagent_specs):
-        lot = lot_numbers[i].strip()
-        if not lot:
-            continue
-        entry: dict = {"reagentId": spec["reagentId"], "lotNumber": lot}
-        if expiry_dates[i]:
-            entry["expiryDate"] = expiry_dates[i].isoformat()
-        result.append(entry)
-    return result
+    return [
+        {"reagentBatchId": selected_batch_ids[i]}
+        for i in range(len(reagent_specs))
+        if selected_batch_ids[i] is not None
+    ]
 
 
 # ---------------------------------------------------------------------------

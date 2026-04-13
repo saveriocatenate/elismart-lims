@@ -54,9 +54,10 @@ class PdfReportServiceTest {
                 .usedReagentBatches(List.of(
                         UsedReagentBatchResponse.builder()
                                 .id(10L)
-                                .reagentName("Anti-IgG HRP")
-                                .lotNumber("LOT-2026-001")
-                                .expiryDate(LocalDate.of(2027, 6, 30))
+                                .reagentBatch(it.elismart_lims.dto.ReagentBatchResponse.builder()
+                                        .id(1L).reagentId(1L).reagentName("Anti-IgG HRP")
+                                        .manufacturer("Sigma").lotNumber("LOT-2026-001")
+                                        .expiryDate(LocalDate.of(2027, 6, 30)).build())
                                 .build()
                 ))
                 .measurementPairs(List.of(
