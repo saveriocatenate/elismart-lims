@@ -1,5 +1,6 @@
 package it.elismart_lims.controller;
 
+import it.elismart_lims.dto.ExpiringReagentAlert;
 import it.elismart_lims.dto.ReagentBatchCreateRequest;
 import it.elismart_lims.dto.ReagentBatchResponse;
 import it.elismart_lims.service.ReagentBatchService;
@@ -51,6 +52,21 @@ public class ReagentBatchController {
             return ResponseEntity.ok(List.of());
         }
         return ResponseEntity.ok(reagentBatchService.findByReagentId(reagentId));
+    }
+
+    /**
+     * Returns all reagent batches expiring within the next {@code daysAhead} days.
+     *
+     * <p>The look-ahead window is {@code [today, today + daysAhead]} inclusive.
+     * Results are ordered by expiry date ascending (most urgent first).</p>
+     *
+     * @param daysAhead number of days to look ahead (default 30, must be ≥ 0)
+     * @return 200 OK with the list of {@link ExpiringReagentAlert} DTOs, possibly empty
+     */
+    @GetMapping("/expiring")
+    public ResponseEntity<List<ExpiringReagentAlert>> getExpiring(
+            @RequestParam(defaultValue = "30") int daysAhead) {
+        return ResponseEntity.ok(reagentBatchService.findExpiring(daysAhead));
     }
 
     /**

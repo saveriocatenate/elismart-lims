@@ -1,5 +1,6 @@
 package it.elismart_lims.service;
 
+import it.elismart_lims.dto.ExpiringReagentAlert;
 import it.elismart_lims.dto.ReagentBatchCreateRequest;
 import it.elismart_lims.dto.ReagentBatchResponse;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
@@ -135,5 +136,55 @@ class ReagentBatchServiceTest {
         assertThatThrownBy(() -> reagentBatchService.findById(99L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("ReagentBatch not found with id: 99");
+    }
+
+    // --- findExpiring ---
+
+    @Test
+    void findExpiring_shouldReturnAlerts_forBatchesWithinWindow() {
+        LocalDate today = LocalDate.now();
+        ReagentBatch expiringBatch = ReagentBatch.builder()
+                .id(2L)
+                .reagent(reagent)
+                .lotNumber("LOT-EXP")
+                .expiryDate(today.plusDays(10))
+                .build();
+
+        when(reagentBatchRepository.findByExpiryDateBetweenOrderByExpiryDateAsc(today, today.plusDays(30)))
+                .thenReturn(List.of(expiringBatch));
+
+        List<ExpiringReagentAlert> result = reagentBatchService.findExpiring(30);
+
+        assertThat(result).hasSize(1);
+        ExpiringReagentAlert alert = result.getFirst();
+        assertThat(alert.lotNumber()).isEqualTo("LOT-EXP");
+        assertThat(alert.reagentName()).isEqualTo("Anti-IgG");
+        assertThat(alert.manufacturer()).isEqualTo("Sigma");
+        assertThat(alert.daysUntilExpiry()).isEqualTo(10);
+        assertThat(alert.expiryDate()).isEqualTo(today.plusDays(10));
+    }
+
+    @Test
+    void findExpiring_shouldReturnEmpty_whenNoBatchesInWindow() {
+        LocalDate today = LocalDate.now();
+        when(reagentBatchRepository.findByExpiryDateBetweenOrderByExpiryDateAsc(today, today.plusDays(30)))
+                .thenReturn(List.of());
+
+        List<ExpiringReagentAlert> result = reagentBatchService.findExpiring(30);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void findExpiring_shouldNotInclude_batchesOutsideWindow() {
+        LocalDate today = LocalDate.now();
+        // Repository is called with the exact window — if it returns empty, no alerts produced
+        when(reagentBatchRepository.findByExpiryDateBetweenOrderByExpiryDateAsc(today, today.plusDays(90)))
+                .thenReturn(List.of());
+
+        List<ExpiringReagentAlert> result = reagentBatchService.findExpiring(90);
+
+        assertThat(result).isEmpty();
+        verify(reagentBatchRepository).findByExpiryDateBetweenOrderByExpiryDateAsc(today, today.plusDays(90));
     }
 }

@@ -1,5 +1,6 @@
 package it.elismart_lims.service;
 
+import it.elismart_lims.dto.ExpiringReagentAlert;
 import it.elismart_lims.dto.ReagentBatchCreateRequest;
 import it.elismart_lims.dto.ReagentBatchResponse;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
@@ -11,6 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -89,5 +92,32 @@ public class ReagentBatchService {
     public ReagentBatch getEntityById(Long id) {
         return reagentBatchRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ReagentBatch not found with id: " + id));
+    }
+
+    /**
+     * Returns alert objects for all batches expiring within the next {@code daysAhead} days.
+     *
+     * <p>The window is {@code [today, today + daysAhead]} inclusive. Results are ordered by
+     * {@code daysUntilExpiry} ascending (most urgent first).</p>
+     *
+     * @param daysAhead look-ahead window in days; must be ≥ 0
+     * @return list of {@link ExpiringReagentAlert} DTOs, possibly empty
+     */
+    @Transactional(readOnly = true)
+    public List<ExpiringReagentAlert> findExpiring(int daysAhead) {
+        LocalDate today = LocalDate.now();
+        LocalDate cutoff = today.plusDays(daysAhead);
+        return reagentBatchRepository
+                .findByExpiryDateBetweenOrderByExpiryDateAsc(today, cutoff)
+                .stream()
+                .map(b -> ExpiringReagentAlert.builder()
+                        .reagentId(b.getReagent().getId())
+                        .reagentName(b.getReagent().getName())
+                        .manufacturer(b.getReagent().getManufacturer())
+                        .lotNumber(b.getLotNumber())
+                        .expiryDate(b.getExpiryDate())
+                        .daysUntilExpiry((int) ChronoUnit.DAYS.between(today, b.getExpiryDate()))
+                        .build())
+                .toList();
     }
 }

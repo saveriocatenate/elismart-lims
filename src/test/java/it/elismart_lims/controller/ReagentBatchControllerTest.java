@@ -2,6 +2,7 @@ package it.elismart_lims.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import it.elismart_lims.config.TestSecurityConfig;
+import it.elismart_lims.dto.ExpiringReagentAlert;
 import it.elismart_lims.dto.ReagentBatchCreateRequest;
 import it.elismart_lims.dto.ReagentBatchResponse;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
@@ -106,5 +107,34 @@ class ReagentBatchControllerTest {
 
         mockMvc.perform(get("/api/reagent-batches/99"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getExpiring_shouldReturnAlerts_withDefaultDaysAhead() throws Exception {
+        LocalDate today = LocalDate.now();
+        ExpiringReagentAlert alert = ExpiringReagentAlert.builder()
+                .reagentId(10L)
+                .reagentName("Anti-IgG")
+                .manufacturer("Sigma")
+                .lotNumber("LOT-001")
+                .expiryDate(today.plusDays(10))
+                .daysUntilExpiry(10)
+                .build();
+        when(reagentBatchService.findExpiring(30)).thenReturn(List.of(alert));
+
+        mockMvc.perform(get("/api/reagent-batches/expiring"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].lotNumber").value("LOT-001"))
+                .andExpect(jsonPath("$[0].reagentName").value("Anti-IgG"))
+                .andExpect(jsonPath("$[0].daysUntilExpiry").value(10));
+    }
+
+    @Test
+    void getExpiring_shouldReturnAlerts_withCustomDaysAhead() throws Exception {
+        when(reagentBatchService.findExpiring(90)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/reagent-batches/expiring").param("daysAhead", "90"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
     }
 }

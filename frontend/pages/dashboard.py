@@ -1,8 +1,10 @@
 """
 Dashboard page.
 
-Checks backend health on load and provides navigation buttons to all main pages.
+Checks backend health on load, shows reagent expiry alerts, and provides
+navigation buttons to all main pages.
 API: GET /api/health
+API: GET /api/reagent-batches/expiring?daysAhead=90
 """
 import sys
 import os
@@ -14,6 +16,8 @@ from utils import check_auth, get_auth_headers, resolve_backend_url
 
 check_auth()
 BACKEND_URL = resolve_backend_url()
+
+_EXPIRY_DAYS = 90
 
 
 def _check_backend():
@@ -29,6 +33,58 @@ def _check_backend():
         return False, "Backend request timed out."
 
 
+@st.cache_data(ttl=300)
+def _load_expiring_batches(backend_url: str, days_ahead: int, _token: str):
+    """Fetch expiring reagent batch alerts from the backend."""
+    try:
+        resp = requests.get(
+            f"{backend_url}/api/reagent-batches/expiring",
+            params={"daysAhead": days_ahead},
+            headers=get_auth_headers(),
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return []
+
+
+def _render_expiry_alerts(alerts: list):
+    """Render color-coded expiry alert boxes."""
+    red = [a for a in alerts if a["daysUntilExpiry"] <= 30]
+    yellow = [a for a in alerts if 31 <= a["daysUntilExpiry"] <= 60]
+    gray = [a for a in alerts if 61 <= a["daysUntilExpiry"] <= 90]
+
+    if not alerts:
+        return
+
+    st.markdown("### Reagent Expiry Alerts")
+
+    for alert in red:
+        st.error(
+            f"🔴 **{alert['reagentName']}** ({alert['manufacturer']}) — "
+            f"Lot: `{alert['lotNumber']}` — "
+            f"Expires: **{alert['expiryDate']}** ({alert['daysUntilExpiry']}d remaining)"
+        )
+
+    for alert in yellow:
+        st.warning(
+            f"🟡 **{alert['reagentName']}** ({alert['manufacturer']}) — "
+            f"Lot: `{alert['lotNumber']}` — "
+            f"Expires: {alert['expiryDate']} ({alert['daysUntilExpiry']}d remaining)"
+        )
+
+    for alert in gray:
+        st.info(
+            f"⚪ **{alert['reagentName']}** ({alert['manufacturer']}) — "
+            f"Lot: `{alert['lotNumber']}` — "
+            f"Expires: {alert['expiryDate']} ({alert['daysUntilExpiry']}d remaining)"
+        )
+
+    st.markdown("---")
+
+
 st.title("Dashboard")
 
 healthy, detail = _check_backend()
@@ -37,6 +93,10 @@ if healthy:
 else:
     st.error(f"Backend offline: {detail}")
     st.stop()
+
+token = st.session_state.get("token", "")
+alerts = _load_expiring_batches(BACKEND_URL, _EXPIRY_DAYS, token)
+_render_expiry_alerts(alerts)
 
 st.markdown(
     "Manage protocols, reagents, and dose-response experiments from a single place. "
