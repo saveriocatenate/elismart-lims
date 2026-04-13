@@ -14,7 +14,6 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-import time
 import requests
 import streamlit as st
 from utils import check_auth, get_auth_headers, resolve_backend_url, show_stored_errors, translate_error
@@ -27,6 +26,29 @@ if st.button("← Back to Dashboard"):
 
 st.title("New Protocol")
 show_stored_errors("add_protocol")
+
+# ── Post-save success state ───────────────────────────────────────────────────
+if "proto_created" in st.session_state:
+    created = st.session_state["proto_created"]
+    st.success(f"✅ Protocollo **{created['name']}** creato con successo!")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("🔍 Vai al dettaglio", type="primary", use_container_width=True):
+            st.session_state["selected_protocol_id"] = created["id"]
+            st.session_state.pop("proto_created", None)
+            st.switch_page("pages/protocol_details.py")
+    with c2:
+        if st.button("➕ Crea un altro protocollo", use_container_width=True):
+            for k in list(st.session_state.keys()):
+                if k.startswith("proto_") or k in ("reagent_rows", "reagent_row_counter"):
+                    st.session_state.pop(k, None)
+            st.rerun()
+    with c3:
+        if st.button("← Torna alla Dashboard", use_container_width=True):
+            st.session_state.pop("proto_created", None)
+            st.switch_page("pages/dashboard.py")
+    st.stop()
+
 st.markdown("---")
 
 # Top-level error placeholder (filled by backend error responses)
@@ -294,12 +316,11 @@ if st.button(
                     + "\n".join(link_errors)
                 )
 
-            # Reset new-reagent rows after successful submission
+            # Reset new-reagent rows and surface post-save success state
             st.session_state["reagent_rows"] = []
             st.session_state["reagent_row_counter"] = 0
-            st.success("✅ Protocollo salvato con successo!")
-            time.sleep(3)
-            st.switch_page("pages/dashboard.py")
+            st.session_state["proto_created"] = {"id": protocol_id, "name": name.strip()}
+            st.rerun()
 
         except requests.exceptions.RequestException as e:
             top_error_ph.error(translate_error(f"Errore di rete: {e}"))

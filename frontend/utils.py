@@ -395,7 +395,14 @@ def render_sidebar(backend_url: str) -> None:
         username = st.session_state.get("username", "")
         role = st.session_state.get("role", "")
         if username:
-            st.caption(f"👤 **{username}** ({role})")
+            st.markdown(
+                f"<div style='padding:0.5rem 0.75rem;background:#E8F5E9;border-radius:6px;"
+                f"margin-bottom:0.75rem;border-left:4px solid #2E7D32'>"
+                f"<span style='font-size:0.85em;color:#1B5E20'><b>👤 {username}</b></span><br/>"
+                f"<span style='font-size:0.75em;color:#388E3C'>{role}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
         st.caption(f"🔗 Backend: `{backend_url}`")
         if st.button("🚪 Logout", use_container_width=True):
             st.session_state.pop("jwt_token", None)

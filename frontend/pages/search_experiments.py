@@ -92,6 +92,15 @@ if results:
         ]
         at_max = len(checked_ids) >= 4
 
+        # Selection counter — always visible when at least one is checked
+        if checked_ids:
+            counter_col, _ = st.columns([2, 5])
+            with counter_col:
+                if len(checked_ids) > 4:
+                    st.warning(f"📊 {len(checked_ids)} esperimenti selezionati — massimo 4")
+                else:
+                    st.info(f"📊 {len(checked_ids)} esperiment{'o' if len(checked_ids) == 1 else 'i'} selezionat{'o' if len(checked_ids) == 1 else 'i'}")
+
         for exp in content:
             with st.container(border=True):
                 c0, c1, c2, c3, c4, c5 = st.columns([0.5, 3, 2, 1, 1, 1])
@@ -115,11 +124,17 @@ if results:
 
         if len(checked_ids) >= 2:
             st.markdown("---")
-            st.caption(f"{len(checked_ids)} experiment(s) selected (max 4)")
             act_compare, act_export = st.columns(2)
 
             with act_compare:
-                if st.button("⚖️ Compare Selected", use_container_width=True, type="primary"):
+                too_many = len(checked_ids) > 4
+                if st.button(
+                    "⚖️ Compare Selected",
+                    use_container_width=True,
+                    type="primary",
+                    disabled=too_many,
+                    help="Massimo 4 esperimenti" if too_many else None,
+                ):
                     st.session_state["compare_exp_ids"] = checked_ids
                     # Clear checkboxes
                     for exp in content:

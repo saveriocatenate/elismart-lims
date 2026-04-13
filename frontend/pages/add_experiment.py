@@ -17,7 +17,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import datetime
-import time
 import pandas as pd
 import requests
 import streamlit as st
@@ -31,6 +30,35 @@ if st.button("← Back to Dashboard"):
 
 st.title("New Experiment")
 show_stored_errors("add_experiment")
+
+# ── Post-save success state ───────────────────────────────────────────────────
+if "exp_created" in st.session_state:
+    created = st.session_state["exp_created"]
+    msg = f"✅ Esperimento **{created['name']}** creato con successo!"
+    if created.get("pairs_count") is not None:
+        msg += f" ({created['pairs_count']} coppie importate)"
+    st.success(msg)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("🔬 Vai al dettaglio", type="primary", use_container_width=True):
+            st.session_state["selected_exp_id"] = created["id"]
+            st.session_state.pop("exp_created", None)
+            st.switch_page("pages/experiment_details.py")
+    with c2:
+        if st.button("➕ Crea un altro esperimento", use_container_width=True):
+            st.session_state.pop("exp_created", None)
+            for k in list(st.session_state.keys()):
+                if k.startswith(("cal_", "ctrl_", "wmap_", "editor_")):
+                    st.session_state.pop(k, None)
+            for k in ("exp_name", "exp_date"):
+                st.session_state.pop(k, None)
+            st.rerun()
+    with c3:
+        if st.button("← Dashboard", use_container_width=True):
+            st.session_state.pop("exp_created", None)
+            st.switch_page("pages/dashboard.py")
+    st.stop()
+
 st.markdown("---")
 
 
@@ -441,9 +469,8 @@ if input_mode == "Manual entry":
             if resp.status_code == 201:
                 exp_id = resp.json().get("id")
                 st.session_state["selected_exp_id"] = exp_id
-                st.success(f"✅ Esperimento salvato con successo! (ID {exp_id})")
-                time.sleep(3)
-                st.switch_page("pages/experiment_details.py")
+                st.session_state["exp_created"] = {"id": exp_id, "name": exp_name.strip()}
+                st.rerun()
             else:
                 try:
                     body = resp.json()
@@ -721,10 +748,10 @@ else:
         if imported_pairs:
             _display_imported_pairs(imported_pairs, max_cv)
 
-        st.success(
-            f"✅ Esperimento salvato con successo! (ID {exp_id}, "
-            f"{len(imported_pairs)} coppie importate)"
-        )
-        time.sleep(3)
-        st.switch_page("pages/experiment_details.py")
+        st.session_state["exp_created"] = {
+            "id": exp_id,
+            "name": exp_name.strip(),
+            "pairs_count": len(imported_pairs),
+        }
+        st.rerun()
 
