@@ -133,7 +133,11 @@ except requests.exceptions.RequestException as e:
 # Header row: back | edit/cancel | delete
 # ---------------------------------------------------------------------------
 
-nav_col, edit_col, del_col = st.columns([5, 1, 1])
+_status = data.get("status", "")
+_can_validate = _status in ("PENDING", "COMPLETED")
+
+nav_col, val_col, edit_col, del_col = st.columns([5, 1, 1, 1]) if _can_validate else st.columns([5, 1, 1]) + [None]
+
 with nav_col:
     if st.button("← Back to Search"):
         st.session_state.pop("selected_exp_id", None)
@@ -141,6 +145,25 @@ with nav_col:
         st.switch_page("pages/search_experiments.py")
 
 edit_mode = st.session_state.get("exp_edit_mode", False)
+
+if val_col is not None:
+    with val_col:
+        if st.button("✅ Valida", use_container_width=True, help="Avvia la validazione automatica (fit curva + OK/KO)"):
+            with st.spinner("Validazione in corso…"):
+                try:
+                    v_resp = requests.post(
+                        f"{BACKEND_URL}/api/experiments/{exp_id}/validate",
+                        headers=get_auth_headers(),
+                        timeout=30,
+                    )
+                    if v_resp.status_code == 200:
+                        st.session_state["exp_validate_success"] = True
+                        st.rerun()
+                    else:
+                        detail = v_resp.json().get("message", v_resp.text)
+                        show_persistent_error(translate_error(detail), key="experiment_details")
+                except requests.exceptions.RequestException as e:
+                    show_persistent_error(translate_error(str(e)), key="experiment_details")
 
 with edit_col:
     if not edit_mode:
@@ -154,8 +177,7 @@ with edit_col:
             st.rerun()
 
 with del_col:
-    st.markdown('<div class="delete-btn"></div>', unsafe_allow_html=True)
-    if st.button("🗑️ Delete", use_container_width=True, help="Delete this experiment"):
+    if st.button("🗑️ Delete", use_container_width=True):
         _confirm_delete(data.get("name", str(exp_id)))
 
 # ---------------------------------------------------------------------------
@@ -227,6 +249,9 @@ show_stored_errors("experiment_details")
 if st.session_state.pop("exp_save_success", False):
     st.success("Modifiche salvate con successo.")
     st.markdown("[↓ Torna ai risultati](#measurement-pairs)")
+
+if st.session_state.pop("exp_validate_success", False):
+    st.success("Validazione completata. Stato aggiornato.")
 
 st.markdown("---")
 

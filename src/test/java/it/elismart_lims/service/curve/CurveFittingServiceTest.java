@@ -118,33 +118,53 @@ class CurveFittingServiceTest {
     }
 
     // -------------------------------------------------------------------------
-    // Stub — FIVE_PARAMETER_LOGISTIC
+    // Delegation — FIVE_PARAMETER_LOGISTIC
     // -------------------------------------------------------------------------
 
     /**
-     * Verifies that invoking {@code fitCurve} with FIVE_PARAMETER_LOGISTIC propagates
-     * the {@link UnsupportedOperationException} thrown by the stub {@link FivePLFitter}.
+     * Six noiseless 5PL calibration points.
+     * True parameters: A=0, B=2, C=100, D=3, E=0.5.
+     * Computed as {@code y = 3 - 3 / sqrt(1 + (x/100)^2)}.
+     */
+    private static final List<CalibrationPoint> FIVE_PL_POINTS = List.of(
+            new CalibrationPoint(10.0,   0.01487123),
+            new CalibrationPoint(50.0,   0.31671843),
+            new CalibrationPoint(100.0,  0.87867966),
+            new CalibrationPoint(200.0,  1.65835921),
+            new CalibrationPoint(500.0,  2.41168447),
+            new CalibrationPoint(1000.0, 2.70148766)
+    );
+
+    /**
+     * Verifies that {@link CurveFittingService#fitCurve} with FIVE_PARAMETER_LOGISTIC
+     * delegates to {@link FivePLFitter} and returns parameters keyed "A", "B", "C", "D", "E".
      */
     @Test
-    @DisplayName("fitCurve(FIVE_PARAMETER_LOGISTIC) throws UnsupportedOperationException")
-    void fitCurve_5PL_shouldThrowUnsupported() {
-        assertThatExceptionOfType(UnsupportedOperationException.class)
-                .isThrownBy(() -> service.fitCurve(CurveType.FIVE_PARAMETER_LOGISTIC, FOUR_PL_POINTS))
-                .withMessageContaining("5PL fitting not yet implemented");
+    @DisplayName("fitCurve(FIVE_PARAMETER_LOGISTIC) returns params with A, B, C, D, E keys")
+    void fitCurve_5PL_shouldReturnExpectedParameterKeys() {
+        CurveParameters params = service.fitCurve(CurveType.FIVE_PARAMETER_LOGISTIC, FIVE_PL_POINTS);
+
+        assertThat(params.values()).containsKeys(
+                FivePLFitter.PARAM_A,
+                FivePLFitter.PARAM_B,
+                FivePLFitter.PARAM_C,
+                FivePLFitter.PARAM_D,
+                FivePLFitter.PARAM_E
+        );
     }
 
     /**
-     * Verifies that invoking {@code interpolateConcentration} with FIVE_PARAMETER_LOGISTIC
-     * also throws {@link UnsupportedOperationException}.
+     * Verifies end-to-end delegation: fit 5PL then back-interpolate a known signal
+     * (x=100 → y≈0.87868) within 5%.
      */
     @Test
-    @DisplayName("interpolateConcentration(FIVE_PARAMETER_LOGISTIC) throws UnsupportedOperationException")
-    void interpolateConcentration_5PL_shouldThrowUnsupported() {
-        CurveParameters dummyParams = new CurveParameters(java.util.Map.of());
-        assertThatExceptionOfType(UnsupportedOperationException.class)
-                .isThrownBy(() -> service.interpolateConcentration(
-                        CurveType.FIVE_PARAMETER_LOGISTIC, 1.0, dummyParams))
-                .withMessageContaining("5PL fitting not yet implemented");
+    @DisplayName("interpolateConcentration(FIVE_PARAMETER_LOGISTIC) recovers x=100 within 5%")
+    void interpolateConcentration_5PL_shouldRecoverKnownConcentration() {
+        CurveParameters params = service.fitCurve(CurveType.FIVE_PARAMETER_LOGISTIC, FIVE_PL_POINTS);
+        double concentration = service.interpolateConcentration(
+                CurveType.FIVE_PARAMETER_LOGISTIC, 0.87867966, params);
+
+        assertThat(concentration).isCloseTo(100.0, withPercentage(5.0));
     }
 
     // -------------------------------------------------------------------------
@@ -153,13 +173,13 @@ class CurveFittingServiceTest {
 
     /**
      * Smoke test: verifies that {@code fitCurve} completes without exception for every
-     * fully implemented {@link CurveType}, and returns a non-null {@link CurveParameters}.
-     * FIVE_PARAMETER_LOGISTIC is excluded because it intentionally throws.
+     * {@link CurveType} and returns a non-null {@link CurveParameters}.
+     * Uses the 4PL dataset for all types; 5PL converges because 4PL is a special case (E=1).
      */
-    @ParameterizedTest(name = "fitCurve({0}) should not throw for fully implemented types")
-    @EnumSource(value = CurveType.class, names = {"FIVE_PARAMETER_LOGISTIC"}, mode = EnumSource.Mode.EXCLUDE)
-    @DisplayName("fitCurve() completes for all implemented CurveTypes")
-    void fitCurve_allImplementedTypes_shouldNotThrow(CurveType type) {
+    @ParameterizedTest(name = "fitCurve({0}) should not throw")
+    @EnumSource(CurveType.class)
+    @DisplayName("fitCurve() completes for all CurveTypes")
+    void fitCurve_allTypes_shouldNotThrow(CurveType type) {
         assertThatNoException().isThrownBy(() -> {
             CurveParameters params = service.fitCurve(type, FOUR_PL_POINTS);
             assertThat(params).isNotNull();

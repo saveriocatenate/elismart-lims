@@ -25,7 +25,7 @@ public interface CurveFitter {
      * @param points list of calibration points (concentration, signal pairs);
      *               must contain at least as many points as there are free parameters
      *               in the model
-     * @return the optimised curve parameters
+     * @return the optimized curve parameters
      * @throws IllegalArgumentException if {@code points} is {@code null}, empty, or
      *                                  contains fewer points than required by the model
      */

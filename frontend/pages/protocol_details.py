@@ -21,6 +21,16 @@ from utils import check_auth, get_auth_headers, resolve_backend_url, show_persis
 check_auth()
 BACKEND_URL = resolve_backend_url()
 
+_CURVE_TYPE_OPTIONS: dict[str, str] = {
+    "4PL — Four Parameter Logistic (ELISA standard)": "FOUR_PARAMETER_LOGISTIC",
+    "5PL — Five Parameter Logistic (asymmetric)": "FIVE_PARAMETER_LOGISTIC",
+    "3PL — Log-Logistic (minimum fixed at zero)": "LOG_LOGISTIC_3P",
+    "Linear (y = mx + q)": "LINEAR",
+    "Semi-log Linear (log X-axis)": "SEMI_LOG_LINEAR",
+    "Point-to-Point (not recommended)": "POINT_TO_POINT",
+}
+_CURVE_LABEL_BY_VALUE: dict[str, str] = {v: k for k, v in _CURVE_TYPE_OPTIONS.items()}
+
 protocol_id = st.session_state.get("selected_protocol_id")
 if not protocol_id:
     st.warning("No protocol selected.")
@@ -136,7 +146,6 @@ with edit_col:
             st.rerun()
 
 with del_col:
-    st.markdown('<div class="delete-btn"></div>', unsafe_allow_html=True)
     if st.button("🗑️ Delete", use_container_width=True):
         _confirm_delete(data.get("name", str(protocol_id)))
 
@@ -181,21 +190,6 @@ with st.form("protocol_form"):
         edit_name = st.text_input(
             "Name", value=data.get("name", ""), disabled=not edit_mode
         )
-        edit_cal = st.number_input(
-            "Calibration Pairs",
-            value=int(data.get("numCalibrationPairs", 1)),
-            min_value=1,
-            step=1,
-            disabled=not edit_mode,
-        )
-        edit_ctrl = st.number_input(
-            "Control Pairs",
-            value=int(data.get("numControlPairs", 1)),
-            min_value=1,
-            step=1,
-            disabled=not edit_mode,
-        )
-    with col2:
         edit_cv = st.number_input(
             "Max %CV Allowed",
             value=float(data.get("maxCvAllowed", 0.0)),
@@ -204,12 +198,36 @@ with st.form("protocol_form"):
             format="%.2f",
             disabled=not edit_mode,
         )
+        edit_cal = st.number_input(
+            "Calibration Pairs",
+            value=int(data.get("numCalibrationPairs", 1)),
+            min_value=1,
+            step=1,
+            disabled=not edit_mode,
+        )
+    with col2:
+        current_curve_value = data.get("curveType", "FOUR_PARAMETER_LOGISTIC")
+        curve_labels = list(_CURVE_TYPE_OPTIONS.keys())
+        current_curve_label = _CURVE_LABEL_BY_VALUE.get(current_curve_value, curve_labels[0])
+        edit_curve_label = st.selectbox(
+            "Curve Type",
+            options=curve_labels,
+            index=curve_labels.index(current_curve_label),
+            disabled=not edit_mode,
+        )
         edit_error = st.number_input(
             "Max %Error Allowed",
             value=float(data.get("maxErrorAllowed", 0.0)),
             min_value=0.0,
             step=0.5,
             format="%.2f",
+            disabled=not edit_mode,
+        )
+        edit_ctrl = st.number_input(
+            "Control Pairs",
+            value=int(data.get("numControlPairs", 1)),
+            min_value=1,
+            step=1,
             disabled=not edit_mode,
         )
 
@@ -229,6 +247,7 @@ if saved:
     else:
         st.session_state["proto_pending_save"] = {
             "name": edit_name.strip(),
+            "curveType": _CURVE_TYPE_OPTIONS[edit_curve_label],
             "numCalibrationPairs": int(edit_cal),
             "numControlPairs": int(edit_ctrl),
             "maxCvAllowed": float(edit_cv),

@@ -449,8 +449,7 @@ if input_mode == "Manual entry":
 
         def _pairs(pt, s1l, s2l, cl):
             return [{"pairType": pt, "concentrationNominal": c if c != 0.0 else None,
-                     "signal1": s1, "signal2": s2,
-                     "signalMean": None, "cvPct": None, "recoveryPct": None, "isOutlier": False}
+                     "signal1": s1, "signal2": s2, "isOutlier": False}
                     for s1, s2, c in zip(s1l, s2l, cl)]
 
         payload = {
