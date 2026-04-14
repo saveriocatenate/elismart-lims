@@ -23,6 +23,10 @@ REST API endpoints exposed by the EliSmart LIMS backend.
 
 - [ER Diagram](database-er-diagram.md) — Mermaid entity-relationship diagram (V1–V14 migrations)
 
+## User Documentation
+
+- [User Guide](user-guide.md) — End-user guide for scientists: workflow, experiment creation, validation, export, AI analysis
+
 ## Conventions
 
 - All responses are JSON
