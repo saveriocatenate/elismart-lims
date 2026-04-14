@@ -53,7 +53,7 @@ public class ReagentBatch extends Auditable {
      * Optional supplier or distributor for this specific batch.
      * May differ from the reagent manufacturer (e.g. a local distributor).
      */
-    @Column(length = 255)
+    @Column()
     private String supplier;
 
     /** Optional free-text notes (storage conditions, QC results, etc.). */

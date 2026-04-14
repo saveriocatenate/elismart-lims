@@ -42,7 +42,6 @@ class ValidationEngineTest {
             new CalibrationPoint(20.0, 41.0)
     );
 
-    private CurveFittingService curveFittingService;
     private ValidationEngine engine;
     private CurveParameters linearParams;
 
@@ -54,7 +53,7 @@ class ValidationEngineTest {
 
     @BeforeEach
     void setUp() {
-        curveFittingService = new CurveFittingService();
+        CurveFittingService curveFittingService = new CurveFittingService();
         engine = new ValidationEngine(curveFittingService);
         linearParams = curveFittingService.fitCurve(CurveType.LINEAR, LINEAR_CAL_POINTS);
 

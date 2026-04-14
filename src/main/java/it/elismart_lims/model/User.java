@@ -38,7 +38,7 @@ public class User extends Auditable {
      * BCrypt-hashed password. Never exposed in response DTOs.
      * The raw plaintext is discarded after hashing at registration time.
      */
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false)
     private String password;
 
     /**

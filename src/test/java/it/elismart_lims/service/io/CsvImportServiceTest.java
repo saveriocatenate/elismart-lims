@@ -5,6 +5,7 @@ import it.elismart_lims.dto.CsvImportConfig;
 import it.elismart_lims.dto.MeasurementPairRequest;
 import it.elismart_lims.dto.WellMapping;
 import it.elismart_lims.model.PairType;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,16 +62,7 @@ class CsvImportServiceTest {
                 "C2,0.700,0.710"    // SAMPLE      conc=null
         );
 
-        Map<String, WellMapping> mapping = Map.of(
-                "A1", new WellMapping(PairType.CALIBRATION, 1.0),
-                "A2", new WellMapping(PairType.CALIBRATION, 2.0),
-                "A3", new WellMapping(PairType.CALIBRATION, 4.0),
-                "B1", new WellMapping(PairType.CONTROL, 3.0),
-                "C1", new WellMapping(PairType.SAMPLE, null),
-                "C2", new WellMapping(PairType.SAMPLE, null)
-        );
-        CsvImportConfig config = new CsvImportConfig(
-                CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, mapping);
+        CsvImportConfig config = getImportConfig();
 
         List<MeasurementPairRequest> result = service.parse(toStream(csv), config);
 
@@ -91,6 +83,20 @@ class CsvImportServiceTest {
         assertThat(sampleRow.concentrationNominal()).isNull();
         assertThat(sampleRow.signal1()).isCloseTo(0.600, within(1e-6));
         assertThat(sampleRow.signal2()).isCloseTo(0.610, within(1e-6));
+    }
+
+    private static @NonNull CsvImportConfig getImportConfig() {
+        Map<String, WellMapping> mapping = Map.of(
+                "A1", new WellMapping(PairType.CALIBRATION, 1.0),
+                "A2", new WellMapping(PairType.CALIBRATION, 2.0),
+                "A3", new WellMapping(PairType.CALIBRATION, 4.0),
+                "B1", new WellMapping(PairType.CONTROL, 3.0),
+                "C1", new WellMapping(PairType.SAMPLE, null),
+                "C2", new WellMapping(PairType.SAMPLE, null)
+        );
+        CsvImportConfig config = new CsvImportConfig(
+                CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, mapping);
+        return config;
     }
 
     /**

@@ -87,7 +87,8 @@ class AuthServiceTest {
         when(authenticationManager.authenticate(any()))
                 .thenThrow(new BadCredentialsException("Bad credentials"));
 
-        assertThatThrownBy(() -> authService.login(new LoginRequest("admin", "wrong")))
+        var login = new LoginRequest("admin", "wrong");
+        assertThatThrownBy(() -> authService.login(login))
                 .isInstanceOf(BadCredentialsException.class);
     }
 
@@ -122,7 +123,7 @@ class AuthServiceTest {
         UserResponse response = authService.register(request);
 
         assertThat(response.username()).isEqualTo("newuser");
-        assertThat(response.role()).isEqualTo("ANALYST");
+        assertThat(response.role()).hasToString("ANALYST");
         verify(passwordEncoder).encode("secret");
         verify(userRepository).save(any(User.class));
     }

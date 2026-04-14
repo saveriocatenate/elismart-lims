@@ -65,12 +65,12 @@ public class MeasurementPairService {
                     + " does not belong to experiment " + experimentId);
         }
 
-        auditIfChanged("MeasurementPair", pair.getId(), "signal1",
+        auditIfChanged(pair.getId(), "signal1",
                 pair.getSignal1(), request.signal1());
-        auditIfChanged("MeasurementPair", pair.getId(), "signal2",
+        auditIfChanged(pair.getId(), "signal2",
                 pair.getSignal2(), request.signal2());
         if (request.concentrationNominal() != null) {
-            auditIfChanged("MeasurementPair", pair.getId(), "concentrationNominal",
+            auditIfChanged(pair.getId(), "concentrationNominal",
                     pair.getConcentrationNominal(), request.concentrationNominal());
         }
 
@@ -110,7 +110,7 @@ public class MeasurementPairService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "MeasurementPair not found with id: " + id));
 
-        auditIfChanged("MeasurementPair", id, "isOutlier", pair.getIsOutlier(), request.isOutlier());
+        auditIfChanged(id, "isOutlier", pair.getIsOutlier(), request.isOutlier());
 
         pair.setIsOutlier(request.isOutlier());
 
@@ -122,15 +122,14 @@ public class MeasurementPairService {
     /**
      * Logs a field change via {@link AuditLogService} only when the old and new values differ.
      *
-     * @param entityType simple class name of the entity
-     * @param id         primary key of the entity row
-     * @param field      Java field name
-     * @param oldVal     value before the change
-     * @param newVal     value after the change
+     * @param id     primary key of the entity row
+     * @param field  Java field name
+     * @param oldVal value before the change
+     * @param newVal value after the change
      */
-    private void auditIfChanged(String entityType, Long id, String field, Object oldVal, Object newVal) {
+    private void auditIfChanged(Long id, String field, Object oldVal, Object newVal) {
         if (!Objects.equals(oldVal, newVal)) {
-            auditLogService.logChange(entityType, id, field,
+            auditLogService.logChange("MeasurementPair", id, field,
                     oldVal != null ? oldVal.toString() : null,
                     newVal != null ? newVal.toString() : null,
                     null);

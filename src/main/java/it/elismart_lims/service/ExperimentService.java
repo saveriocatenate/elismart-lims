@@ -158,9 +158,9 @@ public class ExperimentService {
         var experiment = experimentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Experiment not found with id: " + id));
 
-        auditIfChanged("Experiment", id, "name",       experiment.getName(),   request.name());
-        auditIfChanged("Experiment", id, "date",       experiment.getDate(),   request.date());
-        auditIfChanged("Experiment", id, "status",     experiment.getStatus(), request.status());
+        auditIfChanged(id, "name",       experiment.getName(),   request.name());
+        auditIfChanged(id, "date",       experiment.getDate(),   request.date());
+        auditIfChanged(id, "status",     experiment.getStatus(), request.status());
 
         experiment.setName(request.name());
         experiment.setDate(request.date());
@@ -257,7 +257,7 @@ public class ExperimentService {
         ValidationResult result = validationEngine.evaluate(experiment, protocol, curveParams);
 
         ExperimentStatus newStatus = result.overallStatus();
-        auditIfChanged("Experiment", id, "status", currentStatus, newStatus);
+        auditIfChanged(id, "status", currentStatus, newStatus);
         experiment.setStatus(newStatus);
 
         experiment = experimentRepository.save(experiment);
@@ -268,15 +268,14 @@ public class ExperimentService {
     /**
      * Logs a field change via {@link AuditLogService} only when the old and new values differ.
      *
-     * @param entityType simple class name of the entity
-     * @param id         primary key of the entity row
-     * @param field      Java field name
-     * @param oldVal     value before the change; converted to String via {@link Object#toString()}
-     * @param newVal     value after the change; converted to String via {@link Object#toString()}
+     * @param id     primary key of the entity row
+     * @param field  Java field name
+     * @param oldVal value before the change; converted to String via {@link Object#toString()}
+     * @param newVal value after the change; converted to String via {@link Object#toString()}
      */
-    private void auditIfChanged(String entityType, Long id, String field, Object oldVal, Object newVal) {
+    private void auditIfChanged(Long id, String field, Object oldVal, Object newVal) {
         if (!Objects.equals(oldVal, newVal)) {
-            auditLogService.logChange(entityType, id, field,
+            auditLogService.logChange("Experiment", id, field,
                     oldVal != null ? oldVal.toString() : null,
                     newVal != null ? newVal.toString() : null,
                     null);
