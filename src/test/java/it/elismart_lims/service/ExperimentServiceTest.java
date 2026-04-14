@@ -261,12 +261,14 @@ class ExperimentServiceTest {
     @Test
     void update_shouldUpdateFieldsAndReturnResponse() {
         UsedReagentBatchUpdateRequest batchUpdate = new UsedReagentBatchUpdateRequest(100L, 6L);
+        // Status changes to OK (terminal) — reason is required
         ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
                 "Updated Name",
                 LocalDateTime.of(2026, 5, 1, 9, 0),
                 ExperimentStatus.OK,
                 List.of(batchUpdate),
-                null);
+                null,
+                "Manual approval after re-check");
 
         when(experimentRepository.findById(1L)).thenReturn(Optional.of(experiment));
         when(experimentRepository.save(any(Experiment.class))).thenReturn(experiment);
@@ -289,15 +291,18 @@ class ExperimentServiceTest {
 
     @Test
     void update_shouldThrow_whenExperimentNotFound() {
+        // Reason is null but experiment not found — ResourceNotFoundException fires first
         ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
                 "Name",
                 LocalDateTime.of(2026, 5, 1, 9, 0),
                 ExperimentStatus.OK,
                 List.of(),
+                null,
                 null);
 
         when(experimentRepository.findById(99L)).thenReturn(Optional.empty());
 
+        // ResourceNotFoundException is thrown before reason validation (experiment not found first)
         assertThatThrownBy(() -> experimentService.update(99L, updateRequest))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Experiment not found with id: 99");
@@ -319,11 +324,13 @@ class ExperimentServiceTest {
 
     @Test
     void update_shouldAuditNameChange_whenNameDiffers() {
+        // Status unchanged (COMPLETED → COMPLETED) — no reason required
         ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
                 "New Name",
                 experiment.getDate(),
                 experiment.getStatus(),
                 List.of(),
+                null,
                 null);
 
         when(experimentRepository.findById(1L)).thenReturn(Optional.of(experiment));
@@ -341,6 +348,7 @@ class ExperimentServiceTest {
                 experiment.getDate(),
                 experiment.getStatus(),
                 List.of(),
+                null,
                 null);
 
         when(experimentRepository.findById(1L)).thenReturn(Optional.of(experiment));
@@ -349,6 +357,54 @@ class ExperimentServiceTest {
         experimentService.update(1L, updateRequest);
 
         verify(auditLogService, never()).logChange(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void update_shouldThrow_whenStatusChangesToTerminalWithoutReason() {
+        // Status changes from COMPLETED → OK (terminal) with no reason — must throw
+        ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
+                experiment.getName(),
+                experiment.getDate(),
+                ExperimentStatus.OK,
+                List.of(),
+                null,
+                null);  // reason intentionally absent
+
+        when(experimentRepository.findById(1L)).thenReturn(Optional.of(experiment));
+
+        assertThatThrownBy(() -> experimentService.update(1L, updateRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("reason is required");
+        verify(experimentRepository, never()).save(any());
+    }
+
+    @Test
+    void update_shouldThrow_whenStatusChangesFromTerminalWithoutReason() {
+        // Start from OK, try to change to PENDING without reason — must throw
+        Experiment okExperiment = Experiment.builder()
+                .id(2L)
+                .name("OK Experiment")
+                .date(LocalDateTime.of(2026, 4, 1, 9, 0))
+                .status(ExperimentStatus.OK)
+                .protocol(protocol)
+                .usedReagentBatches(List.of())
+                .measurementPairs(List.of())
+                .build();
+
+        ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
+                okExperiment.getName(),
+                okExperiment.getDate(),
+                ExperimentStatus.PENDING,
+                List.of(),
+                null,
+                "   ");  // blank reason — equivalent to absent
+
+        when(experimentRepository.findById(2L)).thenReturn(Optional.of(okExperiment));
+
+        assertThatThrownBy(() -> experimentService.update(2L, updateRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("reason is required");
+        verify(experimentRepository, never()).save(any());
     }
 
     // -------------------------------------------------------------------------

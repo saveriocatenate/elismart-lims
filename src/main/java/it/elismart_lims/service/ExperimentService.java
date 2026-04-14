@@ -41,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -67,6 +68,13 @@ public class ExperimentService {
     private final ValidationEngine validationEngine;
     private final CsvImportService csvImportService;
     private final ObjectMapper objectMapper;
+
+    /**
+     * Status values that are considered terminal: set by the validation engine and never
+     * overrideable manually without a written justification.
+     */
+    private static final Set<ExperimentStatus> TERMINAL_STATUSES =
+            EnumSet.of(ExperimentStatus.OK, ExperimentStatus.KO);
 
     /**
      * Find an experiment by its ID.
@@ -151,6 +159,8 @@ public class ExperimentService {
      * @param request the update payload
      * @return the updated ExperimentResponse DTO
      * @throws it.elismart_lims.exception.model.ResourceNotFoundException if no experiment exists with the given ID
+     * @throws IllegalArgumentException if the status transition involves a terminal state
+     *         ({@code OK} or {@code KO}) and the {@code reason} field is blank
      */
     @Transactional
     public ExperimentResponse update(Long id, ExperimentUpdateRequest request) {
@@ -158,13 +168,26 @@ public class ExperimentService {
         var experiment = experimentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Experiment not found with id: " + id));
 
-        auditIfChanged(id, "name",       experiment.getName(),   request.name());
-        auditIfChanged(id, "date",       experiment.getDate(),   request.date());
-        auditIfChanged(id, "status",     experiment.getStatus(), request.status());
+        auditIfChanged(id, "name", experiment.getName(), request.name());
+        auditIfChanged(id, "date", experiment.getDate(), request.date());
+
+        // Status changes involving terminal states (OK / KO) require a written reason.
+        ExperimentStatus oldStatus = experiment.getStatus();
+        ExperimentStatus newStatus = request.status();
+        if (!Objects.equals(oldStatus, newStatus)) {
+            if ((TERMINAL_STATUSES.contains(oldStatus) || TERMINAL_STATUSES.contains(newStatus))
+                    && (request.reason() == null || request.reason().isBlank())) {
+                throw new IllegalArgumentException(
+                        "A reason is required when changing experiment status to or from a "
+                        + "terminal state (OK/KO). Provide a non-blank 'reason' field.");
+            }
+            auditLogService.logChange("Experiment", id, "status",
+                    oldStatus.toString(), newStatus.toString(), request.reason());
+        }
 
         experiment.setName(request.name());
         experiment.setDate(request.date());
-        experiment.setStatus(request.status());
+        experiment.setStatus(newStatus);
 
         for (var batchUpdate : request.reagentBatchUpdates()) {
             usedReagentBatchService.updateBatch(batchUpdate, id);

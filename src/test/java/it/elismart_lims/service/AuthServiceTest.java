@@ -123,7 +123,7 @@ class AuthServiceTest {
         UserResponse response = authService.register(request);
 
         assertThat(response.username()).isEqualTo("newuser");
-        assertThat(response.role()).hasToString("ANALYST");
+        assertThat(response.role()).isEqualTo(UserRole.ANALYST);
         verify(passwordEncoder).encode("secret");
         verify(userRepository).save(any(User.class));
     }
