@@ -257,7 +257,7 @@ public class GeminiService {
     private String buildSystemContext(int count, ProtocolResponse protocol) {
         return String.format(
                 "You are a senior Biotech Analyst for EliSmart. " +
-                "Analyze the following %d ELISA experiment(s) run under the \"%s\" protocol.\n" +
+                "Analyze the following %d laboratory assay experiment(s) run under the \"%s\" protocol.\n" +
                 "Protocol Limits: Max %%CV: %.1f%% | Max %%Error: %.1f%%.",
                 count,
                 protocol.name(),

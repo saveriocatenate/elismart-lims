@@ -1,6 +1,7 @@
 package it.elismart_lims.service;
 
 import it.elismart_lims.dto.MeasurementPairUpdateRequest;
+import it.elismart_lims.dto.OutlierUpdateRequest;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.Experiment;
 import it.elismart_lims.model.MeasurementPair;
@@ -21,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -105,6 +108,50 @@ class MeasurementPairServiceTest {
                 new MeasurementPairUpdateRequest(99L, 0.5, 0.5, null), 1L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("MeasurementPair not found");
+    }
+
+    @Test
+    void updateOutlier_shouldAuditWithReason_whenFlagChanges() {
+        var pairWithId = MeasurementPair.builder()
+                .id(20L)
+                .pairType(PairType.CONTROL)
+                .signal1(0.45)
+                .signal2(0.47)
+                .signalMean(0.46)
+                .cvPct(3.04)
+                .isOutlier(false)
+                .build();
+
+        when(measurementPairRepository.findById(20L)).thenReturn(Optional.of(pairWithId));
+        when(measurementPairRepository.save(any())).thenReturn(pairWithId);
+
+        var request = new OutlierUpdateRequest(true, "Instrument drift detected on this well");
+        measurementPairService.updateOutlier(20L, request);
+
+        verify(auditLogService).logChange(
+                eq("MeasurementPair"), eq(20L), eq("isOutlier"),
+                eq("false"), eq("true"),
+                eq("Instrument drift detected on this well"));
+        assertThat(pairWithId.getIsOutlier()).isTrue();
+    }
+
+    @Test
+    void updateOutlier_shouldNotAudit_whenFlagUnchanged() {
+        var pairWithId = MeasurementPair.builder()
+                .id(21L)
+                .pairType(PairType.CONTROL)
+                .signal1(0.45)
+                .signal2(0.47)
+                .isOutlier(true)
+                .build();
+
+        when(measurementPairRepository.findById(21L)).thenReturn(Optional.of(pairWithId));
+        when(measurementPairRepository.save(any())).thenReturn(pairWithId);
+
+        var request = new OutlierUpdateRequest(true, "some reason");
+        measurementPairService.updateOutlier(21L, request);
+
+        verify(auditLogService, never()).logChange(any(), any(), any(), any(), any(), any());
     }
 
     @Test

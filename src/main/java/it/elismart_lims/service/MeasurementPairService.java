@@ -97,10 +97,12 @@ public class MeasurementPairService {
     /**
      * Update the outlier flag of an existing measurement pair.
      *
-     * <p>Produces an {@link it.elismart_lims.model.AuditLog} entry when the flag value changes.</p>
+     * <p>Produces an {@link it.elismart_lims.model.AuditLog} entry when the flag value changes.
+     * The {@code reason} from the request is forwarded to the audit entry, supporting
+     * ALCOA+ traceability for manual outlier overrides (21 CFR Part 11 §11.10(e)).</p>
      *
      * @param id      the measurement pair ID
-     * @param request the outlier update payload
+     * @param request the outlier update payload (isOutlier + optional reason)
      * @return the updated {@link MeasurementPairResponse}
      * @throws ResourceNotFoundException if no pair exists with the given ID
      */
@@ -110,7 +112,12 @@ public class MeasurementPairService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "MeasurementPair not found with id: " + id));
 
-        auditIfChanged(id, "isOutlier", pair.getIsOutlier(), request.isOutlier());
+        if (!Objects.equals(pair.getIsOutlier(), request.isOutlier())) {
+            auditLogService.logChange("MeasurementPair", id, "isOutlier",
+                    pair.getIsOutlier() != null ? pair.getIsOutlier().toString() : null,
+                    request.isOutlier().toString(),
+                    request.reason());
+        }
 
         pair.setIsOutlier(request.isOutlier());
 

@@ -84,6 +84,17 @@ class MeasurementPairMapperTest {
     }
 
     @Test
+    void toEntity_shouldIgnoreClientRecoveryPct() {
+        // Client supplies recoveryPct=98.5; server must always set it to null
+        // (actual value is computed later from calibration curve, not at creation time)
+        var request = new MeasurementPairRequest(PairType.CALIBRATION, 100.0, 0.45, 0.47, 98.5, false);
+
+        var entity = MeasurementPairMapper.toEntity(request);
+
+        assertThat(entity.getRecoveryPct()).isNull();
+    }
+
+    @Test
     void toEntity_shouldComputeSignalMeanServerSide() {
         // signal1=100, signal2=110 → mean = (100+110)/2 = 105.0
         var request = new MeasurementPairRequest(PairType.CALIBRATION, null, 100.0, 110.0, null, false);

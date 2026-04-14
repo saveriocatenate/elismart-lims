@@ -40,16 +40,16 @@ public final class MeasurementPairMapper {
      * @return the built MeasurementPair entity
      */
     public static MeasurementPair toEntity(MeasurementPairRequest request, Experiment experiment) {
-        double s1 = request.signal1() != null ? request.signal1() : 0.0;
-        double s2 = request.signal2() != null ? request.signal2() : 0.0;
+        double s1 = request.signal1();
+        double s2 = request.signal2();
         return MeasurementPair.builder()
                 .pairType(request.pairType())
                 .concentrationNominal(request.concentrationNominal())
-                .signal1(request.signal1())
-                .signal2(request.signal2())
+                .signal1(s1)
+                .signal2(s2)
                 .signalMean(ValidationConstants.calculateSignalMean(s1, s2))  // always server-side
                 .cvPct(ValidationConstants.calculateCvPercent(s1, s2))        // always server-side
-                .recoveryPct(request.recoveryPct())
+                .recoveryPct(null)                                             // always server-side; client-supplied value ignored
                 .experiment(experiment)
                 .isOutlier(request.isOutlier() != null ? request.isOutlier() : false)
                 .build();

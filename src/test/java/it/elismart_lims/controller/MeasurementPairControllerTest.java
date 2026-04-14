@@ -55,7 +55,7 @@ class MeasurementPairControllerTest {
 
         mockMvc.perform(patch("/api/measurement-pairs/1/outlier")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new OutlierUpdateRequest(true))))
+                        .content(objectMapper.writeValueAsString(new OutlierUpdateRequest(true, "Instrument drift"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.isOutlier").value(true));
@@ -68,7 +68,7 @@ class MeasurementPairControllerTest {
 
         mockMvc.perform(patch("/api/measurement-pairs/99/outlier")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new OutlierUpdateRequest(false))))
+                        .content(objectMapper.writeValueAsString(new OutlierUpdateRequest(false, null))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("MeasurementPair not found with id: 99"));
     }
