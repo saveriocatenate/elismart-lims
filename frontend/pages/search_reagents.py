@@ -21,10 +21,10 @@ from utils import check_auth, format_date, get_auth_headers, resolve_backend_url
 check_auth()
 BACKEND_URL = resolve_backend_url()
 
-if st.button("← Back to Dashboard"):
+if st.button("← Torna alla Dashboard"):
     st.switch_page("pages/dashboard.py")
 
-st.title("Search Reagents")
+st.title("Cerca Reagenti")
 show_stored_errors("search_reagents")
 st.markdown("---")
 
@@ -35,12 +35,12 @@ st.markdown("---")
 with st.form("search_reagent_form"):
     col1, col2, col3 = st.columns([3, 3, 1])
     with col1:
-        name_filter = st.text_input("Name contains", placeholder="Leave blank to skip")
+        name_filter = st.text_input("Nome contiene", placeholder="Lascia vuoto per saltare")
     with col2:
-        mfr_filter = st.text_input("Manufacturer contains", placeholder="Leave blank to skip")
+        mfr_filter = st.text_input("Produttore contiene", placeholder="Lascia vuoto per saltare")
     with col3:
-        page_size = st.selectbox("Page size", [10, 20, 50], index=1)
-    submitted = st.form_submit_button("Search", use_container_width=True)
+        page_size = st.selectbox("Risultati per pagina", [10, 20, 50], index=1)
+    submitted = st.form_submit_button("Cerca", use_container_width=True)
 
 st.session_state.setdefault("reagent_page", 0)
 
@@ -87,10 +87,10 @@ cur_page = results.get("number", 0)
 total_pages = results.get("totalPages", 0)
 
 if not content:
-    st.info("No reagents found.")
+    st.info("Nessun reagente trovato.")
     st.stop()
 
-st.caption(f"{total} total — page {cur_page + 1} of {total_pages or 1}")
+st.caption(f"{total} totali — pagina {cur_page + 1} di {total_pages or 1}")
 
 for reagent in content:
     reagent_id = reagent.get("id")
@@ -100,7 +100,7 @@ for reagent in content:
         c2.caption(reagent.get("manufacturer") or "—")
         c3.caption(reagent.get("description") or "")
 
-        with st.expander("🧪 Reagent Batches", expanded=False):
+        with st.expander("🧪 Lotti Reagente", expanded=False):
             _batch_reload_key = f"reload_batches_{reagent_id}"
 
             # Load batches (re-fetch if triggered by a new-lot creation)
@@ -130,9 +130,9 @@ for reagent in content:
                             exp_date = datetime.date.fromisoformat(exp_str)
                             days_left = (exp_date - today).days
                             if days_left < 0:
-                                expiry_label = f"{format_date(exp_str)} ⚠️ EXPIRED"
+                                expiry_label = f"{format_date(exp_str)} ⚠️ SCADUTO"
                             elif days_left <= 30:
-                                expiry_label = f"{format_date(exp_str)} ⏰ {days_left}d left"
+                                expiry_label = f"{format_date(exp_str)} ⏰ {days_left}gg rimanenti"
                             else:
                                 expiry_label = format_date(exp_str)
                         except ValueError:
@@ -141,45 +141,45 @@ for reagent in content:
                         expiry_label = "—"
 
                     rows.append({
-                        "Lot Number": lot,
-                        "Expiry Date": expiry_label,
-                        "Supplier": supplier,
-                        "Notes": notes,
+                        "Numero Lotto": lot,
+                        "Data Scadenza": expiry_label,
+                        "Fornitore": supplier,
+                        "Note": notes,
                     })
 
                 st.dataframe(rows, use_container_width=True, hide_index=True)
             else:
-                st.info("No batches registered yet.")
+                st.info("Nessun lotto registrato.")
 
             # ── Register new batch ───────────────────────────────────────
-            st.markdown("**Register a new batch**")
+            st.markdown("**Registra un nuovo lotto**")
             with st.form(f"new_batch_form_{reagent_id}", clear_on_submit=True):
                 fc1, fc2, fc3 = st.columns([3, 2, 3])
                 new_lot = fc1.text_input(
-                    "Lot Number *", placeholder="e.g. LOT-2026-001",
+                    "Numero Lotto *", placeholder="es. LOT-2026-001",
                     key=f"new_lot_{reagent_id}"
                 )
                 new_expiry = fc2.date_input(
-                    "Expiry Date *", value=None,
+                    "Data Scadenza *", value=None,
                     key=f"new_expiry_{reagent_id}"
                 )
                 new_supplier = fc3.text_input(
-                    "Supplier (optional)", placeholder="e.g. ThermoFisher",
+                    "Fornitore (opzionale)", placeholder="es. ThermoFisher",
                     key=f"new_supplier_{reagent_id}"
                 )
                 new_notes = st.text_input(
-                    "Notes (optional)", placeholder="e.g. Keep at -20°C",
+                    "Note (opzionale)", placeholder="es. Conservare a -20°C",
                     key=f"new_notes_{reagent_id}"
                 )
                 register_btn = st.form_submit_button(
-                    "Register Batch", type="primary", use_container_width=True
+                    "Registra Lotto", type="primary", use_container_width=True
                 )
 
             if register_btn:
                 if not new_lot.strip():
-                    show_persistent_error("Lot Number is required.")
+                    show_persistent_error("Il numero di lotto è obbligatorio.")
                 elif new_expiry is None:
-                    show_persistent_error("Expiry Date is required.")
+                    show_persistent_error("La data di scadenza è obbligatoria.")
                 else:
                     payload = {
                         "reagentId": reagent_id,
@@ -197,7 +197,7 @@ for reagent in content:
                         )
                         if post_r.status_code == 201:
                             st.success(
-                                f"Batch **{new_lot.strip()}** registered for "
+                                f"Lotto **{new_lot.strip()}** registrato per "
                                 f"**{reagent.get('name')}**."
                             )
                             st.rerun()
@@ -215,10 +215,10 @@ if total_pages > 1:
     st.markdown("---")
     nav = st.columns([1, 1])
     with nav[0]:
-        if cur_page > 0 and st.button("← Previous", use_container_width=True):
+        if cur_page > 0 and st.button("← Precedente", use_container_width=True):
             st.session_state["reagent_page"] = cur_page - 1
             st.rerun()
     with nav[1]:
-        if cur_page < total_pages - 1 and st.button("Next →", use_container_width=True):
+        if cur_page < total_pages - 1 and st.button("Successiva →", use_container_width=True):
             st.session_state["reagent_page"] = cur_page + 1
             st.rerun()

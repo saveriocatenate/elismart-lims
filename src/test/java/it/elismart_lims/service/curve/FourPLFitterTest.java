@@ -153,6 +153,56 @@ class FourPLFitterTest {
     }
 
     /**
+     * A signal exactly equal to the top asymptote D makes the inverse formula blow up:
+     * {@code (A − D) / (y − D) − 1 = (A − D) / 0 − 1 = ±Infinity}.
+     * The range guard must fire before any arithmetic is attempted.
+     */
+    @Test
+    @DisplayName("interpolate() throws for signal exactly at upper asymptote D")
+    void interpolate_shouldThrowForSignalAtUpperAsymptote() {
+        CurveParameters params = fitter.fit(REFERENCE_POINTS);
+        double d = params.values().get(FourPLFitter.PARAM_D);
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> fitter.interpolate(d, params))
+                .withMessageContaining("outside the interpolable range");
+    }
+
+    /**
+     * A signal exactly equal to the bottom asymptote A (≈ 0) makes the inverse ratio
+     * zero or negative, which is outside the valid inversion domain.
+     * The range guard must fire before any arithmetic is attempted.
+     */
+    @Test
+    @DisplayName("interpolate() throws for signal exactly at lower asymptote A")
+    void interpolate_shouldThrowForSignalAtLowerAsymptote() {
+        CurveParameters params = fitter.fit(REFERENCE_POINTS);
+        double a = params.values().get(FourPLFitter.PARAM_A);
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> fitter.interpolate(a, params))
+                .withMessageContaining("outside the interpolable range");
+    }
+
+    /**
+     * When one calibration point has {@code concentration = 0}, it must be silently
+     * excluded from the fit (the Jacobian is undefined there). The remaining 6 points
+     * are enough to converge, and the recovered parameters must still be within 5%
+     * of the true values.
+     */
+    @Test
+    @DisplayName("fit() excludes zero-concentration point and still converges")
+    void fit_shouldExcludeZeroConcentrationPoint() {
+        List<CalibrationPoint> withZero = new java.util.ArrayList<>(REFERENCE_POINTS);
+        withZero.add(0, new CalibrationPoint(0.0, 0.0));   // prepend zero-conc point
+
+        CurveParameters params = fitter.fit(withZero);
+
+        assertThat(params.values().get(FourPLFitter.PARAM_A)).isCloseTo(TRUE_A, org.assertj.core.data.Offset.offset(0.05));
+        assertThat(params.values().get(FourPLFitter.PARAM_B)).isCloseTo(TRUE_B, org.assertj.core.data.Percentage.withPercentage(5.0));
+        assertThat(params.values().get(FourPLFitter.PARAM_C)).isCloseTo(TRUE_C, org.assertj.core.data.Percentage.withPercentage(5.0));
+        assertThat(params.values().get(FourPLFitter.PARAM_D)).isCloseTo(TRUE_D, org.assertj.core.data.Percentage.withPercentage(5.0));
+    }
+
+    /**
      * Attempting to fit with fewer than 4 points must throw
      * {@link IllegalArgumentException} immediately.
      */
@@ -179,5 +229,47 @@ class FourPLFitterTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> fitter.fit(null))
                 .withMessageContaining("at least 4");
+    }
+
+    // -------------------------------------------------------------------------
+    // Convergence metadata
+    // -------------------------------------------------------------------------
+
+    /**
+     * A well-behaved 4PL dataset must produce {@link CurveParameters} containing
+     * {@link CurveParameters#META_CONVERGENCE} = 1.0 and a finite, non-negative
+     * {@link CurveParameters#META_RMS} value below the {@link FourPLFitter#RMS_WARN_THRESHOLD}.
+     */
+    @Test
+    @DisplayName("fit() on convergent data returns _convergence=1.0 and a reasonable _rms")
+    void fit_convergentData_shouldReturnConvergenceMetadata() {
+        CurveParameters params = fitter.fit(REFERENCE_POINTS);
+
+        assertThat(params.values()).containsKey(CurveParameters.META_CONVERGENCE);
+        assertThat(params.values()).containsKey(CurveParameters.META_RMS);
+
+        double convergence = params.values().get(CurveParameters.META_CONVERGENCE);
+        double rms        = params.values().get(CurveParameters.META_RMS);
+
+        assertThat(convergence).isEqualTo(1.0);
+        assertThat(rms).isFinite().isNotNegative().isLessThanOrEqualTo(FourPLFitter.RMS_WARN_THRESHOLD);
+    }
+
+    /**
+     * When the LM optimizer is given only 1 evaluation it must fail immediately.
+     * The fitter must catch {@code TooManyEvaluationsException} and rethrow it as
+     * {@link IllegalStateException} with a message that mentions non-convergence.
+     *
+     * <p>The package-private {@code FourPLFitter(int maxEvaluations)} constructor is used
+     * here solely to keep the test fast; in production {@value FourPLFitter#DEFAULT_MAX_EVALUATIONS}
+     * evaluations are allowed.</p>
+     */
+    @Test
+    @DisplayName("fit() throws IllegalStateException when optimizer hits evaluation limit")
+    void fit_evaluationLimitExceeded_shouldThrowIllegalStateException() {
+        FourPLFitter limitedFitter = new FourPLFitter(1); // 1 evaluation → immediate failure
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> limitedFitter.fit(REFERENCE_POINTS))
+                .withMessageContaining("did not converge");
     }
 }

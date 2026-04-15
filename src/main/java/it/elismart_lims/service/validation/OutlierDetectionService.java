@@ -128,6 +128,12 @@ public class OutlierDetectionService {
      * is the candidate. If G exceeds the critical value for the group size at α=0.05,
      * the candidate's ID is returned.</p>
      *
+     * <p>The test is skipped when {@code Math.abs(SD) < 1e-12}: a near-zero SD means all
+     * signals are numerically identical (or differ only in floating-point noise) and no
+     * outlier exists. This threshold is preferred over an exact {@code == 0} check because
+     * FP arithmetic can produce values like {@code 1e-15} for conceptually identical inputs,
+     * which would otherwise yield {@code G = Infinity} and falsely flag every pair.</p>
+     *
      * <p>For group sizes larger than 10, the critical value for n=10 is used as a
      * conservative upper bound.</p>
      *
@@ -143,8 +149,9 @@ public class OutlierDetectionService {
                 .orElse(0.0);
 
         double sd = computeSampleSd(group, mean);
-        if (sd == 0.0) {
-            log.trace("Grubbs test skipped for group '{}': SD=0 (all signals identical)", groupKey);
+        if (Math.abs(sd) < 1e-12) {
+            log.info("Grubbs test skipped for group {}: standard deviation near zero ({})",
+                    groupKey, sd);
             return null;
         }
 

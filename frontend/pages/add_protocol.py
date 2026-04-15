@@ -21,10 +21,10 @@ from utils import check_auth, get_auth_headers, resolve_backend_url, show_stored
 check_auth()
 BACKEND_URL = resolve_backend_url()
 
-if st.button("← Back to Dashboard"):
+if st.button("← Torna alla Dashboard"):
     st.switch_page("pages/dashboard.py")
 
-st.title("New Protocol")
+st.title("Nuovo Protocollo")
 show_stored_errors("add_protocol")
 
 # ── Post-save success state ───────────────────────────────────────────────────
@@ -80,11 +80,11 @@ existing_pairs: set[tuple[str, str]] = {
 # Protocol fields
 # ---------------------------------------------------------------------------
 
-st.subheader("Protocol Details")
-name = st.text_input("Name *", placeholder="e.g. IgG Test Protocol", key="proto_name")
+st.subheader("Dettagli Protocollo")
+name = st.text_input("Nome *", placeholder="e.g. IgG Test Protocol", key="proto_name")
 name_ph = st.empty()
 if not name.strip():
-    name_ph.warning("⚠️ Name è obbligatorio")
+    name_ph.warning("⚠️ Il nome è obbligatorio")
 
 # Curve type options: display label → enum value sent to the API
 _CURVE_TYPE_OPTIONS: dict[str, str] = {
@@ -122,10 +122,10 @@ _CURVE_TYPE_DESCRIPTIONS: dict[str, str] = {
     ),
 }
 curve_label = st.selectbox(
-    "Curve Type",
+    "Tipo di Curva",
     options=list(_CURVE_TYPE_OPTIONS.keys()),
     index=0,
-    help="Mathematical model used to fit the calibration curve.",
+    help="Modello matematico usato per il fit della curva di calibrazione.",
     key="proto_curve",
 )
 curve_type = _CURVE_TYPE_OPTIONS[curve_label]
@@ -133,43 +133,43 @@ st.caption(f"ℹ️ {_CURVE_TYPE_DESCRIPTIONS.get(curve_type, '')}")
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    num_cal = st.number_input("Calibration Pairs", min_value=1, value=5, step=1, key="proto_cal")
+    num_cal = st.number_input("Coppie di Calibrazione", min_value=1, value=5, step=1, key="proto_cal")
 with col2:
-    num_ctrl = st.number_input("Control Pairs", min_value=1, value=3, step=1, key="proto_ctrl")
+    num_ctrl = st.number_input("Coppie di Controllo", min_value=1, value=3, step=1, key="proto_ctrl")
 with col3:
-    max_cv = st.number_input("Max CV (%)", min_value=0.0, step=0.5, value=10.0, format="%.1f", key="proto_cv")
-max_error = st.number_input("Max Error Allowed (%)", min_value=0.0, step=0.5, value=15.0, format="%.1f", key="proto_err")
+    max_cv = st.number_input("%CV Massimo", min_value=0.0, step=0.5, value=10.0, format="%.1f", key="proto_cv")
+max_error = st.number_input("%Errore Massimo Consentito", min_value=0.0, step=0.5, value=15.0, format="%.1f", key="proto_err")
 
 st.markdown("---")
-st.subheader("Reagents")
+st.subheader("Reagenti")
 
 # Section 1: select existing reagents
 if reagent_options:
-    st.markdown("**Select existing reagents from the catalog**")
+    st.markdown("**Seleziona reagenti esistenti dal catalogo**")
     selected_labels = st.multiselect(
-        "Existing reagents",
+        "Reagenti esistenti",
         options=list(reagent_options.values()),
-        help="Select reagents already in the catalog",
+        help="Seleziona i reagenti già presenti nel catalogo",
         label_visibility="collapsed",
         key="proto_existing_reagents",
     )
 else:
-    st.info("No reagents in catalog yet. Use the form below to add new ones.")
+    st.info("Nessun reagente nel catalogo. Usa il modulo sottostante per aggiungerne di nuovi.")
     selected_labels = []
 
 label_to_id = {v: k for k, v in reagent_options.items()}
 selected_reagent_ids = [label_to_id[lbl] for lbl in selected_labels]
 
 # Section 2: add new reagents one row at a time
-st.markdown("**Add new reagents to the catalog**")
-st.caption("Each new reagent will be created in the catalog and linked to this protocol.")
+st.markdown("**Aggiungi nuovi reagenti al catalogo**")
+st.caption("Ogni nuovo reagente verrà creato nel catalogo e collegato a questo protocollo.")
 
 if "reagent_rows" not in st.session_state:
     st.session_state["reagent_rows"] = []
 if "reagent_row_counter" not in st.session_state:
     st.session_state["reagent_row_counter"] = 0
 
-if st.button("➕ Add reagent row", key="add_reagent_row"):
+if st.button("➕ Aggiungi riga reagente", key="add_reagent_row"):
     st.session_state["reagent_row_counter"] += 1
     st.session_state["reagent_rows"].append(st.session_state["reagent_row_counter"])
     st.rerun()
@@ -180,25 +180,25 @@ rows_partial = False
 for row_id in rows:
     c1, c2, c3, c_del = st.columns([2, 2, 3, 0.5])
     with c1:
-        st.text_input(f"Name #{row_id}", key=f"new_r_name_{row_id}", placeholder="e.g. Anti-Human IgA")
+        st.text_input(f"Nome #{row_id}", key=f"new_r_name_{row_id}", placeholder="e.g. Anti-Human IgA")
     with c2:
-        st.text_input(f"Manufacturer #{row_id}", key=f"new_r_mfr_{row_id}", placeholder="e.g. Sigma-Aldrich")
+        st.text_input(f"Produttore #{row_id}", key=f"new_r_mfr_{row_id}", placeholder="e.g. Sigma-Aldrich")
     with c3:
-        st.text_input(f"Description #{row_id} (optional)", key=f"new_r_desc_{row_id}")
+        st.text_input(f"Descrizione #{row_id} (opzionale)", key=f"new_r_desc_{row_id}")
     with c_del:
         st.markdown("&nbsp;", unsafe_allow_html=True)  # vertical alignment spacer
         st.markdown('<div class="delete-btn"></div>', unsafe_allow_html=True)
-        if st.button("✕", key=f"del_row_{row_id}", help="Remove this reagent row"):
+        if st.button("✕", key=f"del_row_{row_id}", help="Rimuovi questa riga"):
             st.session_state["reagent_rows"].remove(row_id)
             st.rerun()
 
     row_nm = st.session_state.get(f"new_r_name_{row_id}", "").strip()
     row_mfr = st.session_state.get(f"new_r_mfr_{row_id}", "").strip()
     if row_nm and not row_mfr:
-        st.warning(f"⚠️ Row #{row_id}: Manufacturer è obbligatorio")
+        st.warning(f"⚠️ Riga #{row_id}: Il produttore è obbligatorio")
         rows_partial = True
     elif row_mfr and not row_nm:
-        st.warning(f"⚠️ Row #{row_id}: Name è obbligatorio")
+        st.warning(f"⚠️ Riga #{row_id}: Il nome è obbligatorio")
         rows_partial = True
 
 st.markdown("---")
@@ -210,7 +210,7 @@ st.markdown("---")
 has_errors = not name.strip() or rows_partial
 
 if st.button(
-    "Create Protocol",
+    "Crea Protocollo",
     type="primary",
     use_container_width=True,
     disabled=has_errors,
@@ -228,8 +228,8 @@ if st.button(
             continue
         if (nm.lower(), mfr.lower()) in existing_pairs:
             st.warning(
-                f"⚠️ A reagent named **{nm}** from **{mfr}** already exists in the catalog. "
-                "Remove this row or use 'Select existing reagents' instead."
+                f"⚠️ Un reagente di nome **{nm}** del produttore **{mfr}** esiste già nel catalogo. "
+                "Rimuovi questa riga oppure usalo dalla sezione 'Seleziona reagenti esistenti'."
             )
             duplicate_found = True
 
@@ -312,7 +312,7 @@ if st.button(
 
             if link_errors:
                 st.warning(
-                    "Protocollo creato ma alcuni collegamenti ai reagenti sono falliti:\n"
+                    "Protocollo creato, ma alcuni collegamenti ai reagenti sono falliti:\n"
                     + "\n".join(link_errors)
                 )
 

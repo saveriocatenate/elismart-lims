@@ -23,7 +23,15 @@ from utils import check_auth, color_code_qc, format_date, get_auth_headers, reso
 check_auth()
 BACKEND_URL = resolve_backend_url()
 
-_STATUS_OPTIONS = ["PENDING", "COMPLETED", "OK", "KO", "VALIDATION_ERROR"]
+# Valid status transitions that the client may request via the update API.
+# OK, KO, VALIDATION_ERROR are engine-only and never exposed to the user.
+_CLIENT_TRANSITIONS: dict[str, list[str]] = {
+    "PENDING":           ["PENDING", "COMPLETED"],
+    "COMPLETED":         ["COMPLETED", "PENDING"],
+    "OK":                ["OK", "PENDING"],
+    "KO":                ["KO", "PENDING"],
+    "VALIDATION_ERROR":  ["VALIDATION_ERROR", "PENDING"],
+}
 
 _CURVE_DISPLAY = {
     "FOUR_PARAMETER_LOGISTIC": "4PL",
@@ -45,17 +53,17 @@ _STATUS_META: dict[str, tuple[str, str]] = {
 
 exp_id = st.session_state.get("selected_exp_id")
 if not exp_id:
-    st.warning("No experiment selected.")
+    st.warning("Nessun esperimento selezionato.")
     st.stop()
 
 
-@st.dialog("Confirm Deletion")
+@st.dialog("Conferma Eliminazione")
 def _confirm_delete(exp_name: str) -> None:
     """Modal dialog that asks the user to confirm experiment deletion."""
-    st.write(f"Delete experiment **{exp_name}**? This action cannot be undone.")
+    st.write(f"Eliminare l'esperimento **{exp_name}**? Questa operazione è irreversibile.")
     col_del, col_close = st.columns(2)
     with col_del:
-        if st.button("Delete", type="primary", use_container_width=True):
+        if st.button("Elimina", type="primary", use_container_width=True):
             try:
                 resp = requests.delete(
                     f"{BACKEND_URL}/api/experiments/{exp_id}",
@@ -72,7 +80,7 @@ def _confirm_delete(exp_name: str) -> None:
             except requests.exceptions.RequestException as e:
                 show_persistent_error(translate_error(str(e)), key="experiment_details")
     with col_close:
-        if st.button("Close", use_container_width=True):
+        if st.button("Chiudi", use_container_width=True):
             st.rerun()
 
 
@@ -139,7 +147,7 @@ _can_validate = _status in ("PENDING", "COMPLETED")
 nav_col, val_col, edit_col, del_col = st.columns([5, 1, 1, 1]) if _can_validate else st.columns([5, 1, 1]) + [None]
 
 with nav_col:
-    if st.button("← Back to Search"):
+    if st.button("← Torna alla Ricerca"):
         st.session_state.pop("selected_exp_id", None)
         st.session_state.pop("exp_edit_mode", None)
         st.switch_page("pages/search_experiments.py")
@@ -167,17 +175,17 @@ if val_col is not None:
 
 with edit_col:
     if not edit_mode:
-        if st.button("✏️ Edit", use_container_width=True):
+        if st.button("✏️ Modifica", use_container_width=True):
             st.session_state["exp_edit_mode"] = True
             st.rerun()
     else:
-        if st.button("Cancel", use_container_width=True):
+        if st.button("Annulla", use_container_width=True):
             st.session_state["exp_edit_mode"] = False
             st.session_state.pop("exp_pending_save", None)
             st.rerun()
 
 with del_col:
-    if st.button("🗑️ Delete", use_container_width=True):
+    if st.button("🗑️ Elimina", use_container_width=True):
         _confirm_delete(data.get("name", str(exp_id)))
 
 # ---------------------------------------------------------------------------
@@ -187,8 +195,8 @@ with del_col:
 pdf_col, xlsx_col, _ = st.columns([1, 1, 5])
 
 with pdf_col:
-    if st.button("📄 Export PDF", use_container_width=True, help="Download Certificate of Analysis"):
-        with st.spinner("Generating PDF…"):
+    if st.button("📄 Esporta PDF", use_container_width=True, help="Scarica il Certificato di Analisi"):
+        with st.spinner("Generazione PDF in corso…"):
             try:
                 r = requests.get(
                     f"{BACKEND_URL}/api/export/experiments/{exp_id}/pdf",
@@ -203,8 +211,8 @@ with pdf_col:
                 show_persistent_error(translate_error(str(e)), key="experiment_details")
 
 with xlsx_col:
-    if st.button("📊 Export Excel", use_container_width=True, help="Download XLSX workbook"):
-        with st.spinner("Generating Excel…"):
+    if st.button("📊 Esporta Excel", use_container_width=True, help="Scarica il file XLSX"):
+        with st.spinner("Generazione Excel in corso…"):
             try:
                 r = requests.get(
                     f"{BACKEND_URL}/api/export/experiments/{exp_id}/xlsx",
@@ -226,7 +234,7 @@ if _pdf_bytes or _xlsx_bytes:
     if _pdf_bytes:
         with dl_pdf_col:
             st.download_button(
-                "⬇️ Download PDF",
+                "⬇️ Scarica PDF",
                 data=_pdf_bytes,
                 file_name=f"CoA_experiment_{exp_id}.pdf",
                 mime="application/pdf",
@@ -235,14 +243,14 @@ if _pdf_bytes or _xlsx_bytes:
     if _xlsx_bytes:
         with dl_xlsx_col:
             st.download_button(
-                "⬇️ Download Excel",
+                "⬇️ Scarica Excel",
                 data=_xlsx_bytes,
                 file_name=f"experiment_{exp_id}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )
 
-st.title("Experiment Details")
+st.title("Dettagli Esperimento")
 show_stored_errors("experiment_details")
 
 # Show persistent success message after a save, with anchor link back to pairs section
@@ -268,7 +276,7 @@ if edit_mode:
         "margin-bottom:1rem;background:#F1F8E9'>"
         "<b style='color:#2E7D32'>✏️ Modalità modifica attiva</b> — "
         "modifica i campi e clicca <b>Salva modifiche</b> per confermare, "
-        "oppure <b>Cancel</b> per annullare.</div>",
+        "oppure <b>Annulla</b> per annullare.</div>",
         unsafe_allow_html=True,
     )
 else:
@@ -276,7 +284,7 @@ else:
         "<div style='border:1px solid #BDBDBD;border-radius:6px;padding:0.5rem 1rem;"
         "margin-bottom:1rem;background:#FAFAFA'>"
         "<span style='color:#757575'>👁️ Modalità visualizzazione</span> — "
-        "clicca <b>✏️ Edit</b> per modificare i dati.</div>",
+        "clicca <b>✏️ Modifica</b> per modificare i dati.</div>",
         unsafe_allow_html=True,
     )
 
@@ -288,23 +296,23 @@ exp_date_str = data.get("date", "")[:10]  # "YYYY-MM-DD" for expiry comparison
 
 if not edit_mode:
     # ── Read-only metadata display ──────────────────────────────────────────
-    st.subheader("Experiment Details")
+    st.subheader("Dettagli Esperimento")
     col_name, col_status = st.columns([3, 1])
-    col_name.metric("Name", data.get("name", "—"))
+    col_name.metric("Nome", data.get("name", "—"))
 
     status_val = data.get("status", "—")
     status_icon, status_desc = _STATUS_META.get(status_val, ("", status_val))
     col_status.metric(
-        "Status",
+        "Stato",
         f"{status_icon} {status_val}",
         help=status_desc,
     )
 
     col_date, col_proto, col_curve = st.columns(3)
-    col_date.metric("Date", format_date(data.get("date")))
-    col_proto.metric("Protocol", data.get("protocolName", "—"))
+    col_date.metric("Data", format_date(data.get("date")))
+    col_proto.metric("Protocollo", data.get("protocolName", "—"))
     curve_raw = data.get("protocolCurveType", "")
-    col_curve.metric("Curve Type", _CURVE_DISPLAY.get(curve_raw, curve_raw or "—"))
+    col_curve.metric("Tipo di Curva", _CURVE_DISPLAY.get(curve_raw, curve_raw or "—"))
 
     # Protocol details expander
     proto_name = data.get("protocolName", "—")
@@ -312,14 +320,14 @@ if not edit_mode:
     proto_max_err = data.get("protocolMaxErrorAllowed")
     with st.expander(f"Dettagli protocollo — {proto_name}"):
         p1, p2, p3, p4 = st.columns(4)
-        p1.metric("Curve Type", _CURVE_DISPLAY.get(curve_raw, curve_raw or "—"))
+        p1.metric("Tipo di Curva", _CURVE_DISPLAY.get(curve_raw, curve_raw or "—"))
         p2.metric("Max %CV", f"{proto_max_cv}%" if proto_max_cv is not None else "—")
-        p3.metric("Max %Error", f"{proto_max_err}%" if proto_max_err is not None else "—")
+        p3.metric("Max %Errore", f"{proto_max_err}%" if proto_max_err is not None else "—")
 
     st.markdown("---")
 
     # ── Read-only reagent batches ────────────────────────────────────────────
-    st.subheader(f"Reagent Batches ({len(batches)} reagent{'s' if len(batches) != 1 else ''})")
+    st.subheader(f"Lotti Reagenti ({len(batches)} reagent{'i' if len(batches) != 1 else 'e'})")
     for b in batches:
         rb = b.get("reagentBatch") or {}
         reagent_name = rb.get("reagentName", "—")
@@ -345,7 +353,7 @@ if not edit_mode:
 
     # ── Read-only measurement pairs ──────────────────────────────────────────
     st.markdown("---")
-    st.subheader(f"Measurement Pairs ({len(pairs)} pair{'s' if len(pairs) != 1 else ''})", anchor="measurement-pairs")
+    st.subheader(f"Coppie di Misura ({len(pairs)} coppi{'e' if len(pairs) != 1 else 'a'})", anchor="measurement-pairs")
 
     if pairs:
         max_cv = data.get("protocolMaxCvAllowed")
@@ -353,7 +361,7 @@ if not edit_mode:
 
         header_cells = "".join(
             f"<th style='padding:6px 10px;text-align:left;border-bottom:2px solid #ccc'>{h}</th>"
-            for h in ["Type", "Conc.", "Signal 1", "Signal 2", "Mean", "%CV", "%Recovery", "Status", "Outlier"]
+            for h in ["Tipo", "Conc.", "Segnale 1", "Segnale 2", "Media", "%CV", "%Recovery", "Stato", "Outlier"]
         )
         rows_html = ""
         for p in pairs:
@@ -400,25 +408,25 @@ if not edit_mode:
             if max_cv is not None:
                 legend_parts.append(f"max %CV: <b>{max_cv}%</b>")
             if max_err is not None:
-                legend_parts.append(f"max %Error: <b>{max_err}%</b>")
-            st.caption("Protocol limits — " + " | ".join(legend_parts))
+                legend_parts.append(f"max %Errore: <b>{max_err}%</b>")
+            st.caption("Limiti protocollo — " + " | ".join(legend_parts))
 
         st.markdown(table_html, unsafe_allow_html=True)
     else:
-        st.info("No measurement pairs.")
+        st.info("Nessuna coppia di misura.")
 
 else:
     # ── Edit mode form ───────────────────────────────────────────────────────
     with st.form("edit_form"):
-        st.subheader("Experiment Details")
+        st.subheader("Dettagli Esperimento")
 
         col_name, col_status = st.columns([3, 1])
         with col_name:
-            edit_name = st.text_input("Name", value=data.get("name", ""))
+            edit_name = st.text_input("Nome", value=data.get("name", ""))
         with col_status:
-            current_status = data.get("status", "OK")
-            status_idx = _STATUS_OPTIONS.index(current_status) if current_status in _STATUS_OPTIONS else 0
-            edit_status = st.selectbox("Status", _STATUS_OPTIONS, index=status_idx)
+            current_status = data.get("status", "PENDING")
+            allowed_options = _CLIENT_TRANSITIONS.get(current_status, [current_status])
+            edit_status = st.selectbox("Stato", allowed_options, index=0)
 
         col_date, col_proto, col_curve = st.columns(3)
         with col_date:
@@ -428,20 +436,20 @@ else:
                     existing_date = datetime.date.fromisoformat(data["date"][:10])
                 except ValueError:
                     pass
-            edit_date = st.date_input("Date", value=existing_date)
+            edit_date = st.date_input("Data", value=existing_date)
 
         with col_proto:
-            st.text_input("Protocol (read-only)", value=data.get("protocolName", "—"), disabled=True)
+            st.text_input("Protocollo (sola lettura)", value=data.get("protocolName", "—"), disabled=True)
 
         with col_curve:
             curve_raw = data.get("protocolCurveType", "")
             curve_label = _CURVE_DISPLAY.get(curve_raw, curve_raw or "—")
-            st.text_input("Curve Type (read-only)", value=curve_label, disabled=True)
+            st.text_input("Tipo di Curva (sola lettura)", value=curve_label, disabled=True)
 
         st.markdown("---")
 
         # Reagent batches — selectable in edit mode
-        st.subheader(f"Reagent Batches ({len(batches)} reagent{'s' if len(batches) != 1 else ''})")
+        st.subheader(f"Lotti Reagenti ({len(batches)} reagent{'i' if len(batches) != 1 else 'e'})")
 
         selected_batch_ids: list[int | None] = []
 
@@ -509,7 +517,7 @@ else:
 
         # Measurement pairs — editable signals
         st.markdown("---")
-        st.subheader(f"Measurement Pairs ({len(pairs)} pair{'s' if len(pairs) != 1 else ''})")
+        st.subheader(f"Coppie di Misura ({len(pairs)} coppi{'e' if len(pairs) != 1 else 'a'})")
 
         pair_s1: list[float] = []
         pair_s2: list[float] = []
@@ -518,7 +526,7 @@ else:
         if pairs:
             header_cols = st.columns([1.5, 1.5, 1.5, 1.5, 1.5, 1])
             for lbl, col in zip(
-                ["Type", "Conc.", "Signal 1", "Signal 2", "Mean*", "%CV*"], header_cols
+                ["Tipo", "Conc.", "Segnale 1", "Segnale 2", "Media*", "%CV*"], header_cols
             ):
                 col.caption(f"**{lbl}**")
 
@@ -558,16 +566,16 @@ else:
                 pair_s2.append(s2)
                 pair_conc.append(conc if conc != 0.0 else p.get("concentrationNominal"))
         else:
-            st.info("No measurement pairs.")
+            st.info("Nessuna coppia di misura.")
 
-        st.caption("* Mean and %CV are recalculated live from Signal 1 and Signal 2.")
+        st.caption("* Media e %CV sono ricalcolati in tempo reale da Segnale 1 e Segnale 2.")
 
         saved = st.form_submit_button("Salva modifiche", type="primary", use_container_width=True)
 
     # ── Stage payload and open confirmation dialog ───────────────────────────
     if saved:
         if not edit_name.strip():
-            show_persistent_error("Name is required.", key="experiment_details")
+            show_persistent_error("Il nome è obbligatorio.", key="experiment_details")
         else:
             reagent_batch_updates = [
                 {
@@ -606,7 +614,7 @@ else:
 # ---------------------------------------------------------------------------
 
 st.markdown("---")
-st.subheader("AI Analysis")
+st.subheader("Analisi AI")
 
 # Load existing insights for this experiment (persisted across sessions)
 try:
@@ -621,32 +629,33 @@ except requests.exceptions.RequestException:
     existing_insights = []
 
 if existing_insights:
-    with st.expander(f"Previous analyses ({len(existing_insights)})", expanded=False):
+    with st.expander(f"Analisi precedenti ({len(existing_insights)})", expanded=False):
         for ins in existing_insights:
             gen_at = format_date(ins.get("generatedAt"))
             gen_by = ins.get("generatedBy", "—")
             st.markdown(f"**{gen_at}** — _{gen_by}_")
             st.caption(f"**Q:** {ins.get('userQuestion', '')}")
-            st.info(ins.get("aiResponse", ""))
+            with st.container(border=True):
+                st.markdown(ins.get("aiResponse", ""))
             st.markdown("---")
 
 # New analysis input — outside a form so the spinner doesn't block the whole page
 ai_question = st.text_area(
-    "Ask the AI Analyst",
+    "Chiedi all'Analista AI",
     placeholder=(
-        "e.g. Why did the control fail? "
-        "Is the %CV within acceptable limits for all calibrators?"
+        "es. Perché il controllo è fallito? "
+        "Il %CV è entro i limiti accettabili per tutti i calibratori?"
     ),
     height=100,
     key="ai_question_input",
 )
 
-if st.button("Analyze with AI", type="primary", key="ai_analyze_btn"):
+if st.button("Analizza con AI", type="primary", key="ai_analyze_btn"):
     question = (ai_question or "").strip()
     if not question:
-        st.warning("Please enter a question before running the analysis.")
+        st.warning("Inserisci una domanda prima di avviare l'analisi.")
     else:
-        with st.spinner("AI is analyzing this experiment…"):
+        with st.spinner("L'AI sta analizzando l'esperimento…"):
             try:
                 ai_resp = requests.post(
                     f"{BACKEND_URL}/api/ai/analyze",
@@ -664,8 +673,9 @@ if st.button("Analyze with AI", type="primary", key="ai_analyze_btn"):
                 show_persistent_error(translate_error(str(e)), key="experiment_details")
 
 if st.session_state.get(f"ai_result_{exp_id}"):
-    st.markdown("**Latest Analysis Result:**")
-    st.success(st.session_state[f"ai_result_{exp_id}"])
+    st.markdown("**Ultimo Risultato Analisi:**")
+    with st.container(border=True):
+        st.markdown(st.session_state[f"ai_result_{exp_id}"])
 
 # ---------------------------------------------------------------------------
 # Audit footer
@@ -673,6 +683,6 @@ if st.session_state.get(f"ai_result_{exp_id}"):
 
 st.markdown("---")
 audit_cols = st.columns(3)
-audit_cols[0].caption(f"Created by: {data.get('createdBy', '—')}")
-audit_cols[1].caption(f"Created at: {format_date(data.get('createdAt'))}")
-audit_cols[2].caption(f"Last updated: {format_date(data.get('updatedAt'))}")
+audit_cols[0].caption(f"Creato da: {data.get('createdBy', '—')}")
+audit_cols[1].caption(f"Creato il: {format_date(data.get('createdAt'))}")
+audit_cols[2].caption(f"Ultimo aggiornamento: {format_date(data.get('updatedAt'))}")

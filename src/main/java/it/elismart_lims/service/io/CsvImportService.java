@@ -15,6 +15,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -47,7 +48,8 @@ public class CsvImportService {
      * @return list of {@link MeasurementPairRequest}s parsed from the file; never {@code null}
      * @throws IOException              if the stream cannot be read
      * @throws IllegalArgumentException if the file is empty, a required column is missing,
-     *                                  or no rows match the well mapping
+     *                                  any mapped row contains a negative signal value, or
+     *                                  no rows match the well mapping
      * @throws UnsupportedOperationException if the requested format is not yet implemented
      */
     public List<MeasurementPairRequest> parse(InputStream csv, CsvImportConfig config)
@@ -81,8 +83,10 @@ public class CsvImportService {
      * @return ordered list of parsed pair requests; at least one element
      * @throws IOException              if the stream cannot be read
      * @throws IllegalArgumentException if the file is empty, a required column is absent,
-     *                                  a signal value cannot be parsed as a number, or no
-     *                                  rows match the well mapping
+     *                                  a signal value cannot be parsed as a number, any mapped
+     *                                  row contains a negative signal value (all errors are
+     *                                  collected before throwing so the caller receives a
+     *                                  complete list), or no rows match the well mapping
      */
     private List<MeasurementPairRequest> parseGeneric(InputStream csv, CsvImportConfig config)
             throws IOException {
@@ -124,6 +128,8 @@ public class CsvImportService {
             }
 
             List<MeasurementPairRequest> result = new ArrayList<>();
+            List<String> validationErrors = new ArrayList<>();
+
             for (CSVRecord record : records) {
                 String wellId = record.get(config.wellColumn());
                 WellMapping mapping = config.wellMapping().get(wellId);
@@ -135,6 +141,24 @@ public class CsvImportService {
                 double s1 = parseSignal(record, config.signal1Column(), wellId);
                 double s2 = parseSignal(record, config.signal2Column(), wellId);
 
+                // ── Negative-signal guard ─────────────────────────────────────
+                // Optical density and plate-reader absorbance values must be ≥ 0.
+                // Collect ALL invalid rows before throwing so the caller sees the
+                // full picture in a single error response.
+                if (s1 < 0) {
+                    validationErrors.add(String.format(Locale.ROOT,
+                            "Row %d: negative signal value (%.6g) is not valid for optical density measurements",
+                            record.getRecordNumber(), s1));
+                }
+                if (s2 < 0) {
+                    validationErrors.add(String.format(Locale.ROOT,
+                            "Row %d: negative signal value (%.6g) is not valid for optical density measurements",
+                            record.getRecordNumber(), s2));
+                }
+                if (s1 < 0 || s2 < 0) {
+                    continue;   // do not add the row, keep scanning for more errors
+                }
+
                 result.add(new MeasurementPairRequest(
                         mapping.pairType(),
                         mapping.concentrationNominal(),
@@ -143,6 +167,14 @@ public class CsvImportService {
                         null,   // recoveryPct — always server-side
                         false   // isOutlier
                 ));
+            }
+
+            // ── Atomic import: reject entirely if any row was invalid ─────────
+            if (!validationErrors.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "CSV import rejected — " + validationErrors.size()
+                        + " row(s) contain invalid signal values:\n"
+                        + String.join("\n", validationErrors));
             }
 
             if (result.isEmpty()) {

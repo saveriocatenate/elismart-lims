@@ -250,6 +250,116 @@ class ValidationEngineTest {
     }
 
     // -------------------------------------------------------------------------
+    // Test 5: CONTROL with concentrationNominal = 0 → recovery skipped, not KO
+    // -------------------------------------------------------------------------
+
+    /**
+     * A CONTROL pair whose {@code concentrationNominal} is exactly 0 (blank well).
+     * The engine must skip %Recovery and must NOT mark the pair KO for that reason.
+     * Expected: {@link ExperimentStatus#OK}, {@code recoveryPass = true},
+     * {@code calculatedRecovery = null}, {@code outOfCalibrationRange = false}.
+     */
+    @Test
+    @DisplayName("CONTROL with concentrationNominal=0 → recovery skipped, pair not KO")
+    void evaluate_zeroNominalConcentration_shouldSkipRecovery() {
+        double signal = 21.0; // arbitrary — engine should not use it for recovery
+        MeasurementPair blankControl = MeasurementPair.builder()
+                .pairType(PairType.CONTROL)
+                .concentrationNominal(0.0)
+                .signal1(signal)
+                .signal2(signal)
+                .signalMean(signal)
+                .cvPct(0.0)
+                .isOutlier(false)
+                .build();
+
+        Experiment experiment = experimentWithPairs(List.of(blankControl));
+        ValidationResult result = engine.evaluate(experiment, lenientProtocol, linearParams);
+
+        assertThat(result.overallStatus()).isEqualTo(ExperimentStatus.OK);
+        assertThat(result.pairResults()).hasSize(1);
+        PairValidationResult pr = result.pairResults().getFirst();
+        assertThat(pr.recoveryPass()).isTrue();
+        assertThat(pr.calculatedRecovery()).isNull();
+        assertThat(pr.outOfCalibrationRange()).isFalse();
+        // Pair entity must have recoveryPct=null, not 0 or Infinity
+        assertThat(blankControl.getRecoveryPct()).isNull();
+    }
+
+    // -------------------------------------------------------------------------
+    // Test 6: CONTROL with concentrationNominal = -5 → recovery skipped, not KO
+    // -------------------------------------------------------------------------
+
+    /**
+     * A CONTROL pair with a negative {@code concentrationNominal} (e.g. an artefact from import).
+     * Same expectation as the zero case: recovery is skipped without penalising the pair.
+     */
+    @Test
+    @DisplayName("CONTROL with concentrationNominal=-5 → recovery skipped, pair not KO")
+    void evaluate_negativeNominalConcentration_shouldSkipRecovery() {
+        double signal = 21.0;
+        MeasurementPair negativeNominalControl = MeasurementPair.builder()
+                .pairType(PairType.CONTROL)
+                .concentrationNominal(-5.0)
+                .signal1(signal)
+                .signal2(signal)
+                .signalMean(signal)
+                .cvPct(0.0)
+                .isOutlier(false)
+                .build();
+
+        Experiment experiment = experimentWithPairs(List.of(negativeNominalControl));
+        ValidationResult result = engine.evaluate(experiment, lenientProtocol, linearParams);
+
+        assertThat(result.overallStatus()).isEqualTo(ExperimentStatus.OK);
+        assertThat(result.pairResults()).hasSize(1);
+        PairValidationResult pr = result.pairResults().getFirst();
+        assertThat(pr.recoveryPass()).isTrue();
+        assertThat(pr.calculatedRecovery()).isNull();
+        assertThat(pr.outOfCalibrationRange()).isFalse();
+        assertThat(negativeNominalControl.getRecoveryPct()).isNull();
+    }
+
+    // -------------------------------------------------------------------------
+    // Test 7: signal outside calibration range → negative interpolation → KO
+    // -------------------------------------------------------------------------
+
+    /**
+     * A CONTROL pair whose signal is so low that the LINEAR curve ({@code y = 2x + 1})
+     * back-interpolates to a negative concentration: for {@code signalMean = 0.5},
+     * {@code x = (0.5 - 1) / 2 = -0.25}.
+     * Expected: {@link ExperimentStatus#KO}, {@code recoveryPass = false},
+     * {@code outOfCalibrationRange = true}, {@code calculatedRecovery = null}.
+     */
+    @Test
+    @DisplayName("signal outside calibration range → negative concentration → pair KO, outOfCalibrationRange=true")
+    void evaluate_signalOutsideCalibrationRange_shouldMarkOutOfRange() {
+        // signalMean = 0.5 → interpolated = (0.5 - 1) / 2 = -0.25 (negative)
+        double signal = 0.5;
+        MeasurementPair outOfRangeControl = MeasurementPair.builder()
+                .pairType(PairType.CONTROL)
+                .concentrationNominal(10.0)
+                .signal1(signal)
+                .signal2(signal)
+                .signalMean(signal)
+                .cvPct(0.0)
+                .isOutlier(false)
+                .build();
+
+        Experiment experiment = experimentWithPairs(List.of(outOfRangeControl));
+        ValidationResult result = engine.evaluate(experiment, lenientProtocol, linearParams);
+
+        assertThat(result.overallStatus()).isEqualTo(ExperimentStatus.KO);
+        assertThat(result.pairResults()).hasSize(1);
+        PairValidationResult pr = result.pairResults().getFirst();
+        assertThat(pr.recoveryPass()).isFalse();
+        assertThat(pr.outOfCalibrationRange()).isTrue();
+        assertThat(pr.calculatedRecovery()).isNull();
+        assertThat(pr.interpolatedConcentration()).isNotNull().isNegative();
+        assertThat(outOfRangeControl.getRecoveryPct()).isNull();
+    }
+
+    // -------------------------------------------------------------------------
     // Test 4: no calibration pairs → IllegalArgumentException
     // -------------------------------------------------------------------------
 

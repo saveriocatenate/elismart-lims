@@ -16,20 +16,20 @@ from utils import check_auth, get_auth_headers, resolve_backend_url, show_persis
 check_auth()
 BACKEND_URL = resolve_backend_url()
 
-if st.button("← Back to Dashboard"):
+if st.button("← Torna alla Dashboard"):
     st.switch_page("pages/dashboard.py")
 
-st.title("Search Protocols")
+st.title("Cerca Protocolli")
 show_stored_errors("search_protocols")
 st.markdown("---")
 
 with st.form("search_protocol_form"):
     col1, col2 = st.columns([4, 1])
     with col1:
-        name_filter = st.text_input("Name contains", placeholder="Leave blank to show all")
+        name_filter = st.text_input("Nome contiene", placeholder="Lascia vuoto per mostrarli tutti")
     with col2:
-        page_size = st.selectbox("Page size", [10, 20, 50], index=1)
-    submitted = st.form_submit_button("Search", use_container_width=True)
+        page_size = st.selectbox("Risultati per pagina", [10, 20, 50], index=1)
+    submitted = st.form_submit_button("Cerca", use_container_width=True)
 
 st.session_state.setdefault("proto_page", 0)
 
@@ -68,21 +68,21 @@ if results is not None:
     total_pages = results.get("totalPages", 0)
 
     if not content:
-        st.info("No protocols found.")
+        st.info("Nessun protocollo trovato.")
     else:
-        st.caption(f"{total} total — page {cur_page + 1} of {total_pages or 1}")
+        st.caption(f"{total} totali — pagina {cur_page + 1} di {total_pages or 1}")
         for proto in content:
             with st.container(border=True):
                 c1, c2, c3, c4, c5 = st.columns([3, 2, 2, 2, 1])
                 c1.markdown(f"**{proto.get('name')}**")
-                c2.caption(f"Calibration pairs: {proto.get('numCalibrationPairs')}")
-                c3.caption(f"Control pairs: {proto.get('numControlPairs')}")
+                c2.caption(f"Coppie calibrazione: {proto.get('numCalibrationPairs')}")
+                c3.caption(f"Coppie controllo: {proto.get('numControlPairs')}")
                 c4.caption(
                     f"Max %CV: {proto.get('maxCvAllowed')}  |  "
                     f"Max %Err: {proto.get('maxErrorAllowed')}"
                 )
                 proto_id = proto.get("id")
-                if c5.button("Details", key=f"proto_detail_{proto_id}", use_container_width=True):
+                if c5.button("Dettagli", key=f"proto_detail_{proto_id}", use_container_width=True):
                     st.session_state["selected_protocol_id"] = proto_id
                     st.session_state.pop("protocol_edit_mode", None)
                     st.switch_page("pages/protocol_details.py")
@@ -91,10 +91,10 @@ if results is not None:
             st.markdown("---")
             nav = st.columns([1, 1])
             with nav[0]:
-                if cur_page > 0 and st.button("← Previous", use_container_width=True):
+                if cur_page > 0 and st.button("← Precedente", use_container_width=True):
                     st.session_state["proto_page"] = cur_page - 1
                     st.rerun()
             with nav[1]:
-                if cur_page < total_pages - 1 and st.button("Next →", use_container_width=True):
+                if cur_page < total_pages - 1 and st.button("Successiva →", use_container_width=True):
                     st.session_state["proto_page"] = cur_page + 1
                     st.rerun()

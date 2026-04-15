@@ -1,5 +1,6 @@
 package it.elismart_lims.service.curve;
 
+import org.apache.commons.math3.exception.TooManyEvaluationsException;
 import org.apache.commons.math3.fitting.leastsquares.LeastSquaresBuilder;
 import org.apache.commons.math3.fitting.leastsquares.LeastSquaresOptimizer;
 import org.apache.commons.math3.fitting.leastsquares.LeastSquaresProblem;
@@ -9,6 +10,10 @@ import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.ArrayRealVector;
 import org.apache.commons.math3.util.Pair;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,14 +42,39 @@ import java.util.Map;
  */
 public class LogLogistic3PFitter implements CurveFitter {
 
+    private static final Logger log = LoggerFactory.getLogger(LogLogistic3PFitter.class);
+
     /** Minimum number of calibration points required to fit 3 free parameters. */
     private static final int MIN_POINTS = 3;
 
-    /** Maximum optimizer evaluations. */
-    private static final int MAX_EVALUATIONS = 10_000;
+    /** Default maximum optimizer evaluations. */
+    private static final int DEFAULT_MAX_EVALUATIONS = 10_000;
 
     /** Maximum optimizer iterations. */
     private static final int MAX_ITERATIONS = 10_000;
+
+    /**
+     * RMS residual threshold above which a warning is logged even if the optimizer converged.
+     * A high RMS indicates the calibration data may not be well described by the 3PL model.
+     */
+    public static final double RMS_WARN_THRESHOLD = 0.1;
+
+    /** Effective evaluation limit — overridable via the package-private constructor for testing. */
+    private final int maxEvaluations;
+
+    /** Creates a {@code LogLogistic3PFitter} with the default evaluation limit. */
+    public LogLogistic3PFitter() {
+        this.maxEvaluations = DEFAULT_MAX_EVALUATIONS;
+    }
+
+    /**
+     * Package-private constructor for testing with a reduced evaluation limit.
+     *
+     * @param maxEvaluations maximum LM evaluations before the optimizer gives up
+     */
+    LogLogistic3PFitter(int maxEvaluations) {
+        this.maxEvaluations = maxEvaluations;
+    }
 
     /** Map key for the slope parameter B. */
     public static final String PARAM_B = "B";
@@ -68,8 +98,28 @@ public class LogLogistic3PFitter implements CurveFitter {
                     + " calibration points, got: " + (points == null ? 0 : points.size()));
         }
 
-        double[] xData = points.stream().mapToDouble(CalibrationPoint::concentration).toArray();
-        double[] yData = points.stream().mapToDouble(CalibrationPoint::signal).toArray();
+        // Exclude zero-concentration points: ln(0/C) is -Infinity in the Jacobian,
+        // which would corrupt the LM optimisation. Log a warning for each one skipped.
+        List<CalibrationPoint> validPoints = points.stream()
+                .filter(p -> {
+                    if (p.concentration() <= 0.0) {
+                        log.warn("3PL fitting: skipping calibration point with concentration {} "
+                                + "(<= 0); ln(0/C) is undefined in the Jacobian.", p.concentration());
+                        return false;
+                    }
+                    return true;
+                })
+                .toList();
+
+        if (validPoints.size() < MIN_POINTS) {
+            throw new IllegalArgumentException(
+                    "3PL curve fitting requires at least " + MIN_POINTS
+                    + " calibration points with concentration > 0 after excluding zero-concentration "
+                    + "points; got " + validPoints.size() + " valid points.");
+        }
+
+        double[] xData = validPoints.stream().mapToDouble(CalibrationPoint::concentration).toArray();
+        double[] yData = validPoints.stream().mapToDouble(CalibrationPoint::signal).toArray();
 
         double[] initialGuess = buildInitialGuess(xData, yData);
 
@@ -110,18 +160,34 @@ public class LogLogistic3PFitter implements CurveFitter {
                 .model(model)
                 .target(yData)
                 .lazyEvaluation(false)
-                .maxEvaluations(MAX_EVALUATIONS)
+                .maxEvaluations(maxEvaluations)
                 .maxIterations(MAX_ITERATIONS)
                 .build();
 
-        LeastSquaresOptimizer.Optimum optimum = new LevenbergMarquardtOptimizer().optimize(problem);
+        LeastSquaresOptimizer.Optimum optimum;
+        try {
+            optimum = new LevenbergMarquardtOptimizer().optimize(problem);
+        } catch (TooManyEvaluationsException e) {
+            throw new IllegalStateException(
+                    "Curve fitting did not converge after " + maxEvaluations
+                    + " evaluations. The calibration data may not fit a 3PL model.", e);
+        }
+
+        double rms = optimum.getRMS();
+        if (rms > RMS_WARN_THRESHOLD) {
+            log.warn("3PL fit converged but RMS={} exceeds threshold {}. "
+                    + "Calibration data may not be well described by the 3PL model.", rms, RMS_WARN_THRESHOLD);
+        }
+
         double[] fitted = optimum.getPoint().toArray();
 
-        return new CurveParameters(Map.of(
-                PARAM_B, fitted[0],
-                PARAM_C, fitted[1],
-                PARAM_D, fitted[2]
-        ));
+        Map<String, Double> resultParams = new HashMap<>();
+        resultParams.put(PARAM_B, fitted[0]);
+        resultParams.put(PARAM_C, fitted[1]);
+        resultParams.put(PARAM_D, fitted[2]);
+        resultParams.put(CurveParameters.META_CONVERGENCE, 1.0);
+        resultParams.put(CurveParameters.META_RMS, rms);
+        return new CurveParameters(resultParams);
     }
 
     /**
@@ -144,7 +210,15 @@ public class LogLogistic3PFitter implements CurveFitter {
                     signal, d));
         }
 
-        return c * Math.pow(signal / (d - signal), 1.0 / b);
+        double result = c * Math.pow(signal / (d - signal), 1.0 / b);
+        if (Double.isNaN(result) || Double.isInfinite(result)) {
+            throw new IllegalArgumentException(String.format(
+                    "Back-calculation produced invalid result (NaN/Infinity) for signal %.6f "
+                    + "(D=%.6f, B=%.6f, C=%.6f). "
+                    + "The signal may be outside the curve's valid range.",
+                    signal, d, b, c));
+        }
+        return result;
     }
 
     /**

@@ -261,6 +261,54 @@ class OutlierDetectionServiceTest {
     }
 
     // -------------------------------------------------------------------------
+    // Grubbs SD near-zero guard (floating-point degenerate case)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Four CALIBRATION pairs whose {@code signalMean} values differ by at most {@code 1e-16}
+     * (sub-epsilon floating-point noise). The computed sample SD will be on the order of
+     * {@code 1e-16}, which is well below the {@code 1e-12} threshold. No pair must be flagged.
+     *
+     * <p>Without the near-zero guard the G statistic would be {@code Infinity}, which is
+     * always &gt; any critical value and would incorrectly flag a pair as an outlier.</p>
+     */
+    @Test
+    @DisplayName("Grubbs test skipped when all signalMeans differ by 1e-16 (near-zero SD)")
+    void detectOutliers_grubbsNearZeroSd_noOutlierFlagged() {
+        double base = 10.0;
+        MeasurementPair p1 = calibPair(60L, 5.0, base);
+        MeasurementPair p2 = calibPair(61L, 5.0, base + 1e-16);
+        MeasurementPair p3 = calibPair(62L, 5.0, base + 2e-16);
+        MeasurementPair p4 = calibPair(63L, 5.0, base + 3e-16);
+
+        List<Long> outliers = service.detectOutliers(List.of(p1, p2, p3, p4), protocol);
+
+        assertThat(outliers).isEmpty();
+    }
+
+    /**
+     * Four CALIBRATION pairs where one {@code signalMean} is clearly separated from the
+     * other three. The SD is well above {@code 1e-12} so the guard does not fire, and the
+     * Grubbs test correctly identifies the outlying pair.
+     *
+     * <p>Dataset: signals 10, 10, 10, 100 at nominal=5.
+     * mean=32.5, SD≈45, G(100)≈1.50 &gt; G_crit(n=4)=1.481.</p>
+     */
+    @Test
+    @DisplayName("Grubbs test correctly flags outlier when SD is well above near-zero threshold")
+    void detectOutliers_grubbsClearOutlier_isFlagged() {
+        MeasurementPair p1 = calibPair(70L, 5.0, 10.0);
+        MeasurementPair p2 = calibPair(71L, 5.0, 10.0);
+        MeasurementPair p3 = calibPair(72L, 5.0, 10.0);
+        MeasurementPair p4 = calibPair(73L, 5.0, 100.0); // outlier
+
+        List<Long> outliers = service.detectOutliers(List.of(p1, p2, p3, p4), protocol);
+
+        assertThat(outliers).contains(73L);
+        assertThat(outliers).doesNotContain(70L, 71L, 72L);
+    }
+
+    // -------------------------------------------------------------------------
     // Helper
     // -------------------------------------------------------------------------
 

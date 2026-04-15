@@ -41,8 +41,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -70,11 +72,39 @@ public class ExperimentService {
     private final ObjectMapper objectMapper;
 
     /**
-     * Status values that are considered terminal: set by the validation engine and never
-     * overrideable manually without a written justification.
+     * Statuses that can only be written by the internal validation engine.
+     * Any attempt to set these via the client-facing update API is rejected with 400.
+     */
+    private static final Set<ExperimentStatus> ENGINE_ONLY_STATUSES =
+            EnumSet.of(ExperimentStatus.OK, ExperimentStatus.KO, ExperimentStatus.VALIDATION_ERROR);
+
+    /**
+     * Status values that are considered terminal validated results.
+     * Moving away from these states requires a written justification.
      */
     private static final Set<ExperimentStatus> TERMINAL_STATUSES =
             EnumSet.of(ExperimentStatus.OK, ExperimentStatus.KO);
+
+    /**
+     * Valid status transitions that a client may request via the update API.
+     * Transitions that result in {@link #ENGINE_ONLY_STATUSES} are excluded —
+     * those can only be set internally by the validation engine.
+     */
+    private static final Map<ExperimentStatus, Set<ExperimentStatus>> VALID_CLIENT_TRANSITIONS;
+
+    static {
+        VALID_CLIENT_TRANSITIONS = new EnumMap<>(ExperimentStatus.class);
+        VALID_CLIENT_TRANSITIONS.put(ExperimentStatus.PENDING,
+                EnumSet.of(ExperimentStatus.PENDING, ExperimentStatus.COMPLETED));
+        VALID_CLIENT_TRANSITIONS.put(ExperimentStatus.COMPLETED,
+                EnumSet.of(ExperimentStatus.PENDING));
+        VALID_CLIENT_TRANSITIONS.put(ExperimentStatus.OK,
+                EnumSet.of(ExperimentStatus.PENDING));
+        VALID_CLIENT_TRANSITIONS.put(ExperimentStatus.KO,
+                EnumSet.of(ExperimentStatus.PENDING));
+        VALID_CLIENT_TRANSITIONS.put(ExperimentStatus.VALIDATION_ERROR,
+                EnumSet.of(ExperimentStatus.PENDING));
+    }
 
     /**
      * Find an experiment by its ID.
@@ -98,6 +128,13 @@ public class ExperimentService {
     @Transactional
     public ExperimentResponse create(ExperimentRequest request) {
         log.info("Creating experiment '{}' for protocol id: {}", request.name(), request.protocolId());
+
+        if (request.status() != ExperimentStatus.PENDING) {
+            throw new IllegalArgumentException(
+                    "ERR_INVALID_CREATION_STATUS: experiments must be created with status PENDING. "
+                    + "Requested: " + request.status());
+        }
+
         var protocol = protocolService.getEntityById(request.protocolId());
 
         validateReagentBatches(request.usedReagentBatches(), protocol.getId());
@@ -171,15 +208,35 @@ public class ExperimentService {
         auditIfChanged(id, "name", experiment.getName(), request.name());
         auditIfChanged(id, "date", experiment.getDate(), request.date());
 
-        // Status changes involving terminal states (OK / KO) require a written reason.
+        // Status transition validation.
         ExperimentStatus oldStatus = experiment.getStatus();
         ExperimentStatus newStatus = request.status();
+
+        // Transition validation is only relevant when the status is actually changing.
         if (!Objects.equals(oldStatus, newStatus)) {
-            if ((TERMINAL_STATUSES.contains(oldStatus) || TERMINAL_STATUSES.contains(newStatus))
+            // The client may never directly set engine-only statuses (OK, KO, VALIDATION_ERROR).
+            if (ENGINE_ONLY_STATUSES.contains(newStatus)) {
+                throw new IllegalArgumentException(
+                        "ERR_INVALID_STATUS_TRANSITION: status " + newStatus
+                        + " can only be set by the validation engine. "
+                        + "Use POST /experiments/{id}/validate to trigger validation.");
+            }
+
+            // Enforce the state machine: only transitions listed in VALID_CLIENT_TRANSITIONS are allowed.
+            Set<ExperimentStatus> allowed = VALID_CLIENT_TRANSITIONS.getOrDefault(oldStatus, Set.of());
+            if (!allowed.contains(newStatus)) {
+                throw new IllegalArgumentException(
+                        "ERR_INVALID_STATUS_TRANSITION: cannot transition experiment from "
+                        + oldStatus + " to " + newStatus + ". "
+                        + "Allowed targets from " + oldStatus + ": " + allowed);
+            }
+
+            // Moving away from a terminal validated state (OK/KO) requires a written reason.
+            if (TERMINAL_STATUSES.contains(oldStatus)
                     && (request.reason() == null || request.reason().isBlank())) {
                 throw new IllegalArgumentException(
-                        "A reason is required when changing experiment status to or from a "
-                        + "terminal state (OK/KO). Provide a non-blank 'reason' field.");
+                        "ERR_REASON_REQUIRED: a reason is required when resetting a validated "
+                        + "experiment (OK/KO) back to PENDING. Provide a non-blank 'reason' field.");
             }
             auditLogService.logChange("Experiment", id, "status",
                     oldStatus.toString(), newStatus.toString(), request.reason());
@@ -254,7 +311,32 @@ public class ExperimentService {
                     "Experiment id=" + id + " has no CALIBRATION pairs. Cannot fit calibration curve.");
         }
 
-        CurveParameters curveParams = curveFittingService.fitCurve(protocol.getCurveType(), calibrationPoints);
+        CurveParameters curveParams;
+        try {
+            curveParams = curveFittingService.fitCurve(protocol.getCurveType(), calibrationPoints);
+        } catch (IllegalStateException e) {
+            // Non-linear fitter hit evaluation limit — curve did not converge.
+            log.warn("Curve fitting failed for experiment id={}: {}", id, e.getMessage());
+            auditIfChanged(id, "status", currentStatus, ExperimentStatus.VALIDATION_ERROR);
+            experiment.setStatus(ExperimentStatus.VALIDATION_ERROR);
+            experiment = experimentRepository.save(experiment);
+            log.info("Experiment id={} → status=VALIDATION_ERROR (curve fitting non-convergence)", id);
+            return ExperimentMapper.toResponse(experiment);
+        }
+
+        // Defensive guard: non-linear fitters include _convergence=1.0 on success.
+        // _convergence=0.0 should never appear here (the fitter throws instead), but
+        // if it ever does (e.g. future fitter variant), short-circuit to VALIDATION_ERROR.
+        double convergenceFlag = curveParams.values()
+                .getOrDefault(CurveParameters.META_CONVERGENCE, 1.0);
+        if (convergenceFlag == 0.0) {
+            log.warn("Experiment id={} — curve parameters carry _convergence=0, "
+                    + "skipping validation and setting VALIDATION_ERROR", id);
+            auditIfChanged(id, "status", currentStatus, ExperimentStatus.VALIDATION_ERROR);
+            experiment.setStatus(ExperimentStatus.VALIDATION_ERROR);
+            experiment = experimentRepository.save(experiment);
+            return ExperimentMapper.toResponse(experiment);
+        }
 
         try {
             experiment.setCurveParameters(objectMapper.writeValueAsString(curveParams));

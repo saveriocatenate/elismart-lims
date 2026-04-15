@@ -159,7 +159,7 @@ class ExperimentServiceTest {
                 "Test Experiment",
                 LocalDateTime.of(2026, 4, 5, 10, 0),
                 10L,
-                ExperimentStatus.COMPLETED,
+                ExperimentStatus.PENDING,
                 List.of(batchRequest),
                 List.of(pairRequest));
     }
@@ -261,14 +261,14 @@ class ExperimentServiceTest {
     @Test
     void update_shouldUpdateFieldsAndReturnResponse() {
         UsedReagentBatchUpdateRequest batchUpdate = new UsedReagentBatchUpdateRequest(100L, 6L);
-        // Status changes to OK (terminal) — reason is required
+        // Status changes from COMPLETED → PENDING (valid client transition, no reason required)
         ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
                 "Updated Name",
                 LocalDateTime.of(2026, 5, 1, 9, 0),
-                ExperimentStatus.OK,
+                ExperimentStatus.PENDING,
                 List.of(batchUpdate),
                 null,
-                "Manual approval after re-check");
+                null);
 
         when(experimentRepository.findById(1L)).thenReturn(Optional.of(experiment));
         when(experimentRepository.save(any(Experiment.class))).thenReturn(experiment);
@@ -291,18 +291,16 @@ class ExperimentServiceTest {
 
     @Test
     void update_shouldThrow_whenExperimentNotFound() {
-        // Reason is null but experiment not found — ResourceNotFoundException fires first
         ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
                 "Name",
                 LocalDateTime.of(2026, 5, 1, 9, 0),
-                ExperimentStatus.OK,
+                ExperimentStatus.PENDING,
                 List.of(),
                 null,
                 null);
 
         when(experimentRepository.findById(99L)).thenReturn(Optional.empty());
 
-        // ResourceNotFoundException is thrown before reason validation (experiment not found first)
         assertThatThrownBy(() -> experimentService.update(99L, updateRequest))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Experiment not found with id: 99");
@@ -360,21 +358,22 @@ class ExperimentServiceTest {
     }
 
     @Test
-    void update_shouldThrow_whenStatusChangesToTerminalWithoutReason() {
-        // Status changes from COMPLETED → OK (terminal) with no reason — must throw
+    void update_shouldThrow_whenClientTriesToSetEngineOnlyStatus() {
+        // COMPLETED → OK is forbidden for client requests — only the validation engine may set OK
         ExperimentUpdateRequest updateRequest = new ExperimentUpdateRequest(
                 experiment.getName(),
                 experiment.getDate(),
                 ExperimentStatus.OK,
                 List.of(),
                 null,
-                null);  // reason intentionally absent
+                null);
 
         when(experimentRepository.findById(1L)).thenReturn(Optional.of(experiment));
 
         assertThatThrownBy(() -> experimentService.update(1L, updateRequest))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("reason is required");
+                .hasMessageContaining("ERR_INVALID_STATUS_TRANSITION")
+                .hasMessageContaining("validation engine");
         verify(experimentRepository, never()).save(any());
     }
 
@@ -403,7 +402,121 @@ class ExperimentServiceTest {
 
         assertThatThrownBy(() -> experimentService.update(2L, updateRequest))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("reason is required");
+                .hasMessageContaining("ERR_REASON_REQUIRED");
+        verify(experimentRepository, never()).save(any());
+    }
+
+    // -------------------------------------------------------------------------
+    // State-machine transition tests
+    // -------------------------------------------------------------------------
+
+    /**
+     * PENDING → COMPLETED is a valid client transition.
+     */
+    @Test
+    void update_pendingToCompleted_shouldSucceed() {
+        Experiment pendingExp = Experiment.builder()
+                .id(3L).name("Pending Exp")
+                .date(LocalDateTime.of(2026, 4, 10, 8, 0))
+                .status(ExperimentStatus.PENDING)
+                .protocol(protocol)
+                .usedReagentBatches(List.of())
+                .measurementPairs(List.of())
+                .build();
+
+        ExperimentUpdateRequest req = new ExperimentUpdateRequest(
+                pendingExp.getName(), pendingExp.getDate(),
+                ExperimentStatus.COMPLETED, List.of(), null, null);
+
+        when(experimentRepository.findById(3L)).thenReturn(Optional.of(pendingExp));
+        when(experimentRepository.save(any(Experiment.class))).thenReturn(pendingExp);
+
+        ExperimentResponse result = experimentService.update(3L, req);
+
+        assertThat(result).isNotNull();
+        verify(experimentRepository).save(any(Experiment.class));
+    }
+
+    /**
+     * PENDING → OK via the update API must be rejected — OK is engine-only.
+     */
+    @Test
+    void update_pendingToOk_shouldBeRejectedWithEngineOnlyError() {
+        Experiment pendingExp = Experiment.builder()
+                .id(3L).name("Pending Exp")
+                .date(LocalDateTime.of(2026, 4, 10, 8, 0))
+                .status(ExperimentStatus.PENDING)
+                .protocol(protocol)
+                .usedReagentBatches(List.of())
+                .measurementPairs(List.of())
+                .build();
+
+        ExperimentUpdateRequest req = new ExperimentUpdateRequest(
+                pendingExp.getName(), pendingExp.getDate(),
+                ExperimentStatus.OK, List.of(), null, "some reason");
+
+        when(experimentRepository.findById(3L)).thenReturn(Optional.of(pendingExp));
+
+        assertThatThrownBy(() -> experimentService.update(3L, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ERR_INVALID_STATUS_TRANSITION")
+                .hasMessageContaining("validation engine");
+        verify(experimentRepository, never()).save(any());
+    }
+
+    /**
+     * OK → PENDING is a valid client transition (re-analysis) when a reason is provided.
+     */
+    @Test
+    void update_okToPending_withReason_shouldSucceed() {
+        Experiment okExp = Experiment.builder()
+                .id(4L).name("OK Exp")
+                .date(LocalDateTime.of(2026, 4, 10, 8, 0))
+                .status(ExperimentStatus.OK)
+                .protocol(protocol)
+                .usedReagentBatches(List.of())
+                .measurementPairs(List.of())
+                .build();
+
+        ExperimentUpdateRequest req = new ExperimentUpdateRequest(
+                okExp.getName(), okExp.getDate(),
+                ExperimentStatus.PENDING, List.of(), null, "Re-analysis requested by reviewer");
+
+        when(experimentRepository.findById(4L)).thenReturn(Optional.of(okExp));
+        when(experimentRepository.save(any(Experiment.class))).thenReturn(okExp);
+
+        ExperimentResponse result = experimentService.update(4L, req);
+
+        assertThat(result).isNotNull();
+        verify(auditLogService).logChange(eq("Experiment"), eq(4L), eq("status"),
+                eq("OK"), eq("PENDING"), eq("Re-analysis requested by reviewer"));
+        verify(experimentRepository).save(any(Experiment.class));
+    }
+
+    /**
+     * KO → OK via the update API must be rejected — OK is engine-only regardless of source.
+     */
+    @Test
+    void update_koToOk_shouldBeRejectedWithEngineOnlyError() {
+        Experiment koExp = Experiment.builder()
+                .id(5L).name("KO Exp")
+                .date(LocalDateTime.of(2026, 4, 10, 8, 0))
+                .status(ExperimentStatus.KO)
+                .protocol(protocol)
+                .usedReagentBatches(List.of())
+                .measurementPairs(List.of())
+                .build();
+
+        ExperimentUpdateRequest req = new ExperimentUpdateRequest(
+                koExp.getName(), koExp.getDate(),
+                ExperimentStatus.OK, List.of(), null, "Override approved");
+
+        when(experimentRepository.findById(5L)).thenReturn(Optional.of(koExp));
+
+        assertThatThrownBy(() -> experimentService.update(5L, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ERR_INVALID_STATUS_TRANSITION")
+                .hasMessageContaining("validation engine");
         verify(experimentRepository, never()).save(any());
     }
 

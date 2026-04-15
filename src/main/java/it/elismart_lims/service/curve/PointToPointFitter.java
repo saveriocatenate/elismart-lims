@@ -109,7 +109,14 @@ public class PointToPointFitter implements CurveFitter {
                     // Flat segment — return midpoint concentration
                     return (xs[i] + xs[i + 1]) / 2.0;
                 }
-                return xs[i] + (signal - ys[i]) * (xs[i + 1] - xs[i]) / dy;
+                double result = xs[i] + (signal - ys[i]) * (xs[i + 1] - xs[i]) / dy;
+                if (Double.isNaN(result) || Double.isInfinite(result)) {
+                    throw new IllegalArgumentException(String.format(
+                            "Back-calculation produced invalid result (NaN/Infinity) for signal %.6f "
+                            + "in segment [x=%.6f, y=%.6f] → [x=%.6f, y=%.6f].",
+                            signal, xs[i], ys[i], xs[i + 1], ys[i + 1]));
+                }
+                return result;
             }
         }
 

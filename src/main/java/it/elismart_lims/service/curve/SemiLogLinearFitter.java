@@ -84,6 +84,14 @@ public class SemiLogLinearFitter implements CurveFitter {
                     "Cannot back-calculate concentration: slope m ≈ 0, the model is degenerate.");
         }
 
-        return Math.exp((signal - q) / m);
+        double result = Math.exp((signal - q) / m);
+        if (Double.isNaN(result) || Double.isInfinite(result)) {
+            throw new IllegalArgumentException(String.format(
+                    "Back-calculation produced invalid result (NaN/Infinity) for signal %.6f "
+                    + "(m=%.6e, q=%.6f). "
+                    + "The signal may be far outside the calibrated range.",
+                    signal, m, q));
+        }
+        return result;
     }
 }

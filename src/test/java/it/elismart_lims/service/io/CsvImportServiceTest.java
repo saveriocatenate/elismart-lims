@@ -232,6 +232,94 @@ class CsvImportServiceTest {
     }
 
     /**
+     * A CSV where one row has a negative {@code signal1} must be rejected entirely.
+     * The exception message must identify the row number and the offending value.
+     * Rows that were valid must NOT be imported (atomic operation).
+     */
+    @Test
+    @DisplayName("CSV with negative signal1 throws IllegalArgumentException with row detail")
+    void parse_negativeSignal1_throwsIllegalArgumentExceptionWithDetail() {
+        String csv = String.join("\n",
+                "WellId,Signal1,Signal2",
+                "A1,0.100,0.110",    // valid
+                "A2,-0.050,0.210",   // signal1 is negative → invalid
+                "A3,0.300,0.310"     // valid, but must NOT be imported
+        );
+        Map<String, WellMapping> mapping = Map.of(
+                "A1", new WellMapping(PairType.CALIBRATION, 1.0),
+                "A2", new WellMapping(PairType.CALIBRATION, 2.0),
+                "A3", new WellMapping(PairType.CALIBRATION, 4.0)
+        );
+        CsvImportConfig config = new CsvImportConfig(
+                CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, mapping);
+        var stream = toStream(csv);
+
+        assertThatThrownBy(() -> service.parse(stream, config))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("negative signal value")
+                .hasMessageContaining("Row 2");    // A2 is the second data row (header row is not counted)
+    }
+
+    /**
+     * A CSV where two rows have negative signal values must collect BOTH errors in a single
+     * exception — the import must not stop at the first bad row.
+     */
+    @Test
+    @DisplayName("CSV with multiple negative signal rows reports all errors in one exception")
+    void parse_multipleNegativeSignals_reportsAllErrors() {
+        String csv = String.join("\n",
+                "WellId,Signal1,Signal2",
+                "A1,-0.100,0.110",   // signal1 negative
+                "A2,0.200,-0.210",   // signal2 negative
+                "A3,0.300,0.310"     // valid
+        );
+        Map<String, WellMapping> mapping = Map.of(
+                "A1", new WellMapping(PairType.CALIBRATION, 1.0),
+                "A2", new WellMapping(PairType.CALIBRATION, 2.0),
+                "A3", new WellMapping(PairType.CALIBRATION, 4.0)
+        );
+        CsvImportConfig config = new CsvImportConfig(
+                CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, mapping);
+        var stream = toStream(csv);
+
+        // A1 is data row 1 (signal1 negative), A2 is data row 2 (signal2 negative).
+        // The error must list both rows; A3 (valid) must not appear.
+        assertThatThrownBy(() -> service.parse(stream, config))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("2 row(s) contain invalid signal values")
+                .hasMessageContaining("Row 1")
+                .hasMessageContaining("Row 2");
+    }
+
+    /**
+     * A CSV where all signal values are positive (including zero) must be imported successfully.
+     * Zero is a valid signal (blank well / background).
+     */
+    @Test
+    @DisplayName("CSV with all non-negative signals (including zero) is imported successfully")
+    void parse_allPositiveSignals_importSucceeds() throws IOException {
+        String csv = String.join("\n",
+                "WellId,Signal1,Signal2",
+                "A1,0.000,0.000",    // zero — valid (blank well)
+                "A2,0.200,0.210",
+                "A3,0.300,0.310"
+        );
+        Map<String, WellMapping> mapping = Map.of(
+                "A1", new WellMapping(PairType.CALIBRATION, 0.0),
+                "A2", new WellMapping(PairType.CALIBRATION, 2.0),
+                "A3", new WellMapping(PairType.CALIBRATION, 4.0)
+        );
+        CsvImportConfig config = new CsvImportConfig(
+                CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, mapping);
+
+        List<MeasurementPairRequest> result = service.parse(toStream(csv), config);
+
+        assertThat(result).hasSize(3);
+        assertThat(result.getFirst().signal1()).isEqualTo(0.0);
+        assertThat(result.getFirst().signal2()).isEqualTo(0.0);
+    }
+
+    /**
      * A non-numeric signal value must throw {@link IllegalArgumentException} that identifies
      * the problematic cell.
      */

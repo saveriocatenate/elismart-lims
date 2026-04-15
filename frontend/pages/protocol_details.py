@@ -33,7 +33,7 @@ _CURVE_LABEL_BY_VALUE: dict[str, str] = {v: k for k, v in _CURVE_TYPE_OPTIONS.it
 
 protocol_id = st.session_state.get("selected_protocol_id")
 if not protocol_id:
-    st.warning("No protocol selected.")
+    st.warning("Nessun protocollo selezionato.")
     st.stop()
 
 
@@ -72,17 +72,17 @@ def _confirm_save_proto(proto_name: str) -> None:
             st.rerun()
 
 
-@st.dialog("Confirm Deletion")
+@st.dialog("Conferma Eliminazione")
 def _confirm_delete(proto_name: str) -> None:
     """Modal dialog to confirm protocol deletion."""
-    st.write(f"Delete protocol **{proto_name}**?")
+    st.write(f"Eliminare il protocollo **{proto_name}**?")
     st.caption(
-        "⚠️ This action cannot be undone. "
-        "Deletion is blocked if experiments are linked to this protocol."
+        "⚠️ Questa operazione è irreversibile. "
+        "L'eliminazione è bloccata se ci sono esperimenti collegati a questo protocollo."
     )
     col_del, col_close = st.columns(2)
     with col_del:
-        if st.button("Delete", type="primary", use_container_width=True):
+        if st.button("Elimina", type="primary", use_container_width=True):
             try:
                 resp = requests.delete(
                     f"{BACKEND_URL}/api/protocols/{protocol_id}",
@@ -99,7 +99,7 @@ def _confirm_delete(proto_name: str) -> None:
             except requests.exceptions.RequestException as e:
                 show_persistent_error(translate_error(str(e)), key="protocol_details")
     with col_close:
-        if st.button("Close", use_container_width=True):
+        if st.button("Chiudi", use_container_width=True):
             st.rerun()
 
 
@@ -127,7 +127,7 @@ except requests.exceptions.RequestException as e:
 
 nav_col, edit_col, del_col = st.columns([5, 1, 1])
 with nav_col:
-    if st.button("← Back to Search"):
+    if st.button("← Torna alla Ricerca"):
         st.session_state.pop("selected_protocol_id", None)
         st.session_state.pop("protocol_edit_mode", None)
         st.switch_page("pages/search_protocols.py")
@@ -136,28 +136,28 @@ edit_mode = st.session_state.get("protocol_edit_mode", False)
 
 with edit_col:
     if not edit_mode:
-        if st.button("✏️ Edit", use_container_width=True):
+        if st.button("✏️ Modifica", use_container_width=True):
             st.session_state["protocol_edit_mode"] = True
             st.rerun()
     else:
-        if st.button("Cancel", use_container_width=True):
+        if st.button("Annulla", use_container_width=True):
             st.session_state["protocol_edit_mode"] = False
             st.session_state.pop("proto_pending_save", None)
             st.rerun()
 
 with del_col:
-    if st.button("🗑️ Delete", use_container_width=True):
+    if st.button("🗑️ Elimina", use_container_width=True):
         _confirm_delete(data.get("name", str(protocol_id)))
 
-st.title("Protocol Details")
+st.title("Dettagli Protocollo")
 show_stored_errors("protocol_details")
 
 if st.session_state.pop("proto_save_success", False):
     st.success("Protocollo aggiornato con successo.")
 
 st.info(
-    "Edit and Delete are blocked by the server if experiments are linked to this protocol. "
-    "Remove all linked experiments first."
+    "Modifica ed Eliminazione sono bloccate dal server se ci sono esperimenti collegati a questo protocollo. "
+    "Rimuovi prima tutti gli esperimenti collegati."
 )
 
 if edit_mode:
@@ -165,8 +165,8 @@ if edit_mode:
         "<div style='border:2px solid #2E7D32;border-radius:6px;padding:0.5rem 1rem;"
         "margin-bottom:1rem;background:#F1F8E9'>"
         "<b style='color:#2E7D32'>✏️ Modalità modifica attiva</b> — "
-        "modifica i campi e clicca <b>Save Changes</b> per confermare, "
-        "oppure <b>Cancel</b> per annullare.</div>",
+        "modifica i campi e clicca <b>Salva Modifiche</b> per confermare, "
+        "oppure <b>Annulla</b> per annullare.</div>",
         unsafe_allow_html=True,
     )
 else:
@@ -174,7 +174,7 @@ else:
         "<div style='border:1px solid #BDBDBD;border-radius:6px;padding:0.5rem 1rem;"
         "margin-bottom:1rem;background:#FAFAFA'>"
         "<span style='color:#757575'>👁️ Modalità visualizzazione</span> — "
-        "clicca <b>✏️ Edit</b> per modificare i dati.</div>",
+        "clicca <b>✏️ Modifica</b> per modificare i dati.</div>",
         unsafe_allow_html=True,
     )
 
@@ -188,10 +188,10 @@ with st.form("protocol_form"):
     col1, col2 = st.columns(2)
     with col1:
         edit_name = st.text_input(
-            "Name", value=data.get("name", ""), disabled=not edit_mode
+            "Nome", value=data.get("name", ""), disabled=not edit_mode
         )
         edit_cv = st.number_input(
-            "Max %CV Allowed",
+            "Max %CV Consentito",
             value=float(data.get("maxCvAllowed", 0.0)),
             min_value=0.0,
             step=0.5,
@@ -199,7 +199,7 @@ with st.form("protocol_form"):
             disabled=not edit_mode,
         )
         edit_cal = st.number_input(
-            "Calibration Pairs",
+            "Coppie di Calibrazione",
             value=int(data.get("numCalibrationPairs", 1)),
             min_value=1,
             step=1,
@@ -210,13 +210,13 @@ with st.form("protocol_form"):
         curve_labels = list(_CURVE_TYPE_OPTIONS.keys())
         current_curve_label = _CURVE_LABEL_BY_VALUE.get(current_curve_value, curve_labels[0])
         edit_curve_label = st.selectbox(
-            "Curve Type",
+            "Tipo di Curva",
             options=curve_labels,
             index=curve_labels.index(current_curve_label),
             disabled=not edit_mode,
         )
         edit_error = st.number_input(
-            "Max %Error Allowed",
+            "Max %Errore Consentito",
             value=float(data.get("maxErrorAllowed", 0.0)),
             min_value=0.0,
             step=0.5,
@@ -224,7 +224,7 @@ with st.form("protocol_form"):
             disabled=not edit_mode,
         )
         edit_ctrl = st.number_input(
-            "Control Pairs",
+            "Coppie di Controllo",
             value=int(data.get("numControlPairs", 1)),
             min_value=1,
             step=1,
@@ -232,10 +232,10 @@ with st.form("protocol_form"):
         )
 
     if edit_mode:
-        saved = st.form_submit_button("Save Changes", type="primary", use_container_width=True)
+        saved = st.form_submit_button("Salva Modifiche", type="primary", use_container_width=True)
     else:
         saved = False
-        st.form_submit_button("(view only — click ✏️ Edit to modify)", disabled=True, use_container_width=True)
+        st.form_submit_button("(visualizzazione — clicca ✏️ Modifica per editare)", disabled=True, use_container_width=True)
 
 # ---------------------------------------------------------------------------
 # Stage payload and open confirmation dialog
@@ -243,7 +243,7 @@ with st.form("protocol_form"):
 
 if saved:
     if not edit_name.strip():
-        show_persistent_error("Name is required.", key="protocol_details")
+        show_persistent_error("Il nome è obbligatorio.", key="protocol_details")
     else:
         st.session_state["proto_pending_save"] = {
             "name": edit_name.strip(),

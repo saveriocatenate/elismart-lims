@@ -104,27 +104,27 @@ def _render_expiry_alerts(alerts: list):
     if not alerts:
         return
 
-    st.markdown("### Reagent Expiry Alerts")
+    st.markdown("### Allerte Scadenza Reagenti")
 
     for alert in red:
         st.error(
             f"🔴 **{alert['reagentName']}** ({alert['manufacturer']}) — "
-            f"Lot: `{alert['lotNumber']}` — "
-            f"Expires: **{alert['expiryDate']}** ({alert['daysUntilExpiry']}d remaining)"
+            f"Lotto: `{alert['lotNumber']}` — "
+            f"Scade: **{alert['expiryDate']}** ({alert['daysUntilExpiry']}gg rimanenti)"
         )
 
     for alert in yellow:
         st.warning(
             f"🟡 **{alert['reagentName']}** ({alert['manufacturer']}) — "
-            f"Lot: `{alert['lotNumber']}` — "
-            f"Expires: {alert['expiryDate']} ({alert['daysUntilExpiry']}d remaining)"
+            f"Lotto: `{alert['lotNumber']}` — "
+            f"Scade: {alert['expiryDate']} ({alert['daysUntilExpiry']}gg rimanenti)"
         )
 
     for alert in gray:
         st.info(
             f"⚪ **{alert['reagentName']}** ({alert['manufacturer']}) — "
-            f"Lot: `{alert['lotNumber']}` — "
-            f"Expires: {alert['expiryDate']} ({alert['daysUntilExpiry']}d remaining)"
+            f"Lotto: `{alert['lotNumber']}` — "
+            f"Scade: {alert['expiryDate']} ({alert['daysUntilExpiry']}gg rimanenti)"
         )
 
     st.markdown("---")
@@ -135,7 +135,7 @@ show_stored_errors("dashboard")
 
 healthy, detail = _check_backend()
 if healthy:
-    st.success(f"Backend is online — {detail.get('timestamp', '')}")
+    st.success(f"Backend online — {detail.get('timestamp', '')}")
 else:
     show_persistent_error(translate_error(f"Backend offline: {detail}"), key="dashboard")
     st.stop()
@@ -157,8 +157,8 @@ alerts = _load_expiring_batches(BACKEND_URL, _EXPIRY_DAYS, token)
 _render_expiry_alerts(alerts)
 
 st.markdown(
-    "Manage protocols, reagents, and dose-response experiments from a single place. "
-    "Select an option below to get started."
+    "Gestisci protocolli, reagenti ed esperimenti dose-risposta da un unico pannello. "
+    "Seleziona un'opzione qui sotto per iniziare."
 )
 
 st.markdown("---")
@@ -166,21 +166,21 @@ st.markdown("---")
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("🧫 Add Reagent", use_container_width=True, type="primary"):
+    if st.button("🧫 Nuovo Reagente", use_container_width=True, type="primary"):
         st.switch_page("pages/add_reagent.py")
-    if st.button("➕ Add Protocol", use_container_width=True, type="primary"):
+    if st.button("➕ Nuovo Protocollo", use_container_width=True, type="primary"):
         st.switch_page("pages/add_protocol.py")
-    if st.button("🔬 Add Experiment", use_container_width=True, type="primary"):
+    if st.button("🔬 Nuovo Esperimento", use_container_width=True, type="primary"):
         st.switch_page("pages/add_experiment.py")
 
 with col2:
-    if st.button("🔍 Search Reagents", use_container_width=True):
+    if st.button("🔍 Cerca Reagenti", use_container_width=True):
         st.switch_page("pages/search_reagents.py")
-    if st.button("🔍 Search Protocols", use_container_width=True):
+    if st.button("🔍 Cerca Protocolli", use_container_width=True):
         st.switch_page("pages/search_protocols.py")
-    if st.button("📋 Search Experiments", use_container_width=True):
+    if st.button("📋 Cerca Esperimenti", use_container_width=True):
         st.switch_page("pages/search_experiments.py")
 
 st.markdown("---")
-if st.button("⚖️ Compare Experiments", use_container_width=True):
+if st.button("⚖️ Confronta Esperimenti", use_container_width=True):
     st.switch_page("pages/compare_experiments.py")

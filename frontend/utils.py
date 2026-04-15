@@ -132,11 +132,49 @@ def color_code_qc(value: float | None, limit: float | None, metric_type: str) ->
 # ---------------------------------------------------------------------------
 
 #: Maps known backend error substrings to user-friendly Italian messages.
+#: Entries are checked in order; the first matching pattern wins.
 ERROR_TRANSLATIONS: dict[str, str] = {
-    "Duplicate entry": "Esiste già un elemento con lo stesso nome. Scegli un nome diverso.",
-    "must not be blank": "Questo campo è obbligatorio.",
-    "must be greater than": "Il valore deve essere maggiore di",
+    # ── Duplicates / constraint violations ─────────────────────────────────
+    "same unique identifier": "Esiste già un elemento con lo stesso nome o identificatore. Scegli un valore diverso.",
+    "Duplicate entry":        "Esiste già un elemento con lo stesso nome. Scegli un nome diverso.",
+    # ── Validation ─────────────────────────────────────────────────────────
+    "must not be blank":      "Questo campo è obbligatorio.",
+    "must be greater than":   "Il valore deve essere maggiore di zero.",
+    "must be positive":       "Il valore deve essere positivo (maggiore di 0).",
+    "maxCvAllowed must be positive":    "Il %CV massimo deve essere un valore positivo.",
+    "maxErrorAllowed must be positive": "L'errore massimo consentito deve essere un valore positivo.",
+    # ── HTTP error codes ────────────────────────────────────────────────────
+    "Forbidden":    "Non hai i permessi per eseguire questa operazione.",
+    "HTTP 403":     "Non hai i permessi per eseguire questa operazione.",
+    "HTTP 404":     "Elemento non trovato — potrebbe essere stato eliminato.",
+    "HTTP 500":     "Errore interno del server — riprova o contatta l'amministratore.",
+    "An unexpected error occurred": "Errore interno del server — riprova o contatta l'amministratore.",
+    # ── Connectivity ────────────────────────────────────────────────────────
     "Connection refused": "Impossibile contattare il server. Verifica che il backend sia avviato.",
+    "timed out":          "Il server non ha risposto in tempo. Verifica la connessione e riprova.",
+    "Timeout":            "Il server non ha risposto in tempo. Verifica la connessione e riprova.",
+    # ── Status state machine ────────────────────────────────────────────────
+    "ERR_INVALID_STATUS_TRANSITION": (
+        "Transizione di stato non valida. "
+        "Usa il bottone 'Valida' per avviare la validazione automatica, "
+        "oppure reimposta l'esperimento su PENDING per ri-analizzarlo."
+    ),
+    "ERR_REASON_REQUIRED": (
+        "È necessario fornire una motivazione per reimpostare lo stato "
+        "di un esperimento validato (OK/KO) su PENDING."
+    ),
+    "ERR_INVALID_CREATION_STATUS": (
+        "Il nuovo esperimento deve essere creato con stato PENDING."
+    ),
+    # ── CSV import ──────────────────────────────────────────────────────────
+    "CSV import rejected": (
+        "Importazione CSV rifiutata: uno o più segnali nel file non sono validi. "
+        "Controlla i numeri di riga indicati nel messaggio di errore."
+    ),
+    "negative signal value": (
+        "Il valore del segnale non può essere negativo. "
+        "Verifica che il file CSV contenga dati di densità ottica corretti."
+    ),
 }
 
 

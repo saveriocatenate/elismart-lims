@@ -25,10 +25,10 @@ from utils import check_auth, get_auth_headers, resolve_backend_url, show_persis
 check_auth()
 BACKEND_URL = resolve_backend_url()
 
-if st.button("← Back to Dashboard"):
+if st.button("← Torna alla Dashboard"):
     st.switch_page("pages/dashboard.py")
 
-st.title("New Experiment")
+st.title("Nuovo Esperimento")
 show_stored_errors("add_experiment")
 
 # ── Post-save success state ───────────────────────────────────────────────────
@@ -114,7 +114,7 @@ def _batch_label(b: dict) -> str:
     lot = b.get("lotNumber", "?")
     exp_str = b.get("expiryDate")
     if not exp_str:
-        return f"Lotto {lot} — no expiry"
+        return f"Lotto {lot} — senza scadenza"
     try:
         exp_date = datetime.date.fromisoformat(exp_str)
         today = datetime.date.today()
@@ -178,11 +178,11 @@ def _display_imported_pairs(pairs: list, max_cv_threshold: float | None) -> None
             cv_display, cv_color = f"{cv:.1f}%", "#C62828"
 
         rows.append({
-            "Type":      p.get("pairType", "—"),
+            "Tipo":      p.get("pairType", "—"),
             "Conc.":     p.get("concentrationNominal"),
-            "Signal 1":  p.get("signal1"),
-            "Signal 2":  p.get("signal2"),
-            "Mean":      p.get("signalMean"),
+            "Segnale 1": p.get("signal1"),
+            "Segnale 2": p.get("signal2"),
+            "Media":     p.get("signalMean"),
             "%CV":       cv_display,
             "_cv_color": cv_color,
             "Outlier":   "⚑" if p.get("isOutlier") else "",
@@ -211,12 +211,12 @@ token = st.session_state.get("jwt_token", "")
 protocols = _load_protocols(BACKEND_URL, token)
 
 if not protocols:
-    st.warning("No protocols found. Create a protocol first.")
+    st.warning("Nessun protocollo trovato. Crea prima un protocollo.")
     st.stop()
 
 protocol_map = {p["id"]: p["name"] for p in protocols}
 selected_protocol_id = st.selectbox(
-    "Protocol", options=list(protocol_map.keys()),
+    "Protocollo", options=list(protocol_map.keys()),
     format_func=lambda x: protocol_map[x], key="sel_protocol",
 )
 
@@ -224,7 +224,7 @@ protocol_detail = _load_protocol_detail(BACKEND_URL, selected_protocol_id, token
 reagent_specs = _load_reagent_specs(BACKEND_URL, selected_protocol_id, token)
 
 if not protocol_detail:
-    show_persistent_error("Could not load protocol details.")
+    show_persistent_error("Impossibile caricare i dettagli del protocollo.")
     st.stop()
 
 num_cal = protocol_detail.get("numCalibrationPairs", 0)
@@ -232,9 +232,9 @@ num_ctrl = protocol_detail.get("numControlPairs", 0)
 max_cv = protocol_detail.get("maxCvAllowed")
 
 st.caption(
-    f"Protocol: **{protocol_detail['name']}** — "
-    f"{num_cal} calibration pairs, {num_ctrl} control pairs, "
-    f"max CV {max_cv}%, max error {protocol_detail.get('maxErrorAllowed')}%"
+    f"Protocollo: **{protocol_detail['name']}** — "
+    f"{num_cal} coppie calibrazione, {num_ctrl} coppie controllo, "
+    f"max CV {max_cv}%, max errore {protocol_detail.get('maxErrorAllowed')}%"
 )
 
 st.markdown("---")
@@ -244,8 +244,8 @@ st.markdown("---")
 # ---------------------------------------------------------------------------
 
 input_mode = st.radio(
-    "Entry mode",
-    options=["Manual entry", "Import from CSV"],
+    "Modalità inserimento",
+    options=["Inserimento manuale", "Importa da CSV"],
     horizontal=True,
     key="input_mode",
 )
@@ -256,22 +256,22 @@ st.markdown("---")
 # Shared: Experiment metadata
 # ---------------------------------------------------------------------------
 
-st.subheader("Experiment Details")
+st.subheader("Dettagli Esperimento")
 
 # Top-level error placeholder (filled by backend error responses)
 exp_top_error_ph = st.empty()
 
 col_name, col_status = st.columns([3, 1])
 with col_name:
-    exp_name = st.text_input("Name *", placeholder="e.g. IgG Run 2026-04-06", key="exp_name")
+    exp_name = st.text_input("Nome *", placeholder="es. IgG Corsa 2026-04-06", key="exp_name")
 with col_status:
     exp_status = st.selectbox(
-        "Status", ["COMPLETED", "PENDING", "OK", "KO", "VALIDATION_ERROR"], key="exp_status"
+        "Stato", ["PENDING", "COMPLETED"], key="exp_status"
     )
 exp_name_ph = st.empty()
 if not exp_name.strip():
-    exp_name_ph.warning("⚠️ Name è obbligatorio")
-exp_date = st.date_input("Date", value=datetime.date.today(), key="exp_date")
+    exp_name_ph.warning("⚠️ Il nome è obbligatorio")
+exp_date = st.date_input("Data", value=datetime.date.today(), key="exp_date")
 
 st.markdown("---")
 
@@ -279,9 +279,9 @@ st.markdown("---")
 # Shared: Reagent Batches — selectbox per reagent + inline "New Lot" form
 # ---------------------------------------------------------------------------
 
-st.subheader(f"Reagent Batches ({len(reagent_specs)} reagent{'s' if len(reagent_specs) != 1 else ''})")
+st.subheader(f"Lotti Reagenti ({len(reagent_specs)} reagent{'i' if len(reagent_specs) != 1 else 'e'})")
 if not reagent_specs:
-    st.info("This protocol has no reagents defined.")
+    st.info("Questo protocollo non ha reagenti definiti.")
 
 # selected_batch_ids[i] = the ReagentBatch.id chosen for reagent_specs[i], or None
 selected_batch_ids: list[int | None] = []
@@ -318,27 +318,27 @@ for i, spec in enumerate(reagent_specs):
             )
             selected_batch_ids.append(sel_id)
         else:
-            st.warning(f"No batches registered for **{spec['reagentName']}**. Create one below.")
+            st.warning(f"Nessun lotto registrato per **{spec['reagentName']}**. Creane uno qui sotto.")
             selected_batch_ids.append(None)
 
         # ── Inline "New Lot" form ────────────────────────────────────────
-        with st.expander("➕ Register new batch", expanded=False):
+        with st.expander("➕ Registra nuovo lotto", expanded=False):
             with st.form(f"new_batch_{i}", clear_on_submit=True):
                 fc1, fc2, fc3 = st.columns([3, 2, 3])
-                nl_lot = fc1.text_input("Lot Number *", placeholder="LOT-2026-001",
+                nl_lot = fc1.text_input("Numero Lotto *", placeholder="LOT-2026-001",
                                         key=f"nl_lot_{i}")
-                nl_expiry = fc2.date_input("Expiry Date *", value=None,
+                nl_expiry = fc2.date_input("Data Scadenza *", value=None,
                                            key=f"nl_expiry_{i}")
-                nl_supplier = fc3.text_input("Supplier (optional)", key=f"nl_supplier_{i}")
-                nl_notes = st.text_input("Notes (optional)", key=f"nl_notes_{i}")
-                register_btn = st.form_submit_button("Register", type="primary",
+                nl_supplier = fc3.text_input("Fornitore (opzionale)", key=f"nl_supplier_{i}")
+                nl_notes = st.text_input("Note (opzionale)", key=f"nl_notes_{i}")
+                register_btn = st.form_submit_button("Registra", type="primary",
                                                      use_container_width=True)
 
             if register_btn:
                 if not nl_lot.strip():
-                    show_persistent_error("Lot Number is required.")
+                    show_persistent_error("Il numero di lotto è obbligatorio.")
                 elif nl_expiry is None:
-                    show_persistent_error("Expiry Date is required.")
+                    show_persistent_error("La data di scadenza è obbligatoria.")
                 else:
                     payload = {
                         "reagentId": reagent_id,
@@ -355,7 +355,7 @@ for i, spec in enumerate(reagent_specs):
                             timeout=10,
                         )
                         if pr.status_code == 201:
-                            st.success(f"Batch **{nl_lot.strip()}** registered.")
+                            st.success(f"Lotto **{nl_lot.strip()}** registrato.")
                             _load_batches.clear()
                             st.rerun()
                         else:
@@ -379,7 +379,7 @@ def _build_used_batches() -> list | None:
     ]
     if missing:
         show_persistent_error(
-            f"A batch must be selected (or created) for mandatory reagents: "
+            f"È necessario selezionare (o creare) un lotto per i reagenti obbligatori: "
             f"{', '.join(missing)}"
         )
         return None
@@ -394,11 +394,11 @@ def _build_used_batches() -> list | None:
 # Mode A: Manual entry
 # ---------------------------------------------------------------------------
 
-if input_mode == "Manual entry":
+if input_mode == "Inserimento manuale":
 
     _CV_LEGEND = (
         '<span style="font-size:0.8em;color:#9E9E9E">'
-        'Signal 1 &nbsp;|&nbsp; Signal 2 &nbsp;|&nbsp; Live %CV &nbsp;|&nbsp; Conc. Nominal'
+        'Segnale 1 &nbsp;|&nbsp; Segnale 2 &nbsp;|&nbsp; %CV live &nbsp;|&nbsp; Conc. Nominale'
         '</span>'
     )
 
@@ -413,7 +413,7 @@ if input_mode == "Manual entry":
                                step=0.001, format="%.4f", label_visibility="collapsed")
         return s1, s2, conc
 
-    st.subheader(f"Calibration Pairs ({num_cal})")
+    st.subheader(f"Coppie di Calibrazione ({num_cal})")
     st.markdown(_CV_LEGEND, unsafe_allow_html=True)
     cal_s1, cal_s2, cal_conc = [], [], []
     for i in range(num_cal):
@@ -423,7 +423,7 @@ if input_mode == "Manual entry":
 
     st.markdown("---")
 
-    st.subheader(f"Control Pairs ({num_ctrl})")
+    st.subheader(f"Coppie di Controllo ({num_ctrl})")
     st.markdown(_CV_LEGEND, unsafe_allow_html=True)
     ctrl_s1, ctrl_s2, ctrl_conc = [], [], []
     for i in range(num_ctrl):
@@ -434,7 +434,7 @@ if input_mode == "Manual entry":
     st.markdown("---")
 
     if st.button(
-        "Create Experiment",
+        "Crea Esperimento",
         type="primary",
         use_container_width=True,
         disabled=not exp_name.strip(),
@@ -494,66 +494,52 @@ if input_mode == "Manual entry":
 else:
     # ── 1. File upload ────────────────────────────────────────────────────
     csv_file = st.file_uploader(
-        "Upload CSV file",
+        "Carica file CSV",
         type=["csv"],
         key="csv_upload",
-        help="Export from your plate reader. Accepted: .csv",
+        help="Esporta dal tuo lettore di piastre. Accettato: .csv",
     )
 
     if csv_file is None:
-        st.info("Upload a CSV file to continue.")
+        st.info("Carica un file CSV per continuare.")
         st.stop()
 
     # ── 2. Format selector ───────────────────────────────────────────────
-    FORMAT_LABELS = {
-        "GENERIC": "Generic (configurable columns)",
-        "TECAN":   "Tecan Magellan",
-        "BIOTEK":  "BioTek Gen5",
-        "SOFTMAX": "Molecular Devices SoftMax Pro",
-    }
-    csv_format = st.selectbox(
-        "File format",
-        options=list(FORMAT_LABELS.keys()),
-        format_func=lambda x: FORMAT_LABELS[x],
-        key="csv_format",
+    csv_format = "GENERIC"
+    st.caption(
+        "ℹ️ Formato supportato: **Generic** (colonne configurabili). "
+        "Tecan Magellan, BioTek Gen5 e Molecular Devices SoftMax Pro: _prossimamente_."
     )
-
-    if csv_format != "GENERIC":
-        st.warning(
-            f"**{FORMAT_LABELS[csv_format]}** parser is not yet implemented. "
-            "Please select **Generic** or convert your file to a generic CSV."
-        )
-        st.stop()
 
     # ── 3. CSV preview (first 5 rows) ────────────────────────────────────
     csv_file.seek(0)
     try:
         df_preview = pd.read_csv(io.BytesIO(csv_file.read()), nrows=5)
     except Exception as e:
-        show_persistent_error(f"Could not parse CSV file: {e}")
+        show_persistent_error(f"Impossibile analizzare il file CSV: {e}")
         st.stop()
 
-    st.caption(f"Preview — {csv_file.name} ({csv_file.size:,} bytes)")
+    st.caption(f"Anteprima — {csv_file.name} ({csv_file.size:,} byte)")
     st.dataframe(df_preview, use_container_width=True, hide_index=True)
 
     columns = list(df_preview.columns)
     if not columns:
-        show_persistent_error("CSV file has no columns.")
+        show_persistent_error("Il file CSV non contiene colonne.")
         st.stop()
 
     # ── 4. Column mapping ────────────────────────────────────────────────
-    st.subheader("Column Mapping")
-    st.caption("Select which CSV columns correspond to the well identifier and signal values.")
+    st.subheader("Mappatura Colonne")
+    st.caption("Seleziona quali colonne CSV corrispondono all'identificatore del pozzetto e ai valori di segnale.")
 
     c1, c2, c3 = st.columns(3)
-    well_col    = c1.selectbox("Well column",     columns, key="well_col")
-    signal1_col = c2.selectbox("Signal 1 column", columns,
+    well_col    = c1.selectbox("Colonna pozzetto",    columns, key="well_col")
+    signal1_col = c2.selectbox("Colonna Segnale 1", columns,
                                index=min(1, len(columns) - 1), key="sig1_col")
-    signal2_col = c3.selectbox("Signal 2 column", columns,
+    signal2_col = c3.selectbox("Colonna Segnale 2", columns,
                                index=min(2, len(columns) - 1), key="sig2_col")
 
     if len({well_col, signal1_col, signal2_col}) < 3:
-        st.warning("Well, Signal 1, and Signal 2 must be three different columns.")
+        st.warning("Pozzetto, Segnale 1 e Segnale 2 devono essere tre colonne diverse.")
         st.stop()
 
     # ── 5. Read all wells from the full CSV ──────────────────────────────
@@ -561,25 +547,25 @@ else:
     try:
         df_full = pd.read_csv(io.BytesIO(csv_file.read()))
     except Exception as e:
-        show_persistent_error(f"Could not re-read CSV: {e}")
+        show_persistent_error(f"Impossibile rileggere il CSV: {e}")
         st.stop()
 
     if well_col not in df_full.columns:
-        show_persistent_error(f"Column '{well_col}' not found in file.")
+        show_persistent_error(f"La colonna '{well_col}' non è presente nel file.")
         st.stop()
 
     unique_wells = sorted(df_full[well_col].dropna().astype(str).unique().tolist())
     if not unique_wells:
-        show_persistent_error("No well identifiers found in the selected column.")
+        show_persistent_error("Nessun identificatore di pozzetto trovato nella colonna selezionata.")
         st.stop()
 
     # ── 6. Plate layout data_editor ──────────────────────────────────────
     st.markdown("---")
-    st.subheader("Plate Layout Mapping")
+    st.subheader("Mappatura Layout Piastra")
     st.caption(
-        f"{len(unique_wells)} unique wells found in column **{well_col}**. "
-        "Assign a Pair Type to each well you want to import. "
-        "Leave *(skip)* to exclude a well."
+        f"{len(unique_wells)} pozzetti univoci trovati nella colonna **{well_col}**. "
+        "Assegna un Tipo Coppia a ogni pozzetto da importare. "
+        "Lascia *(skip)* per escludere un pozzetto."
     )
 
     # Stable key: reset the editor table when the file or well column changes
@@ -619,7 +605,7 @@ else:
     # Summary badge
     mapped_wells = edited_mapping[edited_mapping["Pair Type"] != "(skip)"]
     if len(mapped_wells) == 0:
-        st.warning("No wells are mapped yet. Assign at least one well to proceed.")
+        st.warning("Nessun pozzetto mappato. Assegna almeno un pozzetto per procedere.")
 
     # ── 7. Create & Import button ────────────────────────────────────────
     st.markdown("---")
@@ -629,11 +615,11 @@ else:
         if len(mapped_wells) > 0:
             type_counts = mapped_wells["Pair Type"].value_counts().to_dict()
             badge_parts = [f"{v} {k}" for k, v in type_counts.items()]
-            st.caption(f"Ready to import: {', '.join(badge_parts)}")
+            st.caption(f"Pronto per l'importazione: {', '.join(badge_parts)}")
 
     with col_btn:
         do_import = st.button(
-            "Create & Import",
+            "Crea e Importa",
             type="primary",
             use_container_width=True,
             key="btn_csv_import",
@@ -658,7 +644,7 @@ else:
             "measurementPairs": [],
         }
 
-        with st.spinner("Creating experiment…"):
+        with st.spinner("Creazione esperimento in corso…"):
             try:
                 create_resp = requests.post(
                     f"{BACKEND_URL}/api/experiments",
@@ -667,7 +653,7 @@ else:
                     timeout=15,
                 )
             except requests.exceptions.RequestException as e:
-                show_persistent_error(translate_error(f"Network error creating experiment: {e}"), key="add_experiment")
+                show_persistent_error(translate_error(f"Errore di rete durante la creazione dell'esperimento: {e}"), key="add_experiment")
                 st.stop()
 
         if create_resp.status_code != 201:
@@ -713,7 +699,7 @@ else:
         csv_file.seek(0)
         csv_bytes = csv_file.read()
 
-        with st.spinner("Importing measurement pairs…"):
+        with st.spinner("Importazione coppie di misura…"):
             try:
                 import_resp = requests.post(
                     f"{BACKEND_URL}/api/experiments/{exp_id}/import-csv",
@@ -728,15 +714,15 @@ else:
                 )
             except requests.exceptions.RequestException as e:
                 st.warning(
-                    f"Experiment **{exp_id}** was created but the CSV import failed "
-                    f"due to a network error: {e}"
+                    f"L'esperimento **{exp_id}** è stato creato ma l'importazione CSV è fallita "
+                    f"per un errore di rete: {e}"
                 )
                 st.stop()
 
         if import_resp.status_code != 200:
             detail = import_resp.json().get("message", import_resp.text)
             st.warning(
-                f"Experiment **{exp_id}** was created but the import failed "
+                f"L'esperimento **{exp_id}** è stato creato ma l'importazione è fallita "
                 f"({import_resp.status_code}): {detail}"
             )
             st.stop()

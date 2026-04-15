@@ -143,4 +143,48 @@ class ProtocolControllerTest {
         mockMvc.perform(delete("/api/protocols/1"))
                 .andExpect(status().isNotFound());
     }
+
+    /**
+     * A {@code POST /api/protocols} with {@code maxCvAllowed} set to a negative value must
+     * be rejected by Jakarta Validation with HTTP 400 before reaching the service layer.
+     */
+    @Test
+    void create_shouldReturn400_whenMaxCvAllowedIsNegative() throws Exception {
+        var request = new ProtocolRequest("IgG Test", 7, 3, -5.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+
+        mockMvc.perform(post("/api/protocols")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * A {@code POST /api/protocols} with {@code maxErrorAllowed} set to a negative value must
+     * be rejected by Jakarta Validation with HTTP 400 before reaching the service layer.
+     */
+    @Test
+    void create_shouldReturn400_whenMaxErrorAllowedIsNegative() throws Exception {
+        var request = new ProtocolRequest("IgG Test", 7, 3, 15.0, -10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+
+        mockMvc.perform(post("/api/protocols")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * A {@code POST /api/protocols} with valid positive {@code maxCvAllowed} must succeed (HTTP 201).
+     * This is the control case that confirms the {@code @Positive} annotation does not block valid requests.
+     */
+    @Test
+    void create_shouldReturn201_whenMaxCvAllowedIsPositive() throws Exception {
+        var request = new ProtocolRequest("IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        var response = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        when(protocolService.create(any())).thenReturn(response);
+
+        mockMvc.perform(post("/api/protocols")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+    }
 }

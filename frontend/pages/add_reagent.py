@@ -15,10 +15,10 @@ from utils import check_auth, get_auth_headers, resolve_backend_url, show_stored
 check_auth()
 BACKEND_URL = resolve_backend_url()
 
-if st.button("← Back to Dashboard"):
+if st.button("← Torna alla Dashboard"):
     st.switch_page("pages/dashboard.py")
 
-st.title("New Reagent")
+st.title("Nuovo Reagente")
 show_stored_errors("add_reagent")
 
 # ── Post-save success state ───────────────────────────────────────────────────
@@ -43,22 +43,22 @@ st.markdown("---")
 # Top-level error placeholder (filled by backend error responses)
 top_error_ph = st.empty()
 
-name = st.text_input("Name *", placeholder="e.g. Anti-Human IgG", key="rgt_name")
+name = st.text_input("Nome *", placeholder="e.g. Anti-Human IgG", key="rgt_name")
 name_ph = st.empty()
 if not name.strip():
-    name_ph.warning("⚠️ Name è obbligatorio")
+    name_ph.warning("⚠️ Il nome è obbligatorio")
 
-manufacturer = st.text_input("Manufacturer *", placeholder="e.g. Sigma-Aldrich", key="rgt_mfr")
+manufacturer = st.text_input("Produttore *", placeholder="e.g. Sigma-Aldrich", key="rgt_mfr")
 mfr_ph = st.empty()
 if not manufacturer.strip():
-    mfr_ph.warning("⚠️ Manufacturer è obbligatorio")
+    mfr_ph.warning("⚠️ Il produttore è obbligatorio")
 
-description = st.text_area("Description", placeholder="Optional notes", key="rgt_desc")
+description = st.text_area("Descrizione", placeholder="Note facoltative", key="rgt_desc")
 
 has_errors = not name.strip() or not manufacturer.strip()
 
 if st.button(
-    "Add Reagent",
+    "Aggiungi Reagente",
     type="primary",
     use_container_width=True,
     disabled=has_errors,

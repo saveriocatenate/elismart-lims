@@ -157,6 +157,55 @@ class FivePLFitterTest {
     }
 
     /**
+     * A signal exactly equal to the top asymptote D makes (A − D)/(y − D) = −Infinity.
+     * The range guard must fire before any arithmetic is attempted.
+     */
+    @Test
+    @DisplayName("interpolate() throws for signal exactly at upper asymptote D")
+    void interpolate_shouldThrowForSignalAtUpperAsymptote() {
+        CurveParameters params = fitter.fit(REFERENCE_POINTS);
+        double d = params.values().get(FivePLFitter.PARAM_D);
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> fitter.interpolate(d, params))
+                .withMessageContaining("outside the interpolable range");
+    }
+
+    /**
+     * A signal exactly equal to the bottom asymptote A (≈ 0) is at the boundary of
+     * the inversion domain. The range guard must fire before any arithmetic.
+     */
+    @Test
+    @DisplayName("interpolate() throws for signal exactly at lower asymptote A")
+    void interpolate_shouldThrowForSignalAtLowerAsymptote() {
+        CurveParameters params = fitter.fit(REFERENCE_POINTS);
+        double a = params.values().get(FivePLFitter.PARAM_A);
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> fitter.interpolate(a, params))
+                .withMessageContaining("outside the interpolable range");
+    }
+
+    /**
+     * When one calibration point has {@code concentration = 0}, it must be silently
+     * excluded from the fit (the Jacobian is undefined there). The remaining 6 points
+     * are enough to converge, and the recovered parameters must still be within 5%
+     * of the true values.
+     */
+    @Test
+    @DisplayName("fit() excludes zero-concentration point and still converges")
+    void fit_shouldExcludeZeroConcentrationPoint() {
+        List<CalibrationPoint> withZero = new java.util.ArrayList<>(REFERENCE_POINTS);
+        withZero.add(0, new CalibrationPoint(0.0, 0.0));   // prepend zero-conc point
+
+        CurveParameters params = fitter.fit(withZero);
+
+        assertThat(params.values().get(FivePLFitter.PARAM_A)).isCloseTo(TRUE_A, org.assertj.core.data.Offset.offset(0.15));
+        assertThat(params.values().get(FivePLFitter.PARAM_B)).isCloseTo(TRUE_B, org.assertj.core.data.Percentage.withPercentage(5.0));
+        assertThat(params.values().get(FivePLFitter.PARAM_C)).isCloseTo(TRUE_C, org.assertj.core.data.Percentage.withPercentage(5.0));
+        assertThat(params.values().get(FivePLFitter.PARAM_D)).isCloseTo(TRUE_D, org.assertj.core.data.Percentage.withPercentage(5.0));
+        assertThat(params.values().get(FivePLFitter.PARAM_E)).isCloseTo(TRUE_E, org.assertj.core.data.Percentage.withPercentage(5.0));
+    }
+
+    /**
      * Attempting to fit with fewer than 5 points must throw
      * {@link IllegalArgumentException} immediately.
      */
@@ -184,5 +233,43 @@ class FivePLFitterTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> fitter.fit(null))
                 .withMessageContaining("at least 5");
+    }
+
+    // -------------------------------------------------------------------------
+    // Convergence metadata
+    // -------------------------------------------------------------------------
+
+    /**
+     * A well-behaved 5PL dataset must produce {@link CurveParameters} containing
+     * {@link CurveParameters#META_CONVERGENCE} = 1.0 and a finite, non-negative
+     * {@link CurveParameters#META_RMS} value below the {@link FivePLFitter#RMS_WARN_THRESHOLD}.
+     */
+    @Test
+    @DisplayName("fit() on convergent data returns _convergence=1.0 and a reasonable _rms")
+    void fit_convergentData_shouldReturnConvergenceMetadata() {
+        CurveParameters params = fitter.fit(REFERENCE_POINTS);
+
+        assertThat(params.values()).containsKey(CurveParameters.META_CONVERGENCE);
+        assertThat(params.values()).containsKey(CurveParameters.META_RMS);
+
+        double convergence = params.values().get(CurveParameters.META_CONVERGENCE);
+        double rms        = params.values().get(CurveParameters.META_RMS);
+
+        assertThat(convergence).isEqualTo(1.0);
+        assertThat(rms).isFinite().isNotNegative().isLessThanOrEqualTo(FivePLFitter.RMS_WARN_THRESHOLD);
+    }
+
+    /**
+     * When the LM optimizer is given only 1 evaluation it must fail immediately.
+     * The fitter must catch {@code TooManyEvaluationsException} and rethrow it as
+     * {@link IllegalStateException} with a message that mentions non-convergence.
+     */
+    @Test
+    @DisplayName("fit() throws IllegalStateException when optimizer hits evaluation limit")
+    void fit_evaluationLimitExceeded_shouldThrowIllegalStateException() {
+        FivePLFitter limitedFitter = new FivePLFitter(1);
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> limitedFitter.fit(REFERENCE_POINTS))
+                .withMessageContaining("did not converge");
     }
 }

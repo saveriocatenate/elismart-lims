@@ -18,31 +18,34 @@ from utils import check_auth, format_date, get_auth_headers, resolve_backend_url
 check_auth()
 BACKEND_URL = resolve_backend_url()
 
-if st.button("← Back to Dashboard"):
+if st.button("← Torna alla Dashboard"):
     st.switch_page("pages/dashboard.py")
 
-st.title("Search Experiments")
+st.title("Cerca Esperimenti")
 show_stored_errors("search_experiments")
 st.markdown("---")
 
 with st.form("search_form"):
     col1, col2, col3 = st.columns(3)
     with col1:
-        name_filter = st.text_input("Name contains")
+        name_filter = st.text_input("Nome contiene")
     with col2:
-        status_filter = st.selectbox("Status", ["ALL", "OK", "KO", "VALIDATION_ERROR"])
+        status_filter = st.selectbox(
+            "Stato",
+            ["ALL", "PENDING", "COMPLETED", "OK", "KO", "VALIDATION_ERROR"],
+        )
     with col3:
-        page_size = st.selectbox("Page size", [10, 20, 50], index=1)
+        page_size = st.selectbox("Risultati per pagina", [10, 20, 50], index=1)
 
     col_date1, col_date2, col_date3 = st.columns(3)
     with col_date1:
-        date_filter = st.date_input("Date", value=None)
+        date_filter = st.date_input("Data", value=None)
     with col_date2:
-        date_from_filter = st.date_input("Date from", value=None)
+        date_from_filter = st.date_input("Data da", value=None)
     with col_date3:
-        date_to_filter = st.date_input("Date to", value=None)
+        date_to_filter = st.date_input("Data a", value=None)
 
-    submitted = st.form_submit_button("Search", use_container_width=True)
+    submitted = st.form_submit_button("Cerca", use_container_width=True)
 
 st.session_state.setdefault("exp_page", 0)
 
@@ -80,9 +83,9 @@ if results:
     total_pages = results.get("totalPages", 0)
 
     if not content:
-        st.info("No experiments found.")
+        st.info("Nessun esperimento trovato.")
     else:
-        st.caption(f"{total} total — page {cur_page + 1} of {total_pages or 1}")
+        st.caption(f"{total} totali — pagina {cur_page + 1} di {total_pages or 1}")
 
         # Derive the set of currently-checked IDs from checkbox widget state keys.
         # We cap at 4; checkboxes beyond the cap are disabled when unchecked.
@@ -118,7 +121,7 @@ if results:
                 status = exp.get("status", "")
                 emoji = "✅" if status == "OK" else "🔴" if status == "KO" else ""
                 c4.caption(f"{emoji} {status}")
-                if c5.button("Details", key=f"detail_{exp_id}", use_container_width=True):
+                if c5.button("Dettagli", key=f"detail_{exp_id}", use_container_width=True):
                     st.session_state["selected_exp_id"] = exp_id
                     st.switch_page("pages/experiment_details.py")
 
@@ -129,7 +132,7 @@ if results:
             with act_compare:
                 too_many = len(checked_ids) > 4
                 if st.button(
-                    "⚖️ Compare Selected",
+                    "⚖️ Confronta Selezionati",
                     use_container_width=True,
                     type="primary",
                     disabled=too_many,
@@ -142,8 +145,8 @@ if results:
                     st.switch_page("pages/compare_experiments.py")
 
             with act_export:
-                if st.button("📊 Export Selected to Excel", use_container_width=True):
-                    with st.spinner("Generating batch Excel…"):
+                if st.button("📊 Esporta Selezionati in Excel", use_container_width=True):
+                    with st.spinner("Generazione Excel in corso…"):
                         try:
                             r = requests.post(
                                 f"{BACKEND_URL}/api/export/experiments/xlsx",
@@ -164,7 +167,7 @@ if results:
             _batch_ids = st.session_state.get("batch_xlsx_ids", [])
             if _batch_bytes and set(_batch_ids) == set(checked_ids):
                 st.download_button(
-                    "⬇️ Download Batch Excel",
+                    "⬇️ Scarica Excel Batch",
                     data=_batch_bytes,
                     file_name="experiments_batch.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -175,10 +178,10 @@ if results:
             st.markdown("---")
             nav = st.columns([1, 1])
             with nav[0]:
-                if cur_page > 0 and st.button("← Previous", use_container_width=True):
+                if cur_page > 0 and st.button("← Precedente", use_container_width=True):
                     st.session_state["exp_page"] = cur_page - 1
                     st.rerun()
             with nav[1]:
-                if cur_page < total_pages - 1 and st.button("Next →", use_container_width=True):
+                if cur_page < total_pages - 1 and st.button("Successiva →", use_container_width=True):
                     st.session_state["exp_page"] = cur_page + 1
                     st.rerun()

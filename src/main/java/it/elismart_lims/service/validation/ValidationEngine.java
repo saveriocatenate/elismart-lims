@@ -60,6 +60,17 @@ public class ValidationEngine {
      * <p>Side-effect: writes the calculated {@code recoveryPct} back onto each evaluated
      * {@link MeasurementPair}. The caller is responsible for persisting the experiment.</p>
      *
+     * <p>Special cases handled without marking the pair KO on recovery grounds:</p>
+     * <ul>
+     *   <li><b>Zero / negative nominal concentration</b>: if {@code concentrationNominal} is
+     *       {@code null} or {@code ≤ 0}, the recovery calculation is skipped, {@code recoveryPct}
+     *       is set to {@code null}, and the pair is not penalised for recovery. A WARN is logged.</li>
+     *   <li><b>Out-of-range signal</b>: if back-interpolation returns a negative concentration,
+     *       the pair is flagged as out-of-calibration-range in its {@link PairValidationResult},
+     *       {@code recoveryPct} is set to {@code null}, and {@code recoveryPass} is {@code false}.
+     *       A WARN is logged.</li>
+     * </ul>
+     *
      * @param experiment  the experiment containing the measurement pairs to validate
      * @param protocol    the protocol defining {@code maxCvAllowed} and {@code maxErrorAllowed}
      * @param curveParams the calibration curve parameters produced by
@@ -94,12 +105,52 @@ public class ValidationEngine {
                 continue;
             }
 
+            // CASO 1: nominal concentration is null or non-positive — blank/zero calibrators are
+            // legitimate; skip recovery calculation rather than dividing by zero or producing Infinity.
+            if (pair.getConcentrationNominal() == null || pair.getConcentrationNominal() <= 0.0) {
+                log.warn("Pair id={} has nominal concentration <= 0, recovery check skipped", pair.getId());
+                pair.setRecoveryPct(null);
+                boolean cvPassOnly = pair.getCvPct() == null
+                        || pair.getCvPct() <= protocol.getMaxCvAllowed();
+                if (!cvPassOnly) {
+                    allPass = false;
+                    log.debug("Pair id={} FAILED — cvPass=false (cvPct={}), recovery skipped",
+                            pair.getId(), pair.getCvPct());
+                } else {
+                    log.debug("Pair id={} — recovery skipped (nominal ≤ 0), cvPct={} within limit",
+                            pair.getId(), pair.getCvPct());
+                }
+                pairResults.add(new PairValidationResult(
+                        pair.getId(), cvPassOnly, true, null, null, false));
+                continue;
+            }
+
             double interpolated = curveFittingService.interpolateConcentration(
                     protocol.getCurveType(), pair.getSignalMean(), curveParams);
+
+            // CASO 2: back-interpolation produced a negative concentration — the signal lies
+            // outside the calibration range; recovery is meaningless and must not be persisted.
+            if (interpolated < 0) {
+                log.warn("Pair id={} back-interpolation produced negative concentration ({}), "
+                        + "signal may be outside calibration range", pair.getId(), interpolated);
+                pair.setRecoveryPct(null);
+                boolean cvPassOob = pair.getCvPct() == null
+                        || pair.getCvPct() <= protocol.getMaxCvAllowed();
+                allPass = false;
+                log.debug("Pair id={} FAILED — out of calibration range, recoveryPass=false, cvPass={}",
+                        pair.getId(), cvPassOob);
+                pairResults.add(new PairValidationResult(
+                        pair.getId(), cvPassOob, false, interpolated, null, true));
+                continue;
+            }
 
             double recovery = (interpolated / pair.getConcentrationNominal()) * 100.0;
             pair.setRecoveryPct(recovery);
 
+            if (pair.getCvPct() == null) {
+                log.info("Pair id={} has null %CV — treated as pass (cvPct not computed for this pair)",
+                        pair.getId());
+            }
             boolean cvPass = pair.getCvPct() == null
                     || pair.getCvPct() <= protocol.getMaxCvAllowed();
 
@@ -115,7 +166,7 @@ public class ValidationEngine {
             }
 
             pairResults.add(new PairValidationResult(
-                    pair.getId(), cvPass, recoveryPass, interpolated, recovery));
+                    pair.getId(), cvPass, recoveryPass, interpolated, recovery, false));
         }
 
         ExperimentStatus overallStatus = allPass ? ExperimentStatus.OK : ExperimentStatus.KO;

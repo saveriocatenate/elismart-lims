@@ -37,19 +37,19 @@ PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 # CV threshold lives in the sidebar (page-specific)
 with st.sidebar:
     st.markdown("---")
-    st.markdown("**Settings**")
+    st.markdown("**Impostazioni**")
     cv_threshold = st.number_input(
-        "CV threshold (%)",
+        "Soglia %CV",
         min_value=0.0,
         value=15.0,
         step=0.5,
-        help="Pairs with %CV above this value are flagged with ⚠️",
+        help="Le coppie con %CV superiore a questo valore vengono segnalate con ⚠️",
     )
 
-if st.button("← Back to Search"):
+if st.button("← Torna alla Ricerca"):
     st.switch_page("pages/search_experiments.py")
 
-st.title("Experiment Comparison")
+st.title("Confronto Esperimenti")
 show_stored_errors("compare_experiments")
 st.markdown("---")
 
@@ -95,7 +95,7 @@ if pre_ids:
 # Selection section
 # ---------------------------------------------------------------------------
 
-st.subheader("Selected Experiments")
+st.subheader("Esperimenti Selezionati")
 
 selected: list[dict] = st.session_state["compare_selected"]
 
@@ -116,7 +116,7 @@ if selected:
         sc3.caption(item.get("protocolName", "—"))
         curve_raw = item.get("protocolCurveType", "")
         sc4.caption(_CURVE_DISPLAY.get(curve_raw, curve_raw or "—"))
-        if sc5.button("✕ Remove", key=f"rem_{item['id']}", use_container_width=True):
+        if sc5.button("✕ Rimuovi", key=f"rem_{item['id']}", use_container_width=True):
             st.session_state["compare_selected"] = [
                 s for s in st.session_state["compare_selected"] if s["id"] != item["id"]
             ]
@@ -542,5 +542,6 @@ if run_analysis:
                 show_persistent_error(translate_error(str(e)), key="compare_experiments")
 
 if st.session_state.get("gemini_analysis"):
-    st.markdown("**Analysis Result:**")
-    st.info(st.session_state["gemini_analysis"])
+    st.markdown("**Risultato Analisi:**")
+    with st.container(border=True):
+        st.markdown(st.session_state["gemini_analysis"])
