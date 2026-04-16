@@ -45,4 +45,28 @@ public interface CurveFitter {
      *                                  range defined by the fitted asymptotes
      */
     double interpolate(double signal, CurveParameters params);
+
+    /**
+     * Computes 1/signal² weights for Weighted Least Squares fitting.
+     *
+     * <p>Models signal variance as proportional to signal magnitude (proportional
+     * error model), which is the standard assumption for ELISA data across a wide
+     * dynamic range. Down-weighting high-signal calibrators reduces their leverage
+     * on the fitted curve, correcting the EC50 bias introduced by heteroscedasticity.</p>
+     *
+     * <p>When {@code signal <= 0}, the fallback weight {@code 1.0} is used to avoid
+     * division by zero.</p>
+     *
+     * @param points the calibration points whose signals drive the weight computation;
+     *               must be the same list (and order) passed to {@link #fit}
+     * @return array of per-point weights in the same order as {@code points}
+     */
+    static double[] computeWeights(List<CalibrationPoint> points) {
+        return points.stream()
+                .mapToDouble(p -> {
+                    double signal = p.signal();
+                    return signal > 0 ? 1.0 / (signal * signal) : 1.0;
+                })
+                .toArray();
+    }
 }

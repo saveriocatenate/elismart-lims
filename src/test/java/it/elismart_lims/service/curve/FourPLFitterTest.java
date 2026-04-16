@@ -7,6 +7,16 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.DoubleStream;
+import org.apache.commons.math3.fitting.leastsquares.LeastSquaresBuilder;
+import org.apache.commons.math3.fitting.leastsquares.LeastSquaresOptimizer;
+import org.apache.commons.math3.fitting.leastsquares.LeastSquaresProblem;
+import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer;
+import org.apache.commons.math3.fitting.leastsquares.MultivariateJacobianFunction;
+import org.apache.commons.math3.linear.Array2DRowRealMatrix;
+import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.util.Pair;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.assertj.core.data.Offset.offset;
@@ -229,6 +239,25 @@ class FourPLFitterTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> fitter.fit(null))
                 .withMessageContaining("at least 4");
+    }
+
+    // -------------------------------------------------------------------------
+    // WLS weight computation
+    // -------------------------------------------------------------------------
+
+    /**
+     * A calibration point with signal = 0 must produce weight 1.0 (fallback),
+     * not a division-by-zero or NaN.
+     */
+    @Test
+    @DisplayName("computeWeights: zero signal uses fallback weight 1.0")
+    void computeWeights_zeroSignal_returnsFallback() {
+        var points = List.of(new CalibrationPoint(1.0, 0.0));
+
+        double[] weights = CurveFitter.computeWeights(points);
+
+        assertThat(weights).hasSize(1);
+        assertThat(weights[0]).isEqualTo(1.0);
     }
 
     // -------------------------------------------------------------------------
