@@ -3,6 +3,8 @@ package it.elismart_lims.config;
 import it.elismart_lims.security.JwtAuthFilter;
 import it.elismart_lims.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -41,17 +43,33 @@ import java.util.List;
  *   <li>All other endpoints — require any authenticated user</li>
  * </ul>
  *
- * <p>CORS allows requests from the Streamlit frontend at {@code http://localhost:8501}.</p>
+ * <p>CORS allows requests from the Streamlit frontend at the origin configured via
+ * {@code CORS_ALLOWED_ORIGIN} (defaults to {@code http://localhost:8501}).</p>
  */
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    /** Localhost origin used as the default fallback when {@code CORS_ALLOWED_ORIGIN} is not set. */
+    static final String LOCALHOST_ORIGIN = "http://localhost:8501";
+
     public static final String ADMIN = "ADMIN";
     private final JwtTokenProvider jwtTokenProvider;
     private final UserDetailsService userDetailsService;
+
+    /**
+     * The allowed CORS origin for the frontend, read from {@code cors.allowed-origin}
+     * (environment variable {@code CORS_ALLOWED_ORIGIN}). Defaults to {@code http://localhost:8501}.
+     *
+     * <p>A startup warning is emitted when the default localhost value is active so that
+     * deployers remember to set {@code CORS_ALLOWED_ORIGIN} before exposing the backend
+     * via a tunnel or remote URL.</p>
+     */
+    @Value("${cors.allowed-origin}")
+    private String corsAllowedOrigin;
 
     /**
      * Configures the main security filter chain.
@@ -88,14 +106,25 @@ public class SecurityConfig {
     }
 
     /**
-     * CORS configuration allowing the Streamlit frontend origin.
+     * CORS configuration allowing the Streamlit frontend origin read from
+     * {@code cors.allowed-origin} (env var {@code CORS_ALLOWED_ORIGIN}).
+     *
+     * <p>A {@code WARN}-level message is emitted at bean creation time when the active origin
+     * is {@value #LOCALHOST_ORIGIN}, reminding operators to set {@code CORS_ALLOWED_ORIGIN}
+     * before exposing the backend via a tunnel or remote URL. The application starts normally
+     * regardless — localhost is a valid origin for local development.</p>
      *
      * @return the CORS configuration source
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        if (LOCALHOST_ORIGIN.equals(corsAllowedOrigin)) {
+            log.warn("CORS origin is set to localhost:8501. If the frontend is accessed via tunnel "
+                    + "or remote URL, API calls will be blocked. Set CORS_ALLOWED_ORIGIN in .env");
+        }
+
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:8501"));
+        config.setAllowedOrigins(List.of(corsAllowedOrigin));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

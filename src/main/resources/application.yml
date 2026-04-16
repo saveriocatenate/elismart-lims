@@ -33,3 +33,9 @@ jwt:
 
 cors:
   allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:8501}
+
+logging:
+  level:
+    # LangChain4j logs request/response details at INFO by default; suppress to WARN
+    # to avoid leaking prompt content and API metadata into production logs.
+    dev.langchain4j: WARN

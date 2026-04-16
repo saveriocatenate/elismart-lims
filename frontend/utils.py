@@ -35,14 +35,30 @@ def resolve_backend_url() -> str:
 # Auth helpers
 # ---------------------------------------------------------------------------
 
-def check_auth() -> None:
-    """Stop rendering the current page if the user is not authenticated.
+_VALID_ROLES: frozenset[str] = frozenset({"ANALYST", "REVIEWER", "ADMIN"})
 
-    Checks for a non-empty JWT token in ``st.session_state["jwt_token"]``.
-    If absent or empty, stops execution — the login gate in ``app.py`` will
-    intercept the rerun and render the login form instead.
+
+def check_auth() -> None:
+    """Stop rendering the current page if the user is not authenticated or has an invalid role.
+
+    Two checks are performed in order:
+
+    1. **JWT token** — if absent or empty, stops execution so the login gate in
+       ``app.py`` can render the login form.
+    2. **Role integrity** — if the role stored in session state is not one of the
+       known backend values (``ANALYST``, ``REVIEWER``, ``ADMIN``), the session is
+       cleared and an error message is displayed. This prevents a tampered session
+       state from granting access under a fabricated role.
     """
     if not st.session_state.get("jwt_token"):
+        st.stop()
+
+    role = st.session_state.get("role", "")
+    if role not in _VALID_ROLES:
+        st.session_state.pop("jwt_token", None)
+        st.session_state.pop("username", None)
+        st.session_state.pop("role", None)
+        st.error("Ruolo non valido. Effettua nuovamente l'accesso.")
         st.stop()
 
 
@@ -206,6 +222,20 @@ ERROR_TRANSLATIONS: dict[str, str] = {
     ),
     # ── Auth ────────────────────────────────────────────────────────────────
     "Username already exists": "Nome utente già in uso. Scegli un nome diverso.",
+    # ── AI / Gemini ─────────────────────────────────────────────────────────
+    "Invalid or missing Gemini API key": (
+        "Funzionalità AI non configurata. "
+        "Contatta l'amministratore per abilitare l'analisi AI (GEMINI_API_KEY)."
+    ),
+    "AI service error": (
+        "Errore del servizio AI — riprova tra qualche istante o contatta l'amministratore."
+    ),
+    "rate limit exceeded": (
+        "Limite di richieste AI raggiunto — attendi qualche minuto e riprova."
+    ),
+    "Gemini API request timed out": (
+        "Il servizio AI non ha risposto in tempo — riprova tra qualche istante."
+    ),
 }
 
 
