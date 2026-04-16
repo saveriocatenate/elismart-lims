@@ -10,4 +10,4 @@ package it.elismart_lims.service.curve;
  * @param concentration nominal concentration of the calibrator (must be &gt; 0)
  * @param signal        measured instrument signal (e.g. absorbance, fluorescence)
  */
-public record CalibrationPoint(double concentration, double signal) {}
+public record CalibrationPoint(Double concentration, Double signal) {}

@@ -2,8 +2,11 @@ package it.elismart_lims.mapper;
 
 import it.elismart_lims.dto.MeasurementPairRequest;
 import it.elismart_lims.model.Experiment;
+import it.elismart_lims.model.ExperimentStatus;
 import it.elismart_lims.model.MeasurementPair;
+import it.elismart_lims.model.PairStatus;
 import it.elismart_lims.model.PairType;
+import it.elismart_lims.model.Protocol;
 import it.elismart_lims.model.Sample;
 import org.junit.jupiter.api.Test;
 
@@ -161,5 +164,123 @@ class MeasurementPairMapperTest {
         assertThat(responses).hasSize(2);
         assertThat(responses.get(0).pairType()).isEqualTo(PairType.CALIBRATION);
         assertThat(responses.get(1).pairType()).isEqualTo(PairType.CONTROL);
+    }
+
+    // ── PairStatus computation tests ──────────────────────────────────────────
+
+    /** Builds a Protocol with the given CV and error (recovery) limits. */
+    private static Protocol protocol(double maxCv, double maxErr) {
+        return Protocol.builder()
+                .maxCvAllowed(maxCv)
+                .maxErrorAllowed(maxErr)
+                .build();
+    }
+
+    @Test
+    void pairStatus_nonOutlier_cvOk_recoveryOk_shouldBePass() {
+        var pair = MeasurementPair.builder()
+                .pairType(PairType.CONTROL)
+                .concentrationNominal(50.0)
+                .cvPct(5.0)
+                .recoveryPct(95.0)   // |95 - 100| = 5 ≤ 15 → ok
+                .isOutlier(false)
+                .build();
+
+        var response = MeasurementPairMapper.toResponse(pair, protocol(15.0, 15.0), ExperimentStatus.OK);
+
+        assertThat(response.pairStatus()).isEqualTo(PairStatus.PASS);
+    }
+
+    @Test
+    void pairStatus_outlier_shouldBeOutlier_regardlessOfLimits() {
+        var pair = MeasurementPair.builder()
+                .pairType(PairType.CONTROL)
+                .concentrationNominal(50.0)
+                .cvPct(2.0)
+                .recoveryPct(98.0)
+                .isOutlier(true)
+                .build();
+
+        var response = MeasurementPairMapper.toResponse(pair, protocol(15.0, 15.0), ExperimentStatus.OK);
+
+        assertThat(response.pairStatus()).isEqualTo(PairStatus.OUTLIER);
+    }
+
+    @Test
+    void pairStatus_nonOutlier_cvAboveLimit_shouldBeFail() {
+        var pair = MeasurementPair.builder()
+                .pairType(PairType.CONTROL)
+                .concentrationNominal(50.0)
+                .cvPct(20.0)         // 20 > 15 → fail
+                .recoveryPct(100.0)
+                .isOutlier(false)
+                .build();
+
+        var response = MeasurementPairMapper.toResponse(pair, protocol(15.0, 15.0), ExperimentStatus.OK);
+
+        assertThat(response.pairStatus()).isEqualTo(PairStatus.FAIL);
+    }
+
+    @Test
+    void pairStatus_nonOutlier_cvOk_recoveryOutsideLimit_shouldBeFail() {
+        var pair = MeasurementPair.builder()
+                .pairType(PairType.CONTROL)
+                .concentrationNominal(50.0)
+                .cvPct(5.0)
+                .recoveryPct(120.0)  // |120 - 100| = 20 > 15 → fail
+                .isOutlier(false)
+                .build();
+
+        var response = MeasurementPairMapper.toResponse(pair, protocol(15.0, 15.0), ExperimentStatus.OK);
+
+        assertThat(response.pairStatus()).isEqualTo(PairStatus.FAIL);
+    }
+
+    @Test
+    void pairStatus_pendingExperiment_shouldBePending() {
+        var pair = MeasurementPair.builder()
+                .pairType(PairType.CONTROL)
+                .concentrationNominal(50.0)
+                .cvPct(2.0)
+                .recoveryPct(99.0)
+                .isOutlier(false)
+                .build();
+
+        var response = MeasurementPairMapper.toResponse(pair, protocol(15.0, 15.0), ExperimentStatus.PENDING);
+
+        assertThat(response.pairStatus()).isEqualTo(PairStatus.PENDING);
+    }
+
+    @Test
+    void pairStatus_calibration_cvOk_shouldBePass_withoutRecoveryCheck() {
+        // CALIBRATION pairs have no target recovery; recovery check must be skipped entirely.
+        var pair = MeasurementPair.builder()
+                .pairType(PairType.CALIBRATION)
+                .concentrationNominal(100.0)
+                .cvPct(3.0)
+                .recoveryPct(null)   // no recovery for calibration
+                .isOutlier(false)
+                .build();
+
+        var response = MeasurementPairMapper.toResponse(pair, protocol(15.0, 15.0), ExperimentStatus.OK);
+
+        assertThat(response.pairStatus()).isEqualTo(PairStatus.PASS);
+    }
+
+    @Test
+    void pairStatus_controlWithZeroConcentration_cvOk_shouldBePass() {
+        // concentrationNominal == 0 → recovery was intentionally skipped (guard rule);
+        // the pair should not be penalised.
+        var pair = MeasurementPair.builder()
+                .pairType(PairType.CONTROL)
+                .concentrationNominal(0.0)
+                .cvPct(4.0)
+                .recoveryPct(null)
+                .isOutlier(false)
+                .build();
+
+        var response = MeasurementPairMapper.toResponse(pair, protocol(15.0, 15.0), ExperimentStatus.OK);
+
+        assertThat(response.pairStatus()).isEqualTo(PairStatus.PASS);
     }
 }

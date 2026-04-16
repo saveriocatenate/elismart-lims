@@ -55,7 +55,10 @@ public final class ExperimentMapper {
                 .createdBy(experiment.getCreatedBy())
                 .updatedBy(experiment.getUpdatedBy())
                 .usedReagentBatches(UsedReagentBatchMapper.toResponseList(experiment.getUsedReagentBatches()))
-                .measurementPairs(MeasurementPairMapper.toResponseList(experiment.getMeasurementPairs()))
+                .measurementPairs(MeasurementPairMapper.toResponseList(
+                        experiment.getMeasurementPairs(),
+                        experiment.getProtocol(),
+                        experiment.getStatus()))
                 .build();
     }
 }
