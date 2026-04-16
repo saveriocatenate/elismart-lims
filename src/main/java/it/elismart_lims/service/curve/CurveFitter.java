@@ -50,7 +50,7 @@ public interface CurveFitter {
      * Computes 1/signal² weights for Weighted Least Squares fitting.
      *
      * <p>Models signal variance as proportional to signal magnitude (proportional
-     * error model), which is the standard assumption for ELISA data across a wide
+     * error model), which is the standard assumption for heteroscedastic immunoassay data across a wide
      * dynamic range. Down-weighting high-signal calibrators reduces their leverage
      * on the fitted curve, correcting the EC50 bias introduced by heteroscedasticity.</p>
      *
@@ -60,8 +60,10 @@ public interface CurveFitter {
      * @param points the calibration points whose signals drive the weight computation;
      *               must be the same list (and order) passed to {@link #fit}
      * @return array of per-point weights in the same order as {@code points}
+     * @throws IllegalArgumentException if {@code points} is {@code null}
      */
     static double[] computeWeights(List<CalibrationPoint> points) {
+        if (points == null) throw new IllegalArgumentException("points must not be null");
         return points.stream()
                 .mapToDouble(p -> {
                     double signal = p.signal();

@@ -7,16 +7,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.List;
-import java.util.Map;
-import java.util.stream.DoubleStream;
-import org.apache.commons.math3.fitting.leastsquares.LeastSquaresBuilder;
-import org.apache.commons.math3.fitting.leastsquares.LeastSquaresOptimizer;
-import org.apache.commons.math3.fitting.leastsquares.LeastSquaresProblem;
-import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer;
-import org.apache.commons.math3.fitting.leastsquares.MultivariateJacobianFunction;
-import org.apache.commons.math3.linear.Array2DRowRealMatrix;
-import org.apache.commons.math3.linear.ArrayRealVector;
-import org.apache.commons.math3.util.Pair;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.assertj.core.data.Offset.offset;
@@ -246,13 +236,16 @@ class FourPLFitterTest {
     // -------------------------------------------------------------------------
 
     /**
-     * A calibration point with signal = 0 must produce weight 1.0 (fallback),
-     * not a division-by-zero or NaN.
+     * A calibration point with a non-positive signal (zero, negative) must produce
+     * weight 1.0 (fallback), not a division-by-zero, NaN, or negative weight.
+     *
+     * @param signal a non-positive signal value
      */
-    @Test
-    @DisplayName("computeWeights: zero signal uses fallback weight 1.0")
-    void computeWeights_zeroSignal_returnsFallback() {
-        var points = List.of(new CalibrationPoint(1.0, 0.0));
+    @ParameterizedTest(name = "signal={0} uses fallback weight 1.0")
+    @CsvSource({"0.0", "-1.0", "-0.001"})
+    @DisplayName("computeWeights: non-positive signal uses fallback weight 1.0")
+    void computeWeights_nonPositiveSignal_returnsFallback(double signal) {
+        var points = List.of(new CalibrationPoint(1.0, signal));
 
         double[] weights = CurveFitter.computeWeights(points);
 
