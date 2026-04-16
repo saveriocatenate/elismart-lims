@@ -137,13 +137,18 @@ if len(selected) < MAX_SLOTS:
                 add_name = st.text_input("Nome contiene", placeholder="Lascia vuoto per cercare tutti")
             with col_f2:
                 add_size = st.selectbox("Risultati", [5, 10, 20], index=0)
+            add_mine = st.toggle(
+                "Solo i miei esperimenti",
+                value=False,
+                help="Attivo: vedi solo gli esperimenti creati da te. Disattiva per cercare su tutto il database.",
+            )
             add_searched = st.form_submit_button("Cerca", use_container_width=True)
 
         if add_searched:
             try:
                 r = requests.post(
                     f"{BACKEND_URL}/api/experiments/search",
-                    json={"name": add_name.strip() or None, "page": 0, "size": add_size},
+                    json={"name": add_name.strip() or None, "page": 0, "size": add_size, "mine": add_mine},
                     headers=get_auth_headers(),
                     timeout=10,
                 )
@@ -538,7 +543,8 @@ if run_analysis:
                 if resp.status_code == 200:
                     st.session_state["gemini_analysis"] = resp.json().get("analysis", "")
                 else:
-                    show_persistent_error(translate_error(resp.text[:300]), key="compare_experiments")
+                    detail = resp.json().get("message", resp.text[:300]) if resp.content else resp.text[:300]
+                    show_persistent_error(translate_error(detail), key="compare_experiments")
             except requests.exceptions.RequestException as e:
                 show_persistent_error(translate_error(str(e)), key="compare_experiments")
 

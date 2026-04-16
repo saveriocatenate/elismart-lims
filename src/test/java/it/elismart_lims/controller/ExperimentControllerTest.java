@@ -174,7 +174,7 @@ class ExperimentControllerTest {
     @Test
     void search_shouldReturnPaginatedResults() throws Exception {
         var searchRequest = new ExperimentSearchRequest(
-                null, null, null, null, null, 0, 20);
+                null, null, null, null, null, 0, 20, false);
         var page = new ExperimentPage(
                 List.of(sampleResponse()), 0, 20, 1, 1, true);
         when(experimentService.search(any())).thenReturn(page);

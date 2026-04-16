@@ -25,6 +25,15 @@ st.title("Cerca Esperimenti")
 show_stored_errors("search_experiments")
 st.markdown("---")
 
+# "Mine" toggle — default ON for analysts/reviewers, OFF for admins who need a global view.
+_role = st.session_state.get("role", "ANALYST")
+st.session_state.setdefault("mine_exp", _role != "ADMIN")
+mine_toggle = st.toggle(
+    "Mostra solo i miei esperimenti",
+    key="mine_exp",
+    help="Attivo: vedi solo gli esperimenti creati da te. Disattiva per vedere tutto il database.",
+)
+
 with st.form("search_form"):
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -58,6 +67,7 @@ if submitted or "exp_results" in st.session_state:
         "status": status_filter if status_filter != "ALL" else None,
         "page": st.session_state.get("exp_page", 0),
         "size": page_size,
+        "mine": mine_toggle,
     }
     try:
         resp = requests.post(

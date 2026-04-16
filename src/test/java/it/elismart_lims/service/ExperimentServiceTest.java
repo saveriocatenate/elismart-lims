@@ -52,6 +52,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
@@ -245,7 +249,7 @@ class ExperimentServiceTest {
     @Test
     void search_shouldReturnPagedResultsWithFilters() {
         ExperimentSearchRequest searchRequest = new ExperimentSearchRequest(
-                "test", null, null, null, ExperimentStatus.COMPLETED, 0, 10);
+                "test", null, null, null, ExperimentStatus.COMPLETED, 0, 10, false);
 
         when(experimentRepository.findAll(any(Specification.class), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(experiment)));
@@ -310,7 +314,7 @@ class ExperimentServiceTest {
     @Test
     void search_shouldReturnEmpty_whenNoMatches() {
         ExperimentSearchRequest searchRequest = new ExperimentSearchRequest(
-                "nonexistent", null, null, null, null, 0, 10);
+                "nonexistent", null, null, null, null, 0, 10, false);
 
         when(experimentRepository.findAll(any(Specification.class), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(Collections.emptyList()));
@@ -318,6 +322,44 @@ class ExperimentServiceTest {
         ExperimentPage result = experimentService.search(searchRequest);
 
         assertThat(result.content()).isEmpty();
+    }
+
+    @Test
+    void search_withMineTrue_shouldDelegateToRepositoryWithAuthenticatedUser() {
+        ExperimentSearchRequest searchRequest = new ExperimentSearchRequest(
+                null, null, null, null, null, 0, 10, true);
+
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken("alice", null, List.of());
+        SecurityContext ctx = SecurityContextHolder.createEmptyContext();
+        ctx.setAuthentication(auth);
+        SecurityContextHolder.setContext(ctx);
+
+        try {
+            when(experimentRepository.findAll(any(Specification.class), any(PageRequest.class)))
+                    .thenReturn(new PageImpl<>(List.of(experiment)));
+
+            ExperimentPage result = experimentService.search(searchRequest);
+
+            assertThat(result.content()).hasSize(1);
+            verify(experimentRepository).findAll(any(Specification.class), any(PageRequest.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void search_withMineFalse_shouldNotFilterByUser() {
+        ExperimentSearchRequest searchRequest = new ExperimentSearchRequest(
+                null, null, null, null, null, 0, 10, false);
+
+        when(experimentRepository.findAll(any(Specification.class), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(experiment)));
+
+        ExperimentPage result = experimentService.search(searchRequest);
+
+        assertThat(result.content()).hasSize(1);
+        verify(experimentRepository).findAll(any(Specification.class), any(PageRequest.class));
     }
 
     @Test

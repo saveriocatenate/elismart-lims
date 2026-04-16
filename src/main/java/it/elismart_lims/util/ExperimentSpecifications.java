@@ -22,10 +22,14 @@ public final class ExperimentSpecifications {
     /**
      * Builds a Specification that filters experiments by the criteria in the request.
      *
-     * @param request the search criteria
+     * @param request           the search criteria
+     * @param createdByFilter   when non-{@code null}, restricts results to experiments whose
+     *                          {@code createdBy} field equals this value; pass {@code null}
+     *                          to skip the owner filter (show all experiments)
      * @return a composite AND Specification of all non-null predicates
      */
-    public static Specification<Experiment> buildSpecification(ExperimentSearchRequest request) {
+    public static Specification<Experiment> buildSpecification(
+            ExperimentSearchRequest request, String createdByFilter) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -51,6 +55,10 @@ public final class ExperimentSpecifications {
                 if (dateTo != null) {
                     predicates.add(cb.lessThanOrEqualTo(root.get("date"), dateTo));
                 }
+            }
+
+            if (createdByFilter != null) {
+                predicates.add(cb.equal(root.get("createdBy"), createdByFilter));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));

@@ -38,6 +38,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -458,6 +460,11 @@ public class ExperimentService {
     /**
      * Search experiments with optional filters and pagination.
      *
+     * <p>When {@link ExperimentSearchRequest#mine()} is {@code true}, results are restricted to
+     * experiments whose {@code createdBy} equals the authenticated user's username. This lets
+     * analysts working in a shared database quickly filter to their own work without affecting
+     * admins or reviewers who need a global view.</p>
+     *
      * @param request the search criteria and pagination parameters
      * @return a paginated {@link ExperimentPage} matching the filters
      */
@@ -468,8 +475,16 @@ public class ExperimentService {
                 request.size(),
                 Sort.by(Sort.Direction.DESC, "date"));
 
+        String createdByFilter = null;
+        if (request.mine()) {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+                createdByFilter = auth.getName();
+            }
+        }
+
         Page<Experiment> page = experimentRepository.findAll(
-                ExperimentSpecifications.buildSpecification(request), pageRequest);
+                ExperimentSpecifications.buildSpecification(request, createdByFilter), pageRequest);
 
         List<ExperimentResponse> content = page.getContent().stream()
                 .map(ExperimentMapper::toResponse)

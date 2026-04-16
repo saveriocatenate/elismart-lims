@@ -39,9 +39,10 @@ class ExperimentSpecificationsTest {
     @MethodSource("specificationFilterCases")
     void buildSpecification_shouldReturnNonNullSpec(
             String testDescription,
-            ExperimentSearchRequest request) {
+            ExperimentSearchRequest request,
+            String createdByFilter) {
 
-        Specification<Experiment> spec = ExperimentSpecifications.buildSpecification(request);
+        Specification<Experiment> spec = ExperimentSpecifications.buildSpecification(request, createdByFilter);
 
         assertThat(spec).isNotNull();
     }
@@ -53,37 +54,43 @@ class ExperimentSpecificationsTest {
 
         return Stream.of(
                 Arguments.of("all null → empty predicate",
-                        new ExperimentSearchRequest(null,  null,  null, null, null,  0, 20)),
+                        new ExperimentSearchRequest(null,  null,  null, null, null,  0, 20, false), null),
 
                 Arguments.of("non-blank name filter",
-                        new ExperimentSearchRequest("Run", null,  null, null, null,  0, 20)),
+                        new ExperimentSearchRequest("Run", null,  null, null, null,  0, 20, false), null),
 
                 Arguments.of("blank name → ignored",
-                        new ExperimentSearchRequest("   ", null,  null, null, null,  0, 20)),
+                        new ExperimentSearchRequest("   ", null,  null, null, null,  0, 20, false), null),
 
                 Arguments.of("non-null status filter",
-                        new ExperimentSearchRequest(null,  null,  null, null, ExperimentStatus.OK,  0, 20)),
+                        new ExperimentSearchRequest(null,  null,  null, null, ExperimentStatus.OK,  0, 20, false), null),
 
                 Arguments.of("null status → ignored",
-                        new ExperimentSearchRequest(null,  null,  null, null, null, 0, 20)),
+                        new ExperimentSearchRequest(null,  null,  null, null, null, 0, 20, false), null),
 
                 Arguments.of("exact date filter",
-                        new ExperimentSearchRequest(null,  exact, null, null, null,  0, 20)),
+                        new ExperimentSearchRequest(null,  exact, null, null, null,  0, 20, false), null),
 
                 Arguments.of("dateFrom only",
-                        new ExperimentSearchRequest(null,  null,  from, null, null,  0, 20)),
+                        new ExperimentSearchRequest(null,  null,  from, null, null,  0, 20, false), null),
 
                 Arguments.of("dateTo only",
-                        new ExperimentSearchRequest(null,  null,  null, to,   null,  0, 20)),
+                        new ExperimentSearchRequest(null,  null,  null, to,   null,  0, 20, false), null),
 
                 Arguments.of("dateFrom + dateTo range",
-                        new ExperimentSearchRequest(null,  null,  from, to,   null,  0, 20)),
+                        new ExperimentSearchRequest(null,  null,  from, to,   null,  0, 20, false), null),
 
                 Arguments.of("combined name + range + status",
-                        new ExperimentSearchRequest("Run", null,  from, to,   ExperimentStatus.OK,  0, 20)),
+                        new ExperimentSearchRequest("Run", null,  from, to,   ExperimentStatus.OK,  0, 20, false), null),
 
                 Arguments.of("exact date overrides dateFrom + dateTo",
-                        new ExperimentSearchRequest(null,  exact, from, to,   null,  0, 20))
+                        new ExperimentSearchRequest(null,  exact, from, to,   null,  0, 20, false), null),
+
+                Arguments.of("mine=false → createdByFilter null",
+                        new ExperimentSearchRequest(null,  null,  null, null, null, 0, 20, false), null),
+
+                Arguments.of("mine=true → createdByFilter non-null",
+                        new ExperimentSearchRequest(null,  null,  null, null, null, 0, 20, true), "alice")
         );
     }
 }
