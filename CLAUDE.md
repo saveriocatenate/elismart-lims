@@ -19,10 +19,12 @@ EliSmart LIMS: a Laboratory Information Management System featuring hierarchical
 ## Environment Setup
 
 **Backend** environment variables (set in shell or via `.env` file sourced before startup):
-- `GEMINI_API_KEY` — Google Gemini API key (required for `/api/ai/analyze`)
+- `JWT_SECRET` — secret key for JWT token signing (**required**, min 32 chars; app refuses to start if missing/short)
+- `ADMIN_PASSWORD` — password for the `admin` user seeded on first boot (optional; random 16-char password generated if absent)
+- `GEMINI_API_KEY` — Google Gemini API key (required for `/api/ai/analyze`; other endpoints work without it)
 - `GEMINI_MODEL` — override Gemini model name (optional, defaults to `gemini-2.0-flash`)
-- `JWT_SECRET` — secret key for JWT token signing (required)
-- `JWT_EXPIRATION_MS` — token expiration in milliseconds (optional, defaults to `86400000`)
+- `JWT_EXPIRATION_MS` — token expiration in milliseconds (optional, defaults to `86400000` = 24 h)
+- `CORS_ALLOWED_ORIGIN` — allowed CORS origin (optional, defaults to `http://localhost:8501`; **required for non-local deployments**)
 
 See `.env.example` for the full list of variables and expected formats.
 
@@ -104,7 +106,7 @@ Each constant carries `displayName`, `description`, and `requiredParameters` fie
 
 ### Validation Engine
 
-`ValidationEngine` is the central component that enforces protocol acceptance criteria on experiment data. It is invoked automatically when an experiment's status transitions to a terminal state (OK/KO).
+`ValidationEngine` is the central component that enforces protocol acceptance criteria on experiment data. It is invoked automatically when an experiment's status transitions to **COMPLETED** (data submission). The engine then sets OK or KO programmatically — those statuses are never set directly by the operator.
 
 **Workflow:**
 1. `CurveFittingService` fits the calibration curve using CALIBRATION pairs and the protocol's `CurveType`. Fitted parameters are stored on the Experiment entity.
@@ -122,7 +124,7 @@ Each `CurveType` has a corresponding fitter class implementing `CurveFitter` int
 - `FivePLFitter`: adds asymmetry parameter E.
 - `LinearFitter`, `SemiLogLinearFitter`, `PointToPointFitter`: simpler models.
 
-Fitted parameters are stored as JSON in `Experiment.curveParameters`. The `CurveFittingService.interpolate(signal, parameters, curveType)` method returns the back-calculated concentration.
+Fitted parameters are stored as JSON in `Experiment.curveParameters` (column `curve_parameters`, type CLOB). Non-linear fitters (4PL, 5PL, 3PL) also store two diagnostic keys: `_convergence` (`1.0` = converged) and `_rms` (root-mean-square residual). The `CurveFittingService.interpolateConcentration(CurveType, double signal, CurveParameters)` method returns the back-calculated concentration.
 
 ### CSV Import
 
@@ -133,6 +135,8 @@ Fitted parameters are stored as JSON in `Experiment.curveParameters`. The `Curve
 - Molecular Devices SoftMax Pro
 
 The import creates MeasurementPairs with raw signals populated from the file. All derived values (mean, %CV) are calculated server-side after import. The user maps the plate layout (which wells are calibrators, controls, samples) via a configuration step before import.
+
+**Validation rule:** any row containing a **negative signal value** is rejected. The import collects all errors across all rows and reports them in a single `IllegalArgumentException` — never one-at-a-time. Signal value `0.0` is accepted.
 
 ### Export & Reporting
 
@@ -211,7 +215,8 @@ The AI prompt uses a generic "laboratory assay" context (not ELISA-specific) to 
 - `API.md` is an index linking to the per-entity docs.
 - `database-er-diagram.md` contains the Mermaid ER diagram.
 - `frontend-wireframes.md` documents the Streamlit page structure and navigation.
-- `validation-formulas.md` documents every derived metric formula (%CV, %Recovery, curve fitting models) with references to ISO/CLSI standards.
+- `validation-formulas.md` documents every derived metric formula (%CV, %Recovery, curve fitting models) with references to ISO/CLSI standards. Includes sections on numerical safeguards and convergence metadata.
+- `architecture-multi-assay.md` documents all ELISA-specific coupling points, the target `MeasurementStrategy` architecture for Phase 7, and the required DB migrations.
 - Keep docs in sync when adding fields, endpoints, or enum values.
 
 ### Numerical Validation
@@ -259,7 +264,7 @@ No other transition is permitted. Any attempt to move to an unlisted target stat
 
 ### Multi-assay Preparation (Future)
 
-The current domain model is tightly coupled to the ELISA paradigm: `MeasurementPair` carries `signal1`/`signal2` (duplicate reads), `cvPct` (duplicate %CV), and `recoveryPct`. A future Phase 7 refactoring will introduce a `MeasurementType` abstraction that decouples the measurement schema from the assay type.
+The current domain model is tightly coupled to the ELISA paradigm: `MeasurementPair` carries `signal1`/`signal2` (duplicate reads), `cvPct` (duplicate %CV), and `recoveryPct`. A future Phase 7 refactoring will introduce a `MeasurementStrategy` interface that decouples the measurement schema and metric formulas from the assay type. See `documentation/architecture-multi-assay.md` for the full coupling analysis, target design, and migration plan.
 
 Until that refactoring is done, the following constraints apply to any code touching `MeasurementPair`, `ValidationEngine`, or `PairType`:
 

@@ -31,8 +31,14 @@ against the implementation.
    - 3.1 [Percent CV Threshold](#31-percent-cv-threshold)
    - 3.2 [Grubbs Test (between-pair)](#32-grubbs-test-between-pair)
 4. [Validation Engine Logic](#4-validation-engine-logic)
-5. [Traceability and Audit](#5-traceability-and-audit)
-6. [References](#6-references)
+5. [Numerical Safeguards](#5-numerical-safeguards)
+   - 5.1 [NaN / Infinity Guard](#51-nan--infinity-guard)
+   - 5.2 [Zero-Concentration Points in Non-Linear Fitting](#52-zero-concentration-points-in-non-linear-fitting)
+   - 5.3 [Zero or Negative Nominal Concentration — %Recovery Skip Rule](#53-zero-or-negative-nominal-concentration--recovery-skip-rule)
+   - 5.4 [Grubbs Degenerate Distribution Guard](#54-grubbs-degenerate-distribution-guard)
+6. [Curve Fitting Convergence Metadata](#6-curve-fitting-convergence-metadata)
+7. [Traceability and Audit](#7-traceability-and-audit)
+8. [References](#8-references)
 
 ---
 
@@ -731,7 +737,194 @@ justification required by 21 CFR Part 11 and EU GMP Annex 11.
 
 ---
 
-## 5. Traceability and Audit
+---
+
+## 5. Numerical Safeguards
+
+The rules in this section apply to every arithmetic operation inside fitter classes
+(`FourPLFitter`, `FivePLFitter`, `LogLogistic3PFitter`, etc.) and the validation engine.
+They prevent IEEE 754 exceptional values (`NaN`, `Infinity`, `-Infinity`) from propagating
+into persisted columns or audit log entries.
+
+---
+
+### 5.1 NaN / Infinity Guard
+
+Every `Math.pow()`, division, or `Math.log()` call whose result will be persisted or used
+as the input to another arithmetic operation is followed by an explicit guard:
+
+```java
+if (Double.isNaN(result) || Double.isInfinite(result))
+    throw new IllegalArgumentException(
+        "<operation> produced NaN/Infinite: input_a=<val>, input_b=<val>");
+```
+
+**Where applied:**
+- Back-interpolation (`interpolate()`) in all fitter classes (4PL, 5PL, 3PL, Semi-log,
+  Point-to-Point).
+- Any intermediate ratio, exponentiation, or logarithm whose output feeds into the final
+  concentration estimate.
+
+**Error message contract:** the exception message must include the input values so the
+cause is diagnosable from logs alone, without a debugger or reproducing the dataset.
+
+**Implementation examples:**
+- `FourPLFitter.interpolate()` — line ~248
+- `FivePLFitter.interpolate()` — line ~277
+- `LogLogistic3PFitter.interpolate()` — line ~214
+- `SemiLogLinearFitter.interpolate()` — line ~88
+- `PointToPointFitter.interpolate()` — line ~113
+
+---
+
+### 5.2 Zero-Concentration Points in Non-Linear Fitting
+
+Non-linear sigmoidal models (4PL, 5PL, 3PL) use a log-transform of concentration internally
+during Levenberg-Marquardt optimisation. A calibration point with `concentrationNominal = 0`
+would require evaluating `Math.log(0) = -Infinity`, which corrupts the Jacobian and halts
+convergence.
+
+**Rule:** before entering the optimisation loop, the fitter silently filters out any
+calibration point whose concentration is `≤ 0`:
+
+```java
+List<CalibrationPoint> validPoints = points.stream()
+    .filter(p -> p.concentration() > 0)
+    .toList();
+if (validPoints.isEmpty()) {
+    throw new IllegalArgumentException("No calibration points with concentration > 0 ...");
+}
+```
+
+A **WARN**-level log entry is produced for each excluded zero-concentration point so that
+analysts can investigate whether the blank was intentionally included or entered in error.
+
+**Fitters affected:** `FourPLFitter`, `FivePLFitter`, `LogLogistic3PFitter`.
+**Not affected:** `LinearFitter`, `SemiLogLinearFitter` (no log-transform of x in fitting),
+`PointToPointFitter` (non-parametric, no optimisation loop).
+
+---
+
+### 5.3 Zero or Negative Nominal Concentration — %Recovery Skip Rule
+
+`ValidationEngine.evaluate()` computes %Recovery as:
+
+```
+%Recovery = (interpolatedConc / concentrationNominal) × 100
+```
+
+If `concentrationNominal` is `null` or `≤ 0`, this division is either undefined or
+physically meaningless (a blank well with nominal concentration 0 is not a quality control).
+
+**Rule:**
+
+```java
+if (pair.getConcentrationNominal() == null || pair.getConcentrationNominal() <= 0) {
+    log.warn("Pair id={} has nominal concentration <= 0, recovery check skipped", pair.getId());
+    pair.setRecoveryPct(null);
+    // pair is not penalised for recovery — recoveryPass = true by default
+}
+```
+
+The pair still participates in the **%CV** evaluation. It is only exempted from the
+recovery criterion. The `PairValidationResult.calculatedRecovery` field is `null` for
+these pairs and the `recoveryPass` flag is `true`.
+
+**Practical cases:**
+- A blank well (zero-standard) included in the CONTROL or SAMPLE group for background
+  subtraction purposes.
+- A SAMPLE pair where the operator left `concentrationNominal` empty.
+
+---
+
+### 5.4 Grubbs Degenerate Distribution Guard
+
+The Grubbs between-pair outlier test divides by the sample standard deviation of the group:
+
+```
+G = |x_suspect − mean| / SD
+```
+
+When all `signalMean` values in a group are identical, `SD = 0` and this division is
+undefined.
+
+**Rule:** the test uses a near-zero threshold rather than exact equality to account for
+floating-point rounding:
+
+```java
+if (Math.abs(sd) < 1e-12) {
+    // Degenerate: all replicates are identical. No outlier — return empty.
+    return Optional.empty();
+}
+```
+
+This threshold (`1e-12`) is deliberately much smaller than any physically meaningful SD
+in a laboratory instrument context (typical OD readings range from 0.001 to 4.0; an SD
+of 1e-12 is indistinguishable from machine epsilon at that scale).
+
+**Consequence:** a perfectly reproducible group is treated as having no outlier. If all
+pairs in a group read exactly the same signal, the CV criterion (§3.1) will also return
+0% — both tests agree the group is clean.
+
+---
+
+## 6. Curve Fitting Convergence Metadata
+
+Non-linear fitters (4PL, 5PL, 3PL) append two diagnostic keys to the `CurveParameters`
+map after a successful fit. These keys use the `_` prefix to distinguish them from model
+parameters (e.g. `"A"`, `"B"`, `"C"`).
+
+**File:** `src/main/java/it/elismart_lims/service/curve/CurveParameters.java`
+
+| Key | Constant | Value when present | Fitters |
+|-----|----------|--------------------|---------|
+| `_convergence` | `CurveParameters.META_CONVERGENCE` | `1.0` if the Levenberg-Marquardt optimizer converged normally; `0.0` if not | 4PL, 5PL, 3PL |
+| `_rms` | `CurveParameters.META_RMS` | Root-mean-square residual of the final fit (same units as the signal axis) | 4PL, 5PL, 3PL |
+
+**Linear models** (`LinearFitter`, `SemiLogLinearFitter`) do not include these keys because
+OLS regression always produces a unique solution with no iterative convergence.
+`PointToPointFitter` does not include them because it stores calibration point arrays, not
+a converged parametric fit.
+
+### `_convergence` semantics
+
+The fitter throws `IllegalStateException` (propagated as `VALIDATION_ERROR`) if the
+Levenberg-Marquardt optimizer raises a `ConvergenceException`. In practice, the value
+`_convergence = 0.0` should never appear in a stored `CurveParameters` because the fitter
+already threw before setting it; it is written defensively.
+
+`ExperimentService` reads this key as a second-level guard:
+
+```java
+double convergenceFlag = curveParams.values()
+    .getOrDefault(CurveParameters.META_CONVERGENCE, 1.0);
+if (convergenceFlag == 0.0) {
+    log.warn("Experiment id={} — curve parameters carry _convergence=0 ...", id);
+    // experiment status → VALIDATION_ERROR
+}
+```
+
+### `_rms` semantics
+
+The RMS residual is the square root of the mean squared difference between observed
+signals and the model predictions at each calibration concentration:
+
+```
+RMS = √( Σ(yᵢ_observed − yᵢ_predicted)² / n )
+```
+
+It is stored for diagnostic and auditing purposes only — it does **not** feed into the
+pass/fail decision. A high RMS indicates a poor curve fit; the analyst should inspect
+the calibration data for outlier calibrators or reagent degradation before accepting
+the experiment.
+
+The RMS is serialised into the `curve_parameters` JSON column on the `experiment` table
+alongside the model parameters. It is accessible via `GET /api/experiments/{id}` in the
+`curveParameters` field of the response.
+
+---
+
+## 7. Traceability and Audit
 
 All calculated values and status changes are subject to the following audit rules:
 
@@ -756,7 +949,7 @@ re-fit operation. The previous values are preserved in the audit trail.
 
 ---
 
-## 6. References
+## 8. References
 
 1. **ISO 5725-2:2019** — *Accuracy (trueness and precision) of measurement methods and
    results — Part 2: Basic method for the determination of repeatability and reproducibility

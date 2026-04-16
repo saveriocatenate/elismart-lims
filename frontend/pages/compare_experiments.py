@@ -37,7 +37,7 @@ PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 # CV threshold lives in the sidebar (page-specific)
 with st.sidebar:
     st.markdown("---")
-    st.markdown("**Impostazioni**")
+    st.markdown("**Impostazioni confronto**")
     cv_threshold = st.number_input(
         "Soglia %CV",
         min_value=0.0,
@@ -124,20 +124,20 @@ if selected:
             st.session_state["compare_data"] = {}
             st.rerun()
 else:
-    st.info("No experiments selected yet. Use the search below to add experiments.")
+    st.info("Nessun esperimento selezionato. Usa la ricerca in basso per aggiungerne.")
 
 st.markdown("")
 
 # Add experiment section
 if len(selected) < MAX_SLOTS:
-    with st.expander("➕ Add Experiment", expanded=not selected):
+    with st.expander("➕ Aggiungi Esperimento", expanded=not selected):
         with st.form("add_exp_form"):
             col_f1, col_f2 = st.columns([4, 1])
             with col_f1:
-                add_name = st.text_input("Name contains", placeholder="Leave blank to search all")
+                add_name = st.text_input("Nome contiene", placeholder="Lascia vuoto per cercare tutti")
             with col_f2:
-                add_size = st.selectbox("Results", [5, 10, 20], index=0)
-            add_searched = st.form_submit_button("Search", use_container_width=True)
+                add_size = st.selectbox("Risultati", [5, 10, 20], index=0)
+            add_searched = st.form_submit_button("Cerca", use_container_width=True)
 
         if add_searched:
             try:
@@ -166,7 +166,7 @@ if len(selected) < MAX_SLOTS:
                 ac3.caption(exp.get("protocolName", "—"))
                 curve_raw = exp.get("protocolCurveType", "")
                 ac3b.caption(_CURVE_DISPLAY.get(curve_raw, curve_raw or "—"))
-                btn_label = "✓ Added" if eid in already_ids else "+ Add"
+                btn_label = "✓ Aggiunto" if eid in already_ids else "+ Aggiungi"
                 btn_disabled = eid in already_ids or len(st.session_state["compare_selected"]) >= MAX_SLOTS
                 if ac4.button(btn_label, key=f"add_{eid}", disabled=btn_disabled, use_container_width=True):
                     st.session_state["compare_selected"].append({
@@ -179,7 +179,7 @@ if len(selected) < MAX_SLOTS:
                     st.session_state["compare_data"] = {}
                     st.rerun()
 else:
-    st.caption("Maximum 4 experiments reached.")
+    st.caption("Massimo 4 esperimenti raggiunto.")
 
 # ---------------------------------------------------------------------------
 # Load / Clear
@@ -188,13 +188,13 @@ else:
 btn_load, btn_clear = st.columns([3, 1])
 with btn_load:
     load_clicked = st.button(
-        "⚖️ Load Comparison",
+        "⚖️ Carica Confronto",
         type="primary",
         use_container_width=True,
         disabled=len(selected) < 2,
     )
 with btn_clear:
-    if st.button("Clear All", use_container_width=True):
+    if st.button("Cancella tutto", use_container_width=True):
         st.session_state["compare_selected"] = []
         st.session_state["compare_data"] = {}
         st.session_state.pop("add_exp_results", None)
@@ -204,11 +204,11 @@ with btn_clear:
 
 if load_clicked:
     if len(selected) < 2:
-        show_persistent_error("Select at least 2 experiments.")
+        show_persistent_error("Seleziona almeno 2 esperimenti.")
     else:
         ids_to_fetch = [s["id"] for s in selected]
         data_map: dict[int, dict] = {}
-        with st.spinner("Loading experiments…"):
+        with st.spinner("Caricamento esperimenti…"):
             for eid in ids_to_fetch:
                 try:
                     r = requests.get(
@@ -219,9 +219,9 @@ if load_clicked:
                     if r.status_code == 200:
                         data_map[eid] = r.json()
                     elif r.status_code == 404:
-                        show_persistent_error(f"Experiment {eid} not found.", key="compare_experiments")
+                        show_persistent_error(f"Esperimento {eid} non trovato.", key="compare_experiments")
                     else:
-                        show_persistent_error(translate_error(f"Failed to load experiment {eid} (HTTP {r.status_code})."), key="compare_experiments")
+                        show_persistent_error(translate_error(f"Impossibile caricare l'esperimento {eid} (HTTP {r.status_code})."), key="compare_experiments")
                 except requests.exceptions.RequestException as e:
                     show_persistent_error(translate_error(str(e)), key="compare_experiments")
         st.session_state["compare_data"] = data_map
@@ -257,23 +257,23 @@ def _render_reagent_lots(experiments: list[dict]):
                 "expiry": rb.get("expiryDate") or "—",
             }
     if not all_reagents:
-        st.info("No reagent batches recorded for the selected experiments.")
+        st.info("Nessun lotto reagente registrato per gli esperimenti selezionati.")
         return
     rows = []
     for reagent in sorted(all_reagents):
-        row: dict = {"Reagent": reagent}
+        row: dict = {"Reagente": reagent}
         for exp in experiments:
-            prefix = f"Exp {exp['id']}"
+            prefix = f"Esp {exp['id']}"
             info = lookup.get(reagent, {}).get(exp["id"])
-            row[f"{prefix} — Lot"] = info["lot"] if info else "—"
-            row[f"{prefix} — Expiry"] = info["expiry"] if info else "—"
+            row[f"{prefix} — Lotto"] = info["lot"] if info else "—"
+            row[f"{prefix} — Scadenza"] = info["expiry"] if info else "—"
         rows.append(row)
     df = pd.DataFrame(rows)
 
     def _style(data: pd.DataFrame) -> pd.DataFrame:
         styles = pd.DataFrame("", index=data.index, columns=data.columns)
         for i in range(len(data)):
-            reagent = data.iloc[i]["Reagent"]
+            reagent = data.iloc[i]["Reagente"]
             lots = [
                 lookup.get(reagent, {}).get(exp["id"], {}).get("lot", "—")
                 for exp in experiments
@@ -281,9 +281,9 @@ def _render_reagent_lots(experiments: list[dict]):
             non_dash = [l for l in lots if l != "—"]
             lots_differ = len(set(non_dash)) > 1 if len(non_dash) > 1 else False
             for exp in experiments:
-                prefix = f"Exp {exp['id']}"
-                lot_col = f"{prefix} — Lot"
-                exp_col = f"{prefix} — Expiry"
+                prefix = f"Esp {exp['id']}"
+                lot_col = f"{prefix} — Lotto"
+                exp_col = f"{prefix} — Scadenza"
                 if lot_col in data.columns:
                     col_idx = data.columns.get_loc(lot_col)
                     val = data.iloc[i][lot_col]
@@ -299,8 +299,8 @@ def _render_reagent_lots(experiments: list[dict]):
 
     st.dataframe(df.style.apply(_style, axis=None), use_container_width=True, hide_index=True)
     st.caption(
-        "🟡 Different lot number for same reagent   "
-        "🔴 Reagent missing from one or more experiments"
+        "🟡 Numero di lotto diverso per lo stesso reagente   "
+        "🔴 Reagente assente in uno o più esperimenti"
     )
 
 
@@ -309,10 +309,11 @@ def _render_pairs(experiments: list[dict], pair_type: str, cv_thr: float):
         sum(1 for p in exp.get("measurementPairs", []) if p.get("pairType") == pair_type)
         for exp in experiments
     ]
+    _pair_type_it = {"CALIBRATION": "Calibrazione", "CONTROL": "Controllo", "SAMPLE": "Campione"}
     if len(set(pair_counts)) > 1:
         st.warning(
-            f"Experiments have different numbers of {pair_type.capitalize()} pairs: "
-            + ", ".join(f"Exp {exp['id']}: {c}" for exp, c in zip(experiments, pair_counts))
+            f"Gli esperimenti hanno un numero diverso di coppie {_pair_type_it.get(pair_type, pair_type)}: "
+            + ", ".join(f"Esp {exp['id']}: {c}" for exp, c in zip(experiments, pair_counts))
         )
     cols = st.columns(len(experiments))
     for exp, col in zip(experiments, cols):
@@ -321,9 +322,9 @@ def _render_pairs(experiments: list[dict], pair_type: str, cv_thr: float):
                 [p for p in exp.get("measurementPairs", []) if p.get("pairType") == pair_type],
                 key=lambda p: (p.get("concentrationNominal") or 0),
             )
-            st.caption(f"**Exp {exp['id']} — {exp['name']}**")
+            st.caption(f"**Esp {exp['id']} — {exp['name']}**")
             if not pairs:
-                st.info("No data")
+                st.info("Nessun dato")
                 continue
 
             def _fmt(v):
@@ -338,12 +339,12 @@ def _render_pairs(experiments: list[dict], pair_type: str, cv_thr: float):
                 cv_flag = cv is not None and cv > cv_thr
                 rows.append({
                     "Conc.": _fmt(p.get("concentrationNominal")),
-                    "Sig 1": _fmt(p.get("signal1")),
-                    "Sig 2": _fmt(p.get("signal2")),
-                    "Mean": _fmt(p.get("signalMean")),
+                    "Seg. 1": _fmt(p.get("signal1")),
+                    "Seg. 2": _fmt(p.get("signal2")),
+                    "Media": _fmt(p.get("signalMean")),
                     "%CV": ("⚠️ " if cv_flag else "") + _fmt2(cv),
                     "%Rec.": _fmt2(p.get("recoveryPct")),
-                    "Out.": "⚠️" if p.get("isOutlier") else "",
+                    "Outl.": "⚠️" if p.get("isOutlier") else "",
                 })
             pair_df = pd.DataFrame(rows)
             outlier_flags = [bool(p.get("isOutlier")) for p in pairs]
@@ -421,7 +422,7 @@ def _render_curve(experiments: list[dict], x_log: bool):
                 ),
             ))
     fig.update_layout(
-        xaxis_title="Nominal Concentration", yaxis_title="Mean Signal",
+        xaxis_title="Concentrazione Nominale", yaxis_title="Segnale Medio",
         xaxis_type="log" if x_log else "linear",
         plot_bgcolor="white", paper_bgcolor="white",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -440,7 +441,7 @@ compare_data: dict[int, dict] = st.session_state.get("compare_data", {})
 
 if not compare_data:
     if len(selected) >= 2:
-        st.info("Click **Load Comparison** above to start comparing.")
+        st.info("Clicca **Carica Confronto** per avviare il confronto.")
     st.stop()
 
 ordered_ids = [s["id"] for s in selected if s["id"] in compare_data]
@@ -450,7 +451,7 @@ if not ordered_ids:
 experiments = [compare_data[eid] for eid in ordered_ids]
 
 if len(experiments) < 2:
-    st.warning("At least two experiments must load successfully to compare.")
+    st.warning("Almeno due esperimenti devono essere caricati correttamente per il confronto.")
     st.stop()
 
 st.markdown("---")
@@ -459,8 +460,8 @@ st.markdown("---")
 protocol_names = list({exp.get("protocolName", "") for exp in experiments})
 if len(protocol_names) > 1:
     st.warning(
-        "⚠️ These experiments are from **different protocols** — comparison may not be meaningful. "
-        "Protocols: " + ", ".join(f"*{n}*" for n in protocol_names)
+        "⚠️ Questi esperimenti appartengono a **protocolli diversi** — il confronto potrebbe non essere significativo. "
+        "Protocolli: " + ", ".join(f"*{n}*" for n in protocol_names)
     )
 
 # Header cards
@@ -475,58 +476,58 @@ for exp, col in zip(experiments, header_cols):
             delta=f"{emoji} {status}",
         )
         st.caption(
-            format_date(exp.get("date")) + f"  |  created by {exp.get('createdBy', '—')}"
+            format_date(exp.get("date")) + f"  |  creato da {exp.get('createdBy', '—')}"
         )
 
 st.markdown("---")
 
 x_log = st.radio(
-    "Chart X-axis scale", options=["Linear", "Logarithmic"],
+    "Scala asse X grafico", options=["Lineare", "Logaritmica"],
     horizontal=True, label_visibility="collapsed", index=0,
-) == "Logarithmic"
+) == "Logaritmica"
 
 st.markdown("")
 
-_render_section("Reagent Lots", "lock_reagents", _render_reagent_lots, experiments)
-_render_section("Calibration Pairs", "lock_calibration", _render_pairs,
+_render_section("Lotti Reagenti", "lock_reagents", _render_reagent_lots, experiments)
+_render_section("Coppie di Calibrazione", "lock_calibration", _render_pairs,
                 experiments, "CALIBRATION", cv_threshold)
-_render_section("Control Pairs", "lock_controls", _render_pairs,
+_render_section("Coppie di Controllo", "lock_controls", _render_pairs,
                 experiments, "CONTROL", cv_threshold)
-_render_section("Calibration Curve", "lock_chart", _render_curve, experiments, x_log)
+_render_section("Curva di Calibrazione", "lock_chart", _render_curve, experiments, x_log)
 
 # ---------------------------------------------------------------------------
 # AI Analysis
 # ---------------------------------------------------------------------------
 
 st.markdown("---")
-st.subheader("AI Analysis")
+st.subheader("Analisi AI")
 
-with st.expander("Ask the AI Analyst", expanded=False):
+with st.expander("Chiedi all'Analista AI", expanded=False):
     user_question = st.text_area(
-        "Your question for the AI analyst",
+        "Domanda per l'analista AI",
         placeholder=(
-            "e.g. Why did the low control fail in experiments 2 and 3? "
-            "Is there a trend in IC50 values across runs?"
+            "es. Perché il controllo basso ha fallito negli esperimenti 2 e 3? "
+            "C'è una tendenza nei valori di IC50 tra le corse?"
         ),
         height=120, key="gemini_question",
     )
     additional_info = st.text_area(
-        "Additional context (optional)",
-        placeholder="e.g. Reagent lot A1 was newly opened on 01/04. Lab temperature was 4°C above normal.",
+        "Contesto aggiuntivo (opzionale)",
+        placeholder="es. Il lotto A1 è stato aperto il 01/04. La temperatura del laboratorio era 4°C sopra la norma.",
         height=80, key="gemini_context",
     )
-    run_analysis = st.button("Analyze with Gemini AI", type="primary", key="gemini_run")
+    run_analysis = st.button("Analizza con Gemini AI", type="primary", key="gemini_run")
 
 if run_analysis:
     if not (st.session_state.get("gemini_question") or "").strip():
-        st.warning("Please enter a question before running the analysis.")
+        st.warning("Inserisci una domanda prima di avviare l'analisi.")
     else:
         combined_question = st.session_state["gemini_question"]
         extra = (st.session_state.get("gemini_context") or "").strip()
         if extra:
-            combined_question += "\n\nAdditional context: " + extra
+            combined_question += "\n\nContesto aggiuntivo: " + extra
         exp_ids = [exp["id"] for exp in experiments]
-        with st.spinner("Gemini is analyzing the experiments…"):
+        with st.spinner("Gemini sta analizzando gli esperimenti…"):
             try:
                 resp = requests.post(
                     f"{BACKEND_URL}/api/ai/analyze",

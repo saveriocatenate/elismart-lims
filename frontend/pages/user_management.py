@@ -34,7 +34,7 @@ if st.session_state.get("role") != "ADMIN":
 BACKEND_URL = resolve_backend_url()
 ROLES = ["ANALYST", "REVIEWER", "ADMIN"]
 
-st.title("User Management")
+st.title("Gestione Utenti")
 show_stored_errors("user_management")
 st.markdown("---")
 

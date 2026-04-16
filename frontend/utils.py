@@ -137,6 +137,7 @@ ERROR_TRANSLATIONS: dict[str, str] = {
     # ── Duplicates / constraint violations ─────────────────────────────────
     "same unique identifier": "Esiste già un elemento con lo stesso nome o identificatore. Scegli un valore diverso.",
     "Duplicate entry":        "Esiste già un elemento con lo stesso nome. Scegli un nome diverso.",
+    "constraint":             "Esiste già un elemento con questo nome o identificatore. Scegli un valore diverso.",
     # ── Validation ─────────────────────────────────────────────────────────
     "must not be blank":      "Questo campo è obbligatorio.",
     "must be greater than":   "Il valore deve essere maggiore di zero.",
@@ -144,18 +145,27 @@ ERROR_TRANSLATIONS: dict[str, str] = {
     "maxCvAllowed must be positive":    "Il %CV massimo deve essere un valore positivo.",
     "maxErrorAllowed must be positive": "L'errore massimo consentito deve essere un valore positivo.",
     # ── HTTP error codes ────────────────────────────────────────────────────
-    "Forbidden":    "Non hai i permessi per eseguire questa operazione.",
-    "HTTP 403":     "Non hai i permessi per eseguire questa operazione.",
-    "HTTP 404":     "Elemento non trovato — potrebbe essere stato eliminato.",
-    "HTTP 500":     "Errore interno del server — riprova o contatta l'amministratore.",
+    "Forbidden":         "Non hai i permessi per eseguire questa operazione.",
+    "HTTP 403":          "Non hai i permessi per eseguire questa operazione.",
+    "HTTP 404":          "Elemento non trovato — potrebbe essere stato eliminato.",
+    "Not Found":         "Elemento non trovato — potrebbe essere stato eliminato.",
+    "HTTP 400":          "I dati inviati non sono validi — controlla i campi e riprova.",
+    "Bad Request":       "I dati inviati non sono validi — controlla i campi e riprova.",
+    "HTTP 500":          "Errore interno del server — riprova o contatta l'amministratore.",
     "An unexpected error occurred": "Errore interno del server — riprova o contatta l'amministratore.",
     # ── Connectivity ────────────────────────────────────────────────────────
-    "Connection refused": "Impossibile contattare il server. Verifica che il backend sia avviato.",
-    "timed out":          "Il server non ha risposto in tempo. Verifica la connessione e riprova.",
-    "Timeout":            "Il server non ha risposto in tempo. Verifica la connessione e riprova.",
+    "Connection refused":  "Impossibile raggiungere il server — verifica che il backend sia avviato.",
+    "timed out":           "Il server non ha risposto in tempo — verifica la connessione e riprova.",
+    "Timeout":             "Il server non ha risposto in tempo — verifica la connessione e riprova.",
+    "RemoteDisconnected":  "Impossibile raggiungere il server — verifica che il backend sia avviato.",
     # ── Status state machine ────────────────────────────────────────────────
+    "Invalid status transition": (
+        "Transizione di stato non permessa. "
+        "Usa il bottone 'Valida' per avviare la validazione automatica, "
+        "oppure reimposta l'esperimento su PENDING per ri-analizzarlo."
+    ),
     "ERR_INVALID_STATUS_TRANSITION": (
-        "Transizione di stato non valida. "
+        "Transizione di stato non permessa. "
         "Usa il bottone 'Valida' per avviare la validazione automatica, "
         "oppure reimposta l'esperimento su PENDING per ri-analizzarlo."
     ),
@@ -175,6 +185,27 @@ ERROR_TRANSLATIONS: dict[str, str] = {
         "Il valore del segnale non può essere negativo. "
         "Verifica che il file CSV contenga dati di densità ottica corretti."
     ),
+    # ── Curve fitting / validation engine ──────────────────────────────────
+    "Back-calculation produced invalid result": (
+        "Errore nel calcolo della concentrazione: risultato non valido (NaN/Infinity). "
+        "Controlla i dati di calibrazione — potrebbero essere insufficienti o degeneri."
+    ),
+    "Back-calculation failed": (
+        "Errore nel calcolo della concentrazione — controlla i dati di calibrazione."
+    ),
+    "Cannot back-calculate concentration": (
+        "Impossibile calcolare la concentrazione: la curva è degenere (pendenza ≈ 0). "
+        "Verifica i punti di calibrazione."
+    ),
+    # ── Reference integrity ─────────────────────────────────────────────────
+    "referenced by other data": (
+        "Operazione non consentita: questo record è utilizzato da altri dati e non può essere eliminato."
+    ),
+    "Cannot complete operation": (
+        "Operazione non consentita: questo record è utilizzato da altri dati e non può essere eliminato."
+    ),
+    # ── Auth ────────────────────────────────────────────────────────────────
+    "Username already exists": "Nome utente già in uso. Scegli un nome diverso.",
 }
 
 

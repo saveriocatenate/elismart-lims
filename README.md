@@ -60,9 +60,8 @@ The system follows a strict hierarchical structure to ensure data integrity:
    cd elismart-lims
    ```
 
-2. **Set environment variables:** copy `.env.example` to `.env` and fill in:
-    - `GEMINI_API_KEY` — your Google Gemini API key
-    - `JWT_SECRET` — a secure random string for token signing
+2. **Set environment variables:** copy `.env.example` to `.env` and fill in the values you need.
+   See the [Environment Variables](#environment-variables) section below for the full list.
 
 3. **Build and run the backend:**
    ```bash
@@ -88,7 +87,114 @@ The system follows a strict hierarchical structure to ensure data integrity:
    ```
    This launches both backend and frontend and waits for the backend health check before opening the UI.
 
-7. **First login:** An admin user is created on first startup. Credentials are printed in the backend console log. Change the password immediately.
+7. **First login:** On first startup (empty database), an `admin` user with role `ADMIN` is created automatically.
+   - If `ADMIN_PASSWORD` is set in the environment, that value is used as the password (BCrypt-hashed).
+   - If `ADMIN_PASSWORD` is not set, a cryptographically random 16-character password is generated.
+   - In both cases the password is printed **only to stdout** (never to log files) inside a visible ASCII box:
+     ```
+     ╔══════════════════════════════════════════════════════════════╗
+     ║  PRIMO AVVIO — Utente admin creato                          ║
+     ║  Username: admin                                            ║
+     ║  Password: aK7x-mP2q-Rn4w-Ys8v                            ║
+     ║  Salvala adesso, non verrà mostrata di nuovo.               ║
+     ╚══════════════════════════════════════════════════════════════╝
+     ```
+   - On subsequent starts the seed step is skipped entirely (no reset, no log).
+
+---
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and source it before starting the backend (`source .env`).
+
+### Backend (Spring Boot)
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `JWT_SECRET` | **Yes** | — | HMAC-SHA256 signing key for JWT tokens. Must be at least 32 characters. Generate with `openssl rand -base64 32`. The application **refuses to start** if this is missing, blank, shorter than 32 chars, or a known placeholder. |
+| `ADMIN_PASSWORD` | No | *(random)* | Password for the `admin` user created on first boot. If absent or blank, a cryptographically random 16-character password is generated and printed to **stdout only** (see [First Login](#getting-started) above). Ignored on subsequent starts. |
+| `GEMINI_API_KEY` | No | *(empty)* | Google Gemini API key. Required for `POST /api/ai/analyze`. If absent, the endpoint returns HTTP 502; all other features work normally. |
+| `GEMINI_MODEL` | No | `gemini-2.0-flash` | Overrides the Gemini model name. Only useful when testing with a specific model version. |
+| `JWT_EXPIRATION_MS` | No | `86400000` | JWT token lifetime in milliseconds. Default is 24 hours (86,400,000 ms). |
+| `CORS_ALLOWED_ORIGIN` | No | `http://localhost:8501` | Origin allowed by the CORS policy. Must match the URL where the Streamlit frontend is served. **Required for any non-local deployment** (e.g., Pinggy tunnels, cloud hosting). |
+
+### Frontend (Streamlit)
+
+| Variable | Where to set | Description |
+|---|---|---|
+| `BACKEND_URL` | `frontend/.streamlit/secrets.toml` or env | Full URL of the Spring Boot backend. Default: `http://localhost:8080`. |
+
+> **`secrets.toml` format:**
+> ```toml
+> backend_url = "http://localhost:8080"
+> ```
+> This file is gitignored and must never be committed.
+
+---
+
+## 📋 CSV Import Format
+
+The CSV import (`POST /api/experiments/{id}/import-csv`) accepts files from Tecan Magellan,
+BioTek Gen5, Molecular Devices SoftMax Pro, or any generic column-based format.
+
+**Required columns** (column names are configurable in the import UI):
+
+| Column | Description |
+|---|---|
+| Well identifier | Plate well address (e.g. `A1`, `B2`). |
+| Signal 1 | First replicate absorbance reading. |
+| Signal 2 | Second replicate absorbance reading. |
+
+**Validation rules enforced at import time:**
+
+- **Negative signal values are rejected.** Optical density readings must be ≥ 0.
+  A negative value in any signal column causes the entire import to fail with an error
+  message identifying the row(s) and exact value(s). All errors across all rows are
+  reported in a single response — not one-at-a-time.
+- Signal value `0.0` is accepted (blank well or background-subtracted reading).
+- All three required columns must be present in the CSV header, otherwise the import is
+  rejected before any row is processed.
+
+---
+
+## 🔄 Experiment Status Flow
+
+Experiment statuses follow a strict state machine. The status can never jump arbitrarily
+between states — only the transitions listed below are valid.
+
+```
+             ┌────────────────────────────────────────────┐
+             │                                            │
+             ▼                                            │ (re-analysis requested)
+         PENDING  ──── (data entered) ────► COMPLETED ───┘
+                                              │
+                              ValidationEngine.evaluate()
+                                    │        │        │
+                                    ▼        ▼        ▼
+                                   OK       KO   VALIDATION_ERROR
+                                    │        │        │
+                                    └────────┴────────┘
+                                         (re-analysis)
+                                              │
+                                              ▼
+                                           PENDING
+```
+
+| Status | Meaning |
+|---|---|
+| **PENDING** | Record created; measurement data not yet complete. Editable by Analysts. |
+| **COMPLETED** | All signals entered. Triggers `ValidationEngine.evaluate()` automatically. |
+| **OK** | All non-outlier CONTROL and SAMPLE pairs passed %CV and %Recovery criteria. |
+| **KO** | At least one pair failed %CV or %Recovery. |
+| **VALIDATION_ERROR** | Calculation could not complete (e.g. no calibration points, curve fit diverged). Check data and re-save. |
+
+**Key rules:**
+- The experiment creation form only exposes **PENDING** as the initial status.
+  `OK`, `KO`, and `VALIDATION_ERROR` are set programmatically and are never selectable by the user.
+- Moving an experiment back to `PENDING` (re-analysis) is allowed from `OK`, `KO`, or
+  `VALIDATION_ERROR`.
+- Manual status overrides (e.g. `KO` → `OK`) require a written justification stored in
+  the audit log.
 
 ---
 

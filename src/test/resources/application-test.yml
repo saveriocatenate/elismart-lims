@@ -15,6 +15,10 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
 
+jwt:
+  secret: test-only-jwt-secret-not-for-production-x1y2z3
+  expiration-ms: 86400000
+
 gemini:
   api-key: test-key
   model: gemini-2.0-flash

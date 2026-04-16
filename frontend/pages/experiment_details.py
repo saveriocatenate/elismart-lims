@@ -130,7 +130,7 @@ try:
         timeout=10,
     )
     if resp.status_code != 200:
-        show_persistent_error(translate_error(f"Failed to load (HTTP {resp.status_code})"))
+        show_persistent_error(translate_error(f"Impossibile caricare l'esperimento (HTTP {resp.status_code})"))
         st.stop()
     data = resp.json()
 except requests.exceptions.RequestException as e:
@@ -206,7 +206,7 @@ with pdf_col:
                 if r.status_code == 200:
                     st.session_state[f"export_pdf_{exp_id}"] = r.content
                 else:
-                    show_persistent_error(translate_error(f"PDF export failed ({r.status_code})"), key="experiment_details")
+                    show_persistent_error(translate_error(f"Esportazione PDF fallita ({r.status_code})"), key="experiment_details")
             except requests.exceptions.RequestException as e:
                 show_persistent_error(translate_error(str(e)), key="experiment_details")
 
@@ -222,7 +222,7 @@ with xlsx_col:
                 if r.status_code == 200:
                     st.session_state[f"export_xlsx_{exp_id}"] = r.content
                 else:
-                    show_persistent_error(translate_error(f"Excel export failed ({r.status_code})"), key="experiment_details")
+                    show_persistent_error(translate_error(f"Esportazione Excel fallita ({r.status_code})"), key="experiment_details")
             except requests.exceptions.RequestException as e:
                 show_persistent_error(translate_error(str(e)), key="experiment_details")
 

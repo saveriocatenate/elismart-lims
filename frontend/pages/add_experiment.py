@@ -310,7 +310,7 @@ for i, spec in enumerate(reagent_specs):
             batch_ids = [b["id"] for b in batches]
 
             sel_id = st.selectbox(
-                "Select batch",
+                "Seleziona lotto",
                 options=batch_ids,
                 format_func=lambda bid, bm=batch_map: _batch_label(bm[bid]),
                 key=f"batch_sel_{i}",
@@ -565,30 +565,30 @@ else:
     st.caption(
         f"{len(unique_wells)} pozzetti univoci trovati nella colonna **{well_col}**. "
         "Assegna un Tipo Coppia a ogni pozzetto da importare. "
-        "Lascia *(skip)* per escludere un pozzetto."
+        "Lascia *(salta)* per escludere un pozzetto."
     )
 
     # Stable key: reset the editor table when the file or well column changes
     mapping_state_key = f"wmap_{csv_file.name}_{well_col}"
     if mapping_state_key not in st.session_state:
         st.session_state[mapping_state_key] = pd.DataFrame({
-            "Well":           unique_wells,
-            "Pair Type":      ["(skip)"] * len(unique_wells),
-            "Conc. Nominal":  [None] * len(unique_wells),
+            "Pozzetto":       unique_wells,
+            "Tipo Coppia":    ["(salta)"] * len(unique_wells),
+            "Conc. Nominale": [None] * len(unique_wells),
         })
 
     edited_mapping: pd.DataFrame = st.data_editor(
         st.session_state[mapping_state_key],
         column_config={
-            "Well": st.column_config.TextColumn("Well", disabled=True),
-            "Pair Type": st.column_config.SelectboxColumn(
-                "Pair Type",
-                options=["(skip)", "CALIBRATION", "CONTROL", "SAMPLE"],
+            "Pozzetto": st.column_config.TextColumn("Pozzetto", disabled=True),
+            "Tipo Coppia": st.column_config.SelectboxColumn(
+                "Tipo Coppia",
+                options=["(salta)", "CALIBRATION", "CONTROL", "SAMPLE"],
                 required=True,
             ),
-            "Conc. Nominal": st.column_config.NumberColumn(
-                "Conc. Nominal",
-                help="Nominal concentration (any unit). Leave blank for unknowns.",
+            "Conc. Nominale": st.column_config.NumberColumn(
+                "Conc. Nominale",
+                help="Concentrazione nominale (qualsiasi unità). Lascia vuoto per campioni incogniti.",
                 min_value=0.0,
                 format="%.4f",
             ),
@@ -603,7 +603,7 @@ else:
     st.session_state[mapping_state_key] = edited_mapping
 
     # Summary badge
-    mapped_wells = edited_mapping[edited_mapping["Pair Type"] != "(skip)"]
+    mapped_wells = edited_mapping[edited_mapping["Tipo Coppia"] != "(salta)"]
     if len(mapped_wells) == 0:
         st.warning("Nessun pozzetto mappato. Assegna almeno un pozzetto per procedere.")
 
@@ -613,7 +613,7 @@ else:
     col_btn, col_info = st.columns([2, 3])
     with col_info:
         if len(mapped_wells) > 0:
-            type_counts = mapped_wells["Pair Type"].value_counts().to_dict()
+            type_counts = mapped_wells["Tipo Coppia"].value_counts().to_dict()
             badge_parts = [f"{v} {k}" for k, v in type_counts.items()]
             st.caption(f"Pronto per l'importazione: {', '.join(badge_parts)}")
 
@@ -677,12 +677,12 @@ else:
         # ── Step 2: Build import config ──────────────────────────────────
         well_mapping: dict = {}
         for _, row in edited_mapping.iterrows():
-            ptype = row["Pair Type"]
-            if ptype == "(skip)":
+            ptype = row["Tipo Coppia"]
+            if ptype == "(salta)":
                 continue
-            conc_raw = row["Conc. Nominal"]
+            conc_raw = row["Conc. Nominale"]
             conc = float(conc_raw) if pd.notna(conc_raw) and conc_raw is not None else None
-            well_mapping[str(row["Well"])] = {
+            well_mapping[str(row["Pozzetto"])] = {
                 "pairType": ptype,
                 "concentrationNominal": conc,
             }

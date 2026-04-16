@@ -27,6 +27,10 @@ REST API endpoints exposed by the EliSmart LIMS backend.
 
 - [User Guide](user-guide.md) — End-user guide for scientists: workflow, experiment creation, validation, export, AI analysis
 
+## Architecture & Planning
+
+- [Multi-Assay Architecture](architecture-multi-assay.md) — Phase 7 coupling analysis: ELISA-specific assumptions, target `MeasurementStrategy` design, DB migration plan, and impact estimate
+
 ## Conventions
 
 - All responses are JSON

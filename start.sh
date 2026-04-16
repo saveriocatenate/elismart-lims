@@ -11,6 +11,14 @@ if [ -f .env ]; then
     echo "✅ Environment loaded from .env"
 fi
 
+# Ensure JWT_SECRET is set — generate one for this session if missing
+if [ -z "$JWT_SECRET" ]; then
+    export JWT_SECRET=$(openssl rand -base64 32)
+    echo "⚠️  JWT_SECRET not set. Generated a random secret for this session."
+    echo "    To persist it, add JWT_SECRET to your .env file:"
+    echo "    JWT_SECRET=$JWT_SECRET"
+fi
+
 # Start backend
 echo "🚀 Starting backend..."
 ./mvnw spring-boot:run -q &

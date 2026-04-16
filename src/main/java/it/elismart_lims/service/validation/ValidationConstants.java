@@ -6,12 +6,32 @@ package it.elismart_lims.service.validation;
  * <p>All formulas are compliant with ISO 5725 / CLSI EP15-A3 for duplicate measurements
  * (n=2 replicates). Using centralised constants and methods prevents formula drift
  * across creation and update paths.</p>
+ *
+ * <p><strong>Multi-assay note (future multi-assay refactor):</strong> every constant and method in this class
+ * that references {@link #ELISA_REPLICATE_COUNT} or {@link #SQRT_2} is specific to the
+ * ELISA duplicate paradigm. When PCR or other assay types are introduced, these will be
+ * replaced by a {@code MeasurementStrategy} interface resolved per
+ * {@code Protocol.assayType}. See {@code documentation/architecture-multi-assay.md}.</p>
  */
 public final class ValidationConstants {
 
     /**
+     * Number of replicates per ELISA measurement pair.
+     *
+     * <p>This constant names the assumption that is baked into {@link #SQRT_2},
+     * {@link #calculateSignalMean}, and {@link #calculateCvPercent}. When a
+     * multi-assay {@code MeasurementStrategy} is introduced in the future multi-assay refactor, this
+     * constant will become the ELISA-specific implementation detail of
+     * {@code ElisaDuplicateStrategy}. See {@code documentation/architecture-multi-assay.md}.</p>
+     */
+    public static final int ELISA_REPLICATE_COUNT = 2;
+
+    /**
      * Square root of 2 — used in the ISO 5725 sample standard deviation formula for n=2.
      * Pre-computed to avoid repeated {@link Math#sqrt} calls.
+     *
+     * <p>This value is ELISA-specific ({@link #ELISA_REPLICATE_COUNT} = 2).
+     * For n replicates the general formula uses √(n−1) as the denominator.</p>
      */
     public static final double SQRT_2 = Math.sqrt(2.0);
 

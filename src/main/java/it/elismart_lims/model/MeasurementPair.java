@@ -9,6 +9,15 @@ import lombok.*;
  * calculated mean, precision (%CV), and accuracy (%Recovery).
  *
  * <p>Audit columns are inherited from {@link Auditable}.</p>
+ *
+ * <p><strong>ELISA coupling (future multi-assay refactor):</strong> the {@link #signal1} / {@link #signal2}
+ * fields encode the assumption that every measurement consists of exactly two duplicate
+ * readings. When PCR or other assay types are introduced in the future multi-assay refactor, a nullable
+ * {@code signals} JSONB column will be added for n&gt;2 replicates and a
+ * {@code MeasurementStrategy} abstraction will own the mean/CV formulas.
+ * See {@code documentation/architecture-multi-assay.md} for the full coupling analysis
+ * and migration plan. Until that refactoring, do <em>not</em> add assay-type-specific
+ * {@code if/switch} branches to this class or to the validation engine.</p>
  */
 @Entity
 @Table(name = "measurement_pair")

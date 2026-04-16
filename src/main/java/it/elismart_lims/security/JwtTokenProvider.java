@@ -30,12 +30,34 @@ public class JwtTokenProvider {
     /**
      * Constructs the provider, deriving the signing key from the configured secret.
      *
-     * @param secret       raw secret string (must be at least 32 ASCII characters for HS256)
+     * <p>The secret is validated at startup: it must be non-blank, at least 32 characters
+     * long, and must not be a known placeholder value. The application will refuse to start
+     * with an invalid secret so that a misconfigured deployment is caught immediately rather
+     * than silently accepting forgeable tokens.</p>
+     *
+     * @param secret       raw secret string read from {@code JWT_SECRET} env var (min 32 chars)
      * @param expirationMs token lifetime in milliseconds
+     * @throws IllegalStateException if the secret is missing, too short, or a placeholder
      */
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.expiration-ms}") long expirationMs) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                    "JWT_SECRET environment variable must be set. "
+                    + "Generate a strong value with: openssl rand -base64 32");
+        }
+        if (secret.length() < 32) {
+            throw new IllegalStateException(
+                    "JWT_SECRET must be at least 32 characters long. "
+                    + "Current length: " + secret.length() + ". "
+                    + "Generate a strong value with: openssl rand -base64 32");
+        }
+        if (secret.contains("dev-secret") || secret.contains("change-in-production")) {
+            throw new IllegalStateException(
+                    "JWT_SECRET appears to be a placeholder value and cannot be used. "
+                    + "Generate a strong value with: openssl rand -base64 32");
+        }
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
     }

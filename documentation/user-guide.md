@@ -132,6 +132,8 @@ This is the most frequent operation in EliSmart LIMS. Each time you run an assay
 3. Enter an **experiment name** (e.g. "Run 2024-11-15 Batch A") and the **date and time** the assay was performed.
 4. For each required reagent shown, enter or select the **lot number** of the kit actually used. If the lot has been registered before, you can select it from the dropdown; if it is a new delivery, click **Register new batch** and fill in the lot number, supplier, and expiry date.
 
+> **Note on status:** when creating an experiment the only valid status is **Pending**. The statuses **OK**, **KO**, and **Validation Error** are set automatically by the system after you save measurement data — they are never shown as choices in the creation form.
+
 ### 6.2 Entering Measurement Data Manually
 
 After the header is filled in, a table of **measurement pairs** appears — one row for each calibrator, control, and sample well, depending on the protocol.
@@ -155,6 +157,8 @@ If your plate reader software can export results as a CSV file (Tecan Magellan, 
 5. Review the imported pairs and click **Save Experiment**.
 
 > **Tip:** If your CSV format is not recognised automatically, contact your administrator to configure a custom column mapping.
+
+> **Signal validation:** the system rejects any CSV row that contains a **negative signal value** (e.g. `-0.050`). Optical density readings must be zero or positive. If one or more rows contain invalid values, the import fails and an error message identifies every offending row and value before any data is saved. Correct the CSV file and re-upload.
 
 ---
 
@@ -257,7 +261,9 @@ Type a question or a request in natural language, for example:
 >
 > *"Summarise the calibration curve fit quality for this experiment."*
 
-The AI receives the full experiment data (signals, calculated metrics, protocol limits, and reagent lot information) and responds with a structured scientific interpretation. The result is automatically saved and will still be visible if you navigate away and come back.
+The AI receives the full experiment data (signals, calculated metrics, protocol limits, and reagent lot information) and responds with a structured scientific interpretation formatted with headings, bullet points, and tables where appropriate. The result is automatically saved and will still be visible if you navigate away and come back.
+
+> **Language:** AI responses are generated in **Italian** by default, matching the interface language used in EliSmart LIMS. If you need a response in another language, include that request explicitly in your question (e.g. *"Answer in English."*).
 
 > **Important:** AI-generated insights are provided as decision support. They do not replace the scientist's judgement or constitute an official regulatory record. Always review the raw data yourself before drawing conclusions.
 
