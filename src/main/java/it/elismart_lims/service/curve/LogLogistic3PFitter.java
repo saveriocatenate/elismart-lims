@@ -248,7 +248,7 @@ public class LogLogistic3PFitter implements CurveFitter {
      * @return initial parameter array in order [B, C, D]
      */
     private double[] buildInitialGuess(double[] xData, double[] yData) {
-        double maxY = Double.MIN_VALUE;
+        double maxY = -Double.MAX_VALUE;
         double minX = Double.MAX_VALUE;
         double maxX = -Double.MAX_VALUE;
 
