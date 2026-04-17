@@ -438,6 +438,9 @@ class FourPLFitterTest {
         int iterEstimated = count4PLIterations(xData, yData, startEstimated);
         int iterFixed     = count4PLIterations(xData, yData, startFixed);
 
+        // isLessThanOrEqualTo (soft): equal counts are acceptable. Note: this asserts an
+        // optimizer-internal quantity (LM iterations) — if the test becomes flaky after a
+        // Commons Math upgrade, the iteration counts may have shifted; re-evaluate then.
         assertThat(iterEstimated)
                 .as("Data-driven B₀=%.3f should need no more LM iterations than fixed B₀=1.0 "
                                 + "(estimated=%d, fixed=%d)", estimatedB0, iterEstimated, iterFixed)
