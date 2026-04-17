@@ -1,6 +1,8 @@
 package it.elismart_lims.service.curve;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Strategy interface for calibration curve fitting and back-interpolation.
@@ -50,8 +52,8 @@ public interface CurveFitter {
      * Computes 1/signal² weights for Weighted Least Squares fitting.
      *
      * <p>Models signal variance as proportional to signal magnitude (proportional
-     * error model), which is the standard assumption for heteroscedastic immunoassay data across a wide
-     * dynamic range. Down-weighting high-signal calibrators reduces their leverage
+     * error model), which is the standard assumption for heteroscedastic immunoassay data
+     * across a wide dynamic range. Down-weighting high-signal calibrators reduces their leverage
      * on the fitted curve, correcting the EC50 bias introduced by heteroscedasticity.</p>
      *
      * <p>When {@code signal <= 0}, the fallback weight {@code 1.0} is used to avoid
@@ -70,5 +72,54 @@ public interface CurveFitter {
                     return signal > 0 ? 1.0 / (signal * signal) : 1.0;
                 })
                 .toArray();
+    }
+
+    /**
+     * Computes unweighted goodness-of-fit metrics from observed vs predicted signals.
+     *
+     * <ul>
+     *   <li><b>R²</b> = {@code 1 - SS_res / SS_tot}; {@link Double#NaN} when SS_tot &lt; 1e-12.</li>
+     *   <li><b>RMSE</b> = {@code sqrt(SS_res / n)} (unweighted).</li>
+     *   <li><b>df</b> = {@code n - nParams}.</li>
+     * </ul>
+     *
+     * @param yActual    observed signal values; must be non-null and same length as {@code yPredicted}
+     * @param yPredicted model-predicted signal values at the calibration concentrations
+     * @param nParams    number of free parameters in the fitted model (e.g. 4 for 4PL)
+     * @return map with keys {@link CurveParameters#META_R2}, {@link CurveParameters#META_RMSE},
+     *         {@link CurveParameters#META_DF}
+     * @throws IllegalArgumentException if either array is null or their lengths differ
+     */
+    static Map<String, Double> computeGoodnessOfFit(double[] yActual, double[] yPredicted, int nParams) {
+        if (yActual == null || yPredicted == null) {
+            throw new IllegalArgumentException("yActual and yPredicted must not be null");
+        }
+        if (yActual.length != yPredicted.length) {
+            throw new IllegalArgumentException(
+                    "yActual and yPredicted must have the same length; got "
+                    + yActual.length + " vs " + yPredicted.length);
+        }
+        int n = yActual.length;
+        double yMean = 0.0;
+        for (double y : yActual) yMean += y;
+        yMean /= n;
+
+        double ssRes = 0.0;
+        double ssTot = 0.0;
+        for (int i = 0; i < n; i++) {
+            double residual  = yActual[i] - yPredicted[i];
+            double deviation = yActual[i] - yMean;
+            ssRes += residual  * residual;
+            ssTot += deviation * deviation;
+        }
+
+        double r2   = (ssTot < 1e-12) ? Double.NaN : (1.0 - ssRes / ssTot);
+        double rmse = Math.sqrt(ssRes / n);
+
+        Map<String, Double> result = new HashMap<>();
+        result.put(CurveParameters.META_R2,   r2);
+        result.put(CurveParameters.META_RMSE, rmse);
+        result.put(CurveParameters.META_DF,   (double) (n - nParams));
+        return result;
     }
 }

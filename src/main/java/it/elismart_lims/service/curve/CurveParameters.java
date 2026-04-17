@@ -38,4 +38,26 @@ public record CurveParameters(Map<String, Double> values) {
      * Present only for non-linear fitters (4PL, 5PL, 3PL).
      */
     public static final String META_RMS = "_rms";
+
+    /**
+     * Map key for the coefficient of determination (pseudo-R²).
+     * Value is {@code 1 - SS_res / SS_tot}, using unweighted residuals.
+     * {@link Double#NaN} when all observed signals are identical (SS_tot < 1e-12).
+     * Present for all fitter types.
+     */
+    public static final String META_R2 = "_r2";
+
+    /**
+     * Map key for the unweighted root-mean-square error: {@code sqrt(SS_res / n)}.
+     * For nonlinear fitters this coexists with {@link #META_RMS} (the weighted optimizer RMS).
+     * Present for all fitter types.
+     */
+    public static final String META_RMSE = "_rmse";
+
+    /**
+     * Map key for the residual degrees of freedom: {@code n − p}, where {@code n} is
+     * the number of calibration points and {@code p} is the number of free parameters.
+     * Present for all fitter types.
+     */
+    public static final String META_DF = "_df";
 }
