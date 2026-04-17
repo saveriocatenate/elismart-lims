@@ -111,51 +111,80 @@ public class OutlierDetectionService {
                         entry.getKey(), group.size(), GRUBBS_MIN_GROUP_SIZE);
                 continue;
             }
-            Long flaggedId = applyGrubbsTest(group, entry.getKey());
-            if (flaggedId != null) {
-                outlierIds.add(flaggedId);
-            }
+            applyGrubbsTestIterative(group, entry.getKey(), outlierIds);
         }
 
         return new ArrayList<>(outlierIds);
     }
 
     /**
-     * Applies one iteration of the Grubbs test to detect a single outlier in the group.
+     * Applies the Grubbs test iteratively on the group, flagging one outlier per pass
+     * until no further outlier is found or the active group shrinks below
+     * {@value #GRUBBS_MIN_GROUP_SIZE}.
+     *
+     * <p>Each pass calls {@link #runSingleGrubbsPass}, which recomputes mean, SD, and the
+     * critical value for the current active-group size. A flagged pair is removed from the
+     * active group before the next pass so that subsequent passes operate only on the
+     * remaining, non-flagged pairs.</p>
+     *
+     * @param group      pairs in this concentration group (size ≥ {@value #GRUBBS_MIN_GROUP_SIZE})
+     * @param groupKey   human-readable key used in log messages
+     * @param outlierIds accumulator set; detected outlier IDs are added here
+     */
+    private void applyGrubbsTestIterative(List<MeasurementPair> group,
+                                          String groupKey,
+                                          Set<Long> outlierIds) {
+        List<MeasurementPair> activeGroup = new ArrayList<>(group);
+        int iteration = 1;
+        Long flaggedId;
+        do {
+            flaggedId = runSingleGrubbsPass(activeGroup, groupKey, iteration);
+            if (flaggedId != null) {
+                outlierIds.add(flaggedId);
+                final Long removed = flaggedId;
+                activeGroup.removeIf(p -> p.getId().equals(removed));
+                iteration++;
+            }
+        } while (flaggedId != null && activeGroup.size() >= GRUBBS_MIN_GROUP_SIZE);
+    }
+
+    /**
+     * Executes one pass of the Grubbs test on {@code activeGroup}.
      *
      * <p>The test statistic is {@code G = |xi − mean| / SD} where {@code xi} is the
      * candidate pair's {@code signalMean}. The pair with the maximum absolute deviation
-     * is the candidate. If G exceeds the critical value for the group size at α=0.05,
-     * the candidate's ID is returned.</p>
+     * is the candidate. If G exceeds the critical value for the current active-group size
+     * at α=0.05, the candidate's ID is returned.</p>
      *
      * <p>The test is skipped when {@code Math.abs(SD) < 1e-12}: a near-zero SD means all
      * signals are numerically identical (or differ only in floating-point noise) and no
-     * outlier exists. This threshold is preferred over an exact {@code == 0} check because
-     * FP arithmetic can produce values like {@code 1e-15} for conceptually identical inputs,
-     * which would otherwise yield {@code G = Infinity} and falsely flag every pair.</p>
+     * outlier exists.</p>
      *
      * <p>For group sizes larger than 10, the critical value for n=10 is used as a
      * conservative upper bound.</p>
      *
-     * @param group    the non-flagged pairs in this concentration group (size ≥ 3 guaranteed)
-     * @param groupKey human-readable key used in log messages
+     * @param activeGroup non-flagged pairs for this pass (size ≥ 3 guaranteed by caller)
+     * @param groupKey    human-readable key used in log messages
+     * @param iteration   1-based pass counter used in log messages
      * @return the ID of the outlier pair, or {@code null} if no outlier is detected
      */
-    private Long applyGrubbsTest(List<MeasurementPair> group, String groupKey) {
-        int n = group.size();
-        double mean = group.stream()
+    private Long runSingleGrubbsPass(List<MeasurementPair> activeGroup,
+                                     String groupKey,
+                                     int iteration) {
+        int n = activeGroup.size();
+        double mean = activeGroup.stream()
                 .mapToDouble(MeasurementPair::getSignalMean)
                 .average()
                 .orElse(0.0);
 
-        double sd = computeSampleSd(group, mean);
+        double sd = computeSampleSd(activeGroup, mean);
         if (Math.abs(sd) < 1e-12) {
-            log.info("Grubbs test skipped for group {}: standard deviation near zero ({})",
-                    groupKey, sd);
+            log.info("Grubbs iteration {}: skipped for group '{}': standard deviation near zero ({})",
+                    iteration, groupKey, sd);
             return null;
         }
 
-        MeasurementPair candidate = group.stream()
+        MeasurementPair candidate = activeGroup.stream()
                 .max(Comparator.comparingDouble(p -> Math.abs(p.getSignalMean() - mean)))
                 .orElse(null);
 
@@ -166,11 +195,12 @@ public class OutlierDetectionService {
         double g = Math.abs(candidate.getSignalMean() - mean) / sd;
         double critical = GRUBBS_CRITICAL_VALUES.getOrDefault(n, GRUBBS_CRITICAL_VALUES.get(10));
 
-        log.debug("Grubbs test group='{}': n={}, G={}, critical={}, candidate id={}",
-                groupKey, n, g, critical, candidate.getId());
+        log.debug("Grubbs iteration {}: group='{}', n={}, G={}, critical={}, candidate id={}",
+                iteration, groupKey, n, g, critical, candidate.getId());
 
         if (g > critical) {
-            log.debug("Pair id={} flagged by Grubbs test in group '{}'", candidate.getId(), groupKey);
+            log.info("Grubbs iteration {}: flagged pair {} as outlier (G={}, critical={}). {} pairs remaining.",
+                    iteration, candidate.getId(), g, critical, n - 1);
             return candidate.getId();
         }
         return null;

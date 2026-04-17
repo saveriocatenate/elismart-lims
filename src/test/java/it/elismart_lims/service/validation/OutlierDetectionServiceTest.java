@@ -309,6 +309,100 @@ class OutlierDetectionServiceTest {
     }
 
     // -------------------------------------------------------------------------
+    // Iterative Grubbs test
+    // -------------------------------------------------------------------------
+
+    /**
+     * Five CALIBRATION pairs at the same concentration, one extreme outlier.
+     * The iterative Grubbs should flag it in the first pass and stop — the
+     * remaining four identical pairs produce SD≈0 on the second pass.
+     *
+     * <p>Dataset: [10, 10, 10, 10, 10000] at nominal=5.
+     * Pass 1 — mean≈2008, SD≈4467.7, G(10000)≈1.789 &gt; G_crit(5)=1.715 → flag 10000.
+     * Pass 2 — remaining [10, 10, 10, 10]: SD=0 → near-zero guard, no outlier → loop ends.</p>
+     */
+    @Test
+    @DisplayName("iterative Grubbs flags single outlier in first pass and terminates for 5-pair group")
+    void grubbsIterative_fivePairsOneOutlier_flaggedInFirstPass() {
+        MeasurementPair p1 = calibPair(100L, 5.0, 10.0);
+        MeasurementPair p2 = calibPair(101L, 5.0, 10.0);
+        MeasurementPair p3 = calibPair(102L, 5.0, 10.0);
+        MeasurementPair p4 = calibPair(103L, 5.0, 10.0);
+        MeasurementPair p5 = calibPair(104L, 5.0, 10000.0); // outlier
+
+        List<Long> outliers = service.detectOutliers(List.of(p1, p2, p3, p4, p5), protocol);
+
+        assertThat(outliers).containsExactly(104L);
+    }
+
+    /**
+     * Five CALIBRATION pairs at the same concentration, two outliers.
+     * The iterative Grubbs must flag the first outlier, then re-run on the
+     * reduced group and flag the second one.
+     *
+     * <p>Dataset: [10, 10, 10, 100, 10000] at nominal=5.
+     * Pass 1 — mean≈2026, SD≈4456, G(10000)≈1.789 &gt; G_crit(5)=1.715 → flag 10000.
+     * Pass 2 — remaining [10, 10, 10, 100]: mean=32.5, SD=45, G(100)=1.50 &gt; G_crit(4)=1.481 → flag 100.
+     * Pass 3 — remaining [10, 10, 10] (n=3): G ≤ 1.1547 &lt; G_crit(3)=1.155 → no outlier → loop ends.</p>
+     */
+    @Test
+    @DisplayName("iterative Grubbs flags two outliers across two consecutive passes in a group of 5")
+    void grubbsIterative_fivePairsTwoOutliers_bothFlaggedIteratively() {
+        MeasurementPair p1 = calibPair(110L, 5.0, 10.0);
+        MeasurementPair p2 = calibPair(111L, 5.0, 10.0);
+        MeasurementPair p3 = calibPair(112L, 5.0, 10.0);
+        MeasurementPair p4 = calibPair(113L, 5.0, 100.0);   // second outlier
+        MeasurementPair p5 = calibPair(114L, 5.0, 10000.0); // first outlier
+
+        List<Long> outliers = service.detectOutliers(List.of(p1, p2, p3, p4, p5), protocol);
+
+        assertThat(outliers).contains(113L, 114L);
+        assertThat(outliers).doesNotContain(110L, 111L, 112L);
+    }
+
+    /**
+     * Four CALIBRATION pairs at the same concentration, one extreme outlier.
+     * After flagging it the residual group has exactly 3 pairs. Grubbs at n=3
+     * is a statistical no-op (max possible G≈1.1547 ≤ G_crit(3)=1.155), so
+     * no further pair is flagged.
+     *
+     * <p>Dataset: [10, 10, 10, 100] at nominal=5.
+     * Pass 1 — mean=32.5, SD=45, G(100)=1.50 &gt; G_crit(4)=1.481 → flag 100.
+     * Pass 2 — remaining [10, 10, 10] (n=3): SD=0 → near-zero guard → loop ends.</p>
+     */
+    @Test
+    @DisplayName("iterative Grubbs flags single outlier in group of 4 and does not flag any of the remaining 3")
+    void grubbsIterative_fourPairsOneOutlier_onlyOutlierFlagged() {
+        MeasurementPair p1 = calibPair(120L, 5.0, 10.0);
+        MeasurementPair p2 = calibPair(121L, 5.0, 10.0);
+        MeasurementPair p3 = calibPair(122L, 5.0, 10.0);
+        MeasurementPair p4 = calibPair(123L, 5.0, 100.0); // outlier
+
+        List<Long> outliers = service.detectOutliers(List.of(p1, p2, p3, p4), protocol);
+
+        assertThat(outliers).contains(123L);
+        assertThat(outliers).doesNotContain(120L, 121L, 122L);
+    }
+
+    /**
+     * Three CALIBRATION pairs at the same concentration — one with a value
+     * orders of magnitude larger than the others. Due to the known statistical
+     * limitation of the Grubbs test at n=3 (maximum possible G≈1.1547 ≤ 1.155
+     * critical), no outlier should ever be flagged regardless of the spread.
+     */
+    @Test
+    @DisplayName("iterative Grubbs produces no outlier for a group of exactly 3 (n=3 statistical limitation)")
+    void grubbsIterative_groupOfThree_noOutlierDueToStatisticalLimitation() {
+        MeasurementPair p1 = calibPair(130L, 5.0, 10.0);
+        MeasurementPair p2 = calibPair(131L, 5.0, 10.0);
+        MeasurementPair p3 = calibPair(132L, 5.0, 1000.0); // extreme but n=3
+
+        List<Long> outliers = service.detectOutliers(List.of(p1, p2, p3), protocol);
+
+        assertThat(outliers).isEmpty();
+    }
+
+    // -------------------------------------------------------------------------
     // Helper
     // -------------------------------------------------------------------------
 
