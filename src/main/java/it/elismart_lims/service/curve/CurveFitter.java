@@ -1,5 +1,9 @@
 package it.elismart_lims.service.curve;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +24,9 @@ import java.util.Map;
  * {@link CurveParameters} record. The same instance may be reused across threads.</p>
  */
 public interface CurveFitter {
+
+    /** Shared logger for static utility methods on this interface. */
+    Logger LOG = LoggerFactory.getLogger(CurveFitter.class);
 
     /**
      * Fits the calibration curve to the provided calibration points.
@@ -121,5 +128,101 @@ public interface CurveFitter {
         result.put(CurveParameters.META_RMSE, rmse);
         result.put(CurveParameters.META_DF,   (double) (n - nParams));
         return result;
+    }
+
+    /**
+     * Estimates an initial Hill slope (B₀) for nonlinear sigmoid fitters from the
+     * calibration data, replacing the hardcoded {@code B₀ = 1.0} starting guess.
+     *
+     * <h2>Algorithm</h2>
+     * <ol>
+     *   <li>Sort (xData, yData) pairs by concentration.</li>
+     *   <li>Compute the 10% and 90% response levels relative to the observed signal range.</li>
+     *   <li>Linearly interpolate to find the concentrations x₁₀ and x₉₀ at those levels
+     *       (direction-agnostic: works for both increasing and decreasing curves).</li>
+     *   <li>Apply {@code B₀ = |log(81) / log(x₉₀ / x₁₀)|}. The {@code Math.abs()} ensures
+     *       a positive estimate for competitive (decreasing-signal) assays where
+     *       {@code log(x₉₀ / x₁₀)} is negative.</li>
+     *   <li>Clamp to [0.1, 10.0].</li>
+     * </ol>
+     *
+     * <h2>Fallback conditions → returns 1.0</h2>
+     * <ul>
+     *   <li>Fewer than 2 data points.</li>
+     *   <li>Signal range &lt; 1e-12 (flat calibration curve).</li>
+     *   <li>x₁₀ or x₉₀ cannot be bracketed in the data.</li>
+     *   <li>x₁₀ or x₉₀ ≤ 0, or x₁₀ == x₉₀.</li>
+     * </ul>
+     *
+     * @param xData concentration values (may be unsorted; must match {@code yData} by index)
+     * @param yData signal values (must match {@code xData} by index)
+     * @return estimated initial Hill slope in [0.1, 10.0], or {@code 1.0} on fallback
+     */
+    static double estimateHillSlope(double[] xData, double[] yData) {
+        if (xData == null || yData == null || xData.length < 2 || xData.length != yData.length) {
+            return 1.0;
+        }
+
+        int n = xData.length;
+
+        // Sort pairs by concentration
+        Integer[] idx = new Integer[n];
+        for (int i = 0; i < n; i++) idx[i] = i;
+        Arrays.sort(idx, (a, b) -> Double.compare(xData[a], xData[b]));
+        double[] sx = new double[n];
+        double[] sy = new double[n];
+        for (int i = 0; i < n; i++) {
+            sx[i] = xData[idx[i]];
+            sy[i] = yData[idx[i]];
+        }
+
+        // Signal range (search full array — signal may not be monotone after sorting by x)
+        double yMin = sy[0];
+        double yMax = sy[0];
+        for (double y : sy) {
+            if (y < yMin) yMin = y;
+            if (y > yMax) yMax = y;
+        }
+        if (Math.abs(yMax - yMin) < 1e-12) {
+            return 1.0;
+        }
+
+        double y10 = yMin + 0.10 * (yMax - yMin);
+        double y90 = yMin + 0.90 * (yMax - yMin);
+
+        double x10 = interpolateConcentrationAtLevel(sx, sy, y10);
+        double x90 = interpolateConcentrationAtLevel(sx, sy, y90);
+
+        if (x10 <= 0.0 || x90 <= 0.0 || x10 == x90) {
+            return 1.0;
+        }
+
+        double b0 = Math.abs(Math.log(81.0) / Math.log(x90 / x10));
+        b0 = Math.max(0.1, Math.min(b0, 10.0));
+        LOG.debug("Estimated initial Hill slope B\u2080 = {} from calibration data", b0);
+        return b0;
+    }
+
+    /**
+     * Linearly interpolates the concentration at which the signal equals {@code targetY},
+     * scanning adjacent pairs in the concentration-sorted arrays.
+     * Direction-agnostic: finds brackets for both increasing and decreasing signal curves.
+     *
+     * @param sortedX concentration values sorted in ascending order
+     * @param sortedY signal values corresponding to {@code sortedX}
+     * @param targetY target signal level to interpolate at
+     * @return interpolated concentration, or {@code -1.0} if no bracket is found
+     */
+    private static double interpolateConcentrationAtLevel(
+            double[] sortedX, double[] sortedY, double targetY) {
+        for (int i = 0; i < sortedX.length - 1; i++) {
+            double y1 = sortedY[i];
+            double y2 = sortedY[i + 1];
+            if ((y1 <= targetY && targetY <= y2) || (y2 <= targetY && targetY <= y1)) {
+                double t = (targetY - y1) / (y2 - y1);
+                return sortedX[i] + t * (sortedX[i + 1] - sortedX[i]);
+            }
+        }
+        return -1.0;
     }
 }
