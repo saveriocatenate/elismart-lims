@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.data.Offset.offset;
 import static org.assertj.core.data.Percentage.withPercentage;
 
 /**
@@ -84,6 +85,29 @@ class SemiLogLinearFitterTest {
         // q is 0.0 — use absolute tolerance instead of percentage
         assertThat(params.values().get(SemiLogLinearFitter.PARAM_Q))
                 .isCloseTo(TRUE_Q, org.assertj.core.data.Offset.offset(0.01));
+    }
+
+    /**
+     * Verifies that fit() populates _r2, _rmse, _df for noiseless data.
+     * Reference points are exact → R² must equal 1.0.
+     */
+    @Test
+    @DisplayName("fit() populates _r2, _rmse, _df goodness-of-fit metrics")
+    void fit_shouldPopulateGoodnessOfFitMetrics() {
+        CurveParameters params = fitter.fit(REFERENCE_POINTS);
+
+        assertThat(params.values()).containsKey(CurveParameters.META_R2);
+        assertThat(params.values()).containsKey(CurveParameters.META_RMSE);
+        assertThat(params.values()).containsKey(CurveParameters.META_DF);
+
+        assertThat(params.values().get(CurveParameters.META_R2)).isCloseTo(1.0, offset(1e-6));
+        assertThat(params.values().get(CurveParameters.META_RMSE)).isCloseTo(0.0, offset(1e-6));
+        // REFERENCE_POINTS has 4 points, 2 parameters → df = 2
+        assertThat(params.values().get(CurveParameters.META_DF)).isCloseTo(2.0, offset(1e-10));
+
+        // Semi-log linear does NOT emit _rms or _convergence
+        assertThat(params.values()).doesNotContainKey(CurveParameters.META_RMS);
+        assertThat(params.values()).doesNotContainKey(CurveParameters.META_CONVERGENCE);
     }
 
     // -------------------------------------------------------------------------
