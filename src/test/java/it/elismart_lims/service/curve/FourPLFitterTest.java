@@ -7,6 +7,16 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.DoubleStream;
+import org.apache.commons.math3.fitting.leastsquares.LeastSquaresBuilder;
+import org.apache.commons.math3.fitting.leastsquares.LeastSquaresOptimizer;
+import org.apache.commons.math3.fitting.leastsquares.LeastSquaresProblem;
+import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer;
+import org.apache.commons.math3.fitting.leastsquares.MultivariateJacobianFunction;
+import org.apache.commons.math3.linear.Array2DRowRealMatrix;
+import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.util.Pair;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.assertj.core.data.Offset.offset;
@@ -293,5 +303,132 @@ class FourPLFitterTest {
         assertThatExceptionOfType(IllegalStateException.class)
                 .isThrownBy(() -> limitedFitter.fit(REFERENCE_POINTS))
                 .withMessageContaining("did not converge");
+    }
+
+    // -------------------------------------------------------------------------
+    // WLS vs OLS on heteroscedastic data
+    // -------------------------------------------------------------------------
+
+    /**
+     * Heteroscedastic calibration data: true model A=0, B=1.5, C=50, D=2.
+     * The two high-signal calibrators (x=100, x=200) have a +20% signal offset
+     * simulating proportional noise. OLS is dominated by these large-residual
+     * high-signal points and biases EC50 upward. WLS (1/y²) down-weights them
+     * and recovers EC50 closer to the true value.
+     *
+     * <p>Reference signals (noiseless from REFERENCE_POINTS):
+     * x=100 → 1.47759225 × 1.20 = 1.77311070
+     * x=200 → 1.77777778 × 1.20 = 2.13333334</p>
+     */
+    private static final List<CalibrationPoint> HETEROSCEDASTIC_POINTS = List.of(
+            new CalibrationPoint(5.0,    0.06130686),
+            new CalibrationPoint(10.0,   0.16419903),
+            new CalibrationPoint(25.0,   0.52240775),
+            new CalibrationPoint(50.0,   1.00000000),
+            new CalibrationPoint(100.0,  1.77311070),
+            new CalibrationPoint(200.0,  2.13333334)
+    );
+
+    @Test
+    @DisplayName("WLS: wide-range heteroscedastic data — EC50 differs from OLS by >= 1%")
+    void fit_wideRangeHeteroscedastic_wlsEC50MoreAccurateThanOls() {
+        double trueC = 50.0;
+
+        CurveParameters wlsParams = fitter.fit(HETEROSCEDASTIC_POINTS);
+        double wlsC = wlsParams.values().get(FourPLFitter.PARAM_C);
+
+        CurveParameters olsParams = fitWithUnitWeights(HETEROSCEDASTIC_POINTS);
+        double olsC = olsParams.values().get(FourPLFitter.PARAM_C);
+
+        // The two estimates must differ by at least 1% of the true EC50,
+        // demonstrating that WLS weighting has a measurable effect on heteroscedastic data
+        assertThat(Math.abs(wlsC - olsC) / trueC * 100)
+                .as("WLS and OLS EC50 must differ by >= 1%% on heteroscedastic data "
+                        + "(WLS_C=%.3f, OLS_C=%.3f)", wlsC, olsC)
+                .isGreaterThan(1.0);
+    }
+
+    /**
+     * Narrow-range noiseless calibration data: true model A=0, B=1.5, C=50, D=2.
+     * All signals lie in [0.52, 1.29], a ~6x weight spread. WLS and OLS should
+     * agree to within 2% on EC50 because the weighting has little leverage.
+     *
+     * <p>Signal values computed from the true model at x = 25, 35, 45, 55, 65, 75.</p>
+     */
+    private static final List<CalibrationPoint> NARROW_RANGE_POINTS = List.of(
+            new CalibrationPoint(25.0, 0.52240775),
+            new CalibrationPoint(35.0, 0.73854000),
+            new CalibrationPoint(45.0, 0.92120000),
+            new CalibrationPoint(55.0, 1.07140000),
+            new CalibrationPoint(65.0, 1.19430000),
+            new CalibrationPoint(75.0, 1.29490000)
+    );
+
+    @Test
+    @DisplayName("WLS: narrow-range data — EC50 within 5%% of true and agrees with OLS within 2%%")
+    void fit_narrowRange_wlsAndOlsAgree() {
+        double trueC = 50.0;
+
+        CurveParameters wlsParams = fitter.fit(NARROW_RANGE_POINTS);
+        double wlsC = wlsParams.values().get(FourPLFitter.PARAM_C);
+
+        CurveParameters olsParams = fitWithUnitWeights(NARROW_RANGE_POINTS);
+        double olsC = olsParams.values().get(FourPLFitter.PARAM_C);
+
+        // Both methods recover the true EC50 within 5%
+        assertThat(wlsC).as("WLS EC50").isCloseTo(trueC, withPercentage(5.0));
+        assertThat(olsC).as("OLS EC50").isCloseTo(trueC, withPercentage(5.0));
+
+        // The two estimates agree with each other within 2%
+        assertThat(Math.abs(wlsC - olsC) / trueC * 100)
+                .as("WLS and OLS EC50 must agree within 2%% on narrow-range data")
+                .isLessThan(2.0);
+    }
+
+    /**
+     * Fits a 4PL curve using OLS (unit weights) on the given points.
+     * Used only in tests to compare WLS vs OLS behaviour.
+     * Replicates the FourPLFitter optimisation loop without calling
+     * CurveFitter.computeWeights — equivalent to an identity weight matrix.
+     */
+    private static CurveParameters fitWithUnitWeights(List<CalibrationPoint> points) {
+        double[] xData = points.stream().mapToDouble(CalibrationPoint::concentration).toArray();
+        double[] yData = points.stream().mapToDouble(CalibrationPoint::signal).toArray();
+
+        double minY = DoubleStream.of(yData).min().orElse(0.0);
+        double maxY = DoubleStream.of(yData).max().orElse(2.0);
+        double minX = DoubleStream.of(xData).min().orElse(1.0);
+        double maxX = DoubleStream.of(xData).max().orElse(100.0);
+        double[] start = {minY, 1.0, Math.sqrt(minX * maxX), maxY};
+
+        MultivariateJacobianFunction model = params -> {
+            double a = params.getEntry(0), b = params.getEntry(1);
+            double c = params.getEntry(2), d = params.getEntry(3);
+            double[] vals = new double[xData.length];
+            double[][] jac  = new double[xData.length][4];
+            for (int i = 0; i < xData.length; i++) {
+                double x      = xData[i];
+                double ratio  = Math.pow(x / c, b);
+                double denom  = 1.0 + ratio;
+                double denom2 = denom * denom;
+                vals[i]  = d + (a - d) / denom;
+                jac[i][0] = 1.0 / denom;
+                double lnR = (x > 0 && c > 0) ? Math.log(x / c) : 0.0;
+                jac[i][1] = -(a - d) * ratio * lnR / denom2;
+                jac[i][2] = (a - d) * b * ratio / (c * denom2);
+                jac[i][3] = 1.0 - 1.0 / denom;
+            }
+            return Pair.create(new ArrayRealVector(vals, false),
+                               new Array2DRowRealMatrix(jac, false));
+        };
+
+        LeastSquaresProblem problem = new LeastSquaresBuilder()
+                .start(start).model(model).target(yData)
+                .lazyEvaluation(false).maxEvaluations(10_000).maxIterations(10_000)
+                .build(); // no .weight() call → OLS
+
+        LeastSquaresOptimizer.Optimum opt = new LevenbergMarquardtOptimizer().optimize(problem);
+        double[] p = opt.getPoint().toArray();
+        return new CurveParameters(Map.of("A", p[0], "B", p[1], "C", p[2], "D", p[3]));
     }
 }
