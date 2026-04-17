@@ -226,6 +226,22 @@ public class FivePLFitter implements CurveFitter {
         resultParams.put(PARAM_E, fitted[4]);
         resultParams.put(CurveParameters.META_CONVERGENCE, 1.0);
         resultParams.put(CurveParameters.META_RMS, rms);
+
+        // Re-evaluate model with fitted parameters (unweighted) to compute gof metrics
+        double a = fitted[0], b = fitted[1], c = fitted[2], d = fitted[3], e = fitted[4];
+        double[] yPredicted = new double[xData.length];
+        for (int i = 0; i < xData.length; i++) {
+            double u = Math.pow(xData[i] / c, b);
+            yPredicted[i] = d + (a - d) / Math.pow(1.0 + u, e);
+            if (Double.isNaN(yPredicted[i]) || Double.isInfinite(yPredicted[i])) {
+                throw new IllegalArgumentException(String.format(
+                        "GoF re-evaluation produced NaN/Infinite at index %d "
+                        + "(x=%.6f, c=%.6f, b=%.6f, e=%.6f). Fitted parameters may be degenerate.",
+                        i, xData[i], c, b, e));
+            }
+        }
+        resultParams.putAll(CurveFitter.computeGoodnessOfFit(yData, yPredicted, 5));
+
         return new CurveParameters(resultParams);
     }
 
