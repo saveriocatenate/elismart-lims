@@ -34,7 +34,8 @@ import java.util.Map;
  *
  * <h2>Fitting</h2>
  * <p>Uses the Levenberg-Marquardt nonlinear least-squares algorithm from
- * Apache Commons Math 3. An analytic Jacobian is provided to improve convergence.</p>
+ * Apache Commons Math 3 with WLS (weighted least-squares) using 1/y² weights.
+ * An analytic Jacobian is provided to improve convergence.</p>
  *
  * <h2>Back-interpolation (inverse)</h2>
  * <pre>
@@ -216,6 +217,12 @@ public class FourPLFitter implements CurveFitter {
         for (int i = 0; i < xData.length; i++) {
             double ratio = Math.pow(xData[i] / c, b);
             yPredicted[i] = d + (a - d) / (1.0 + ratio);
+            if (Double.isNaN(yPredicted[i]) || Double.isInfinite(yPredicted[i])) {
+                throw new IllegalArgumentException(String.format(
+                        "GoF re-evaluation produced NaN/Infinite at index %d "
+                        + "(x=%.6f, c=%.6f, b=%.6f). Fitted parameters may be degenerate.",
+                        i, xData[i], c, b));
+            }
         }
         resultParams.putAll(CurveFitter.computeGoodnessOfFit(yData, yPredicted, 4));
 
