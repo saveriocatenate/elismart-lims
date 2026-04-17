@@ -16,6 +16,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import datetime
+import json
 import requests
 import streamlit as st
 from utils import check_auth, color_code_qc, format_date, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
@@ -50,6 +51,65 @@ _STATUS_META: dict[str, tuple[str, str]] = {
     "KO":               ("❌", "Uno o più parametri fuori dai limiti del protocollo"),
     "VALIDATION_ERROR": ("⚠️", "Errore durante la validazione automatica (es. dati insufficienti per il fit)"),
 }
+
+def _render_fit_quality(curve_params_str):
+    """Render a read-only Qualità del Fit expander from a JSON curve_parameters string.
+
+    Only renders when curve_params_str is non-empty and contains at least one
+    goodness-of-fit key (_r2, _rmse, _df). Always read-only — values are server-side.
+    """
+    if not curve_params_str:
+        return
+    try:
+        params = json.loads(curve_params_str)
+    except Exception:
+        return
+
+    r2          = params.get("_r2")
+    rmse        = params.get("_rmse")
+    df          = params.get("_df")
+    convergence = params.get("_convergence")
+
+    if all(v is None for v in [r2, rmse, df, convergence]):
+        return
+
+    with st.expander("📊 Qualità del Fit"):
+        # Convergence warning (nonlinear fitters only)
+        if convergence is not None and convergence == 0.0:
+            st.error("❌ Il fitting non è convergito — verificare i dati di calibrazione")
+
+        c1, c2, c3 = st.columns(3)
+
+        # R² with color coding
+        if r2 is not None:
+            if r2 >= 0.95:
+                color = "#2ecc71"
+                tip   = ""
+            elif r2 >= 0.90:
+                color = "#f39c12"
+                tip   = "⚠️ Il fit potrebbe non essere ottimale"
+            else:
+                color = "#e74c3c"
+                tip   = "🔴 Fit scadente — verificare i dati di calibrazione"
+            c1.markdown(
+                f"<span style='color:{color};font-weight:bold'>R² = {r2:.4f}</span>",
+                unsafe_allow_html=True,
+            )
+            if tip:
+                c1.caption(tip)
+
+        # RMSE
+        if rmse is not None:
+            c2.markdown(f"**RMSE** = {rmse:.4f}")
+
+        # Degrees of freedom
+        if df is not None:
+            c3.markdown(f"**Gradi di libertà** = {int(df)}")
+
+        # Convergence ok badge (nonlinear only)
+        if convergence is not None and convergence == 1.0:
+            st.caption("✅ Convergito")
+
 
 exp_id = st.session_state.get("selected_exp_id")
 if not exp_id:
@@ -314,6 +374,8 @@ if not edit_mode:
     curve_raw = data.get("protocolCurveType", "")
     col_curve.metric("Tipo di Curva", _CURVE_DISPLAY.get(curve_raw, curve_raw or "—"))
 
+    _render_fit_quality(data.get("curveParameters"))
+
     # Protocol details expander
     proto_name = data.get("protocolName", "—")
     proto_max_cv = data.get("protocolMaxCvAllowed")
@@ -445,6 +507,8 @@ else:
             curve_raw = data.get("protocolCurveType", "")
             curve_label = _CURVE_DISPLAY.get(curve_raw, curve_raw or "—")
             st.text_input("Tipo di Curva (sola lettura)", value=curve_label, disabled=True)
+
+        _render_fit_quality(data.get("curveParameters"))
 
         st.markdown("---")
 
