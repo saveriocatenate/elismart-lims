@@ -8,6 +8,7 @@ import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer
 import org.apache.commons.math3.fitting.leastsquares.MultivariateJacobianFunction;
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.linear.DiagonalMatrix;
 import org.apache.commons.math3.util.Pair;
 
 import org.slf4j.Logger;
@@ -122,6 +123,7 @@ public class LogLogistic3PFitter implements CurveFitter {
         double[] yData = validPoints.stream().mapToDouble(CalibrationPoint::signal).toArray();
 
         double[] initialGuess = buildInitialGuess(xData, yData);
+        double[] weights = CurveFitter.computeWeights(validPoints);
 
         MultivariateJacobianFunction model = params -> {
             double b = params.getEntry(0);
@@ -159,6 +161,7 @@ public class LogLogistic3PFitter implements CurveFitter {
                 .start(initialGuess)
                 .model(model)
                 .target(yData)
+                .weight(new DiagonalMatrix(weights))
                 .lazyEvaluation(false)
                 .maxEvaluations(maxEvaluations)
                 .maxIterations(MAX_ITERATIONS)
