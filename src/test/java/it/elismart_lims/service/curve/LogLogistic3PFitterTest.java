@@ -293,4 +293,27 @@ class LogLogistic3PFitterTest {
                 .isThrownBy(() -> fitter.interpolate(1.5, degenerateParams))
                 .withMessageContaining("NaN/Infinity");
     }
+
+    // -------------------------------------------------------------------------
+    // Goodness-of-fit metrics
+    // -------------------------------------------------------------------------
+
+    /**
+     * Verifies that fit() populates R², RMSE, and df goodness-of-fit metrics
+     * in the returned CurveParameters.
+     */
+    @Test
+    @DisplayName("fit() populates _r2, _rmse, _df goodness-of-fit metrics")
+    void fit_shouldPopulateGoodnessOfFitMetrics() {
+        CurveParameters params = fitter.fit(REFERENCE_POINTS);
+
+        assertThat(params.values()).containsKey(CurveParameters.META_R2);
+        assertThat(params.values()).containsKey(CurveParameters.META_RMSE);
+        assertThat(params.values()).containsKey(CurveParameters.META_DF);
+        assertThat(params.values()).containsKey(CurveParameters.META_RMS);
+
+        assertThat(params.values().get(CurveParameters.META_R2)).isGreaterThan(0.999);
+        assertThat(params.values().get(CurveParameters.META_RMSE)).isLessThan(0.01);
+        assertThat(params.values().get(CurveParameters.META_DF)).isGreaterThanOrEqualTo(0.0);
+    }
 }

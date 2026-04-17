@@ -190,6 +190,22 @@ public class LogLogistic3PFitter implements CurveFitter {
         resultParams.put(PARAM_D, fitted[2]);
         resultParams.put(CurveParameters.META_CONVERGENCE, 1.0);
         resultParams.put(CurveParameters.META_RMS, rms);
+
+        // Re-evaluate model with fitted parameters (unweighted) to compute gof metrics
+        double b = fitted[0], c = fitted[1], d = fitted[2];
+        double[] yPredicted = new double[xData.length];
+        for (int i = 0; i < xData.length; i++) {
+            double ratio = Math.pow(xData[i] / c, b);
+            yPredicted[i] = d * ratio / (1.0 + ratio);
+            if (Double.isNaN(yPredicted[i]) || Double.isInfinite(yPredicted[i])) {
+                throw new IllegalArgumentException(String.format(
+                        "GoF re-evaluation produced NaN/Infinite at index %d "
+                        + "(x=%.6f, c=%.6f, b=%.6f). Fitted parameters may be degenerate.",
+                        i, xData[i], c, b));
+            }
+        }
+        resultParams.putAll(CurveFitter.computeGoodnessOfFit(yData, yPredicted, 3));
+
         return new CurveParameters(resultParams);
     }
 
