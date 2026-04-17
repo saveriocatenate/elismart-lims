@@ -288,6 +288,27 @@ class FourPLFitterTest {
     }
 
     /**
+     * Verifies that fit() populates _r2, _rmse, and _df for noiseless data.
+     * Data is generated from the exact 4PL formula so R² must be ≥ 0.999.
+     */
+    @Test
+    @DisplayName("fit() populates _r2, _rmse, _df goodness-of-fit metrics")
+    void fit_shouldPopulateGoodnessOfFitMetrics() {
+        CurveParameters params = fitter.fit(REFERENCE_POINTS);
+
+        assertThat(params.values()).containsKey(CurveParameters.META_R2);
+        assertThat(params.values()).containsKey(CurveParameters.META_RMSE);
+        assertThat(params.values()).containsKey(CurveParameters.META_DF);
+        assertThat(params.values()).containsKey(CurveParameters.META_RMS);   // unchanged
+
+        // Noiseless data from exact formula → near-perfect fit
+        assertThat(params.values().get(CurveParameters.META_R2)).isGreaterThan(0.999);
+        assertThat(params.values().get(CurveParameters.META_RMSE)).isLessThan(0.01);
+        // df = 6 points - 4 parameters = 2
+        assertThat(params.values().get(CurveParameters.META_DF)).isCloseTo(2.0, offset(1e-10));
+    }
+
+    /**
      * When the LM optimizer is given only 1 evaluation it must fail immediately.
      * The fitter must catch {@code TooManyEvaluationsException} and rethrow it as
      * {@link IllegalStateException} with a message that mentions non-convergence.

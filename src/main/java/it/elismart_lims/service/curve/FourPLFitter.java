@@ -8,6 +8,7 @@ import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer
 import org.apache.commons.math3.fitting.leastsquares.MultivariateJacobianFunction;
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.linear.DiagonalMatrix;
 import org.apache.commons.math3.util.Pair;
 
 import org.slf4j.Logger;
@@ -138,6 +139,7 @@ public class FourPLFitter implements CurveFitter {
         double[] yData = validPoints.stream().mapToDouble(CalibrationPoint::signal).toArray();
 
         double[] initialGuess = buildInitialGuess(xData, yData);
+        double[] weights = CurveFitter.computeWeights(validPoints);
 
         MultivariateJacobianFunction model = params -> {
             double a = params.getEntry(0);
@@ -177,6 +179,7 @@ public class FourPLFitter implements CurveFitter {
                 .start(initialGuess)
                 .model(model)
                 .target(yData)
+                .weight(new DiagonalMatrix(weights))
                 .lazyEvaluation(false)
                 .maxEvaluations(maxEvaluations)
                 .maxIterations(MAX_ITERATIONS)
@@ -206,6 +209,16 @@ public class FourPLFitter implements CurveFitter {
         resultParams.put(PARAM_D, fitted[3]);
         resultParams.put(CurveParameters.META_CONVERGENCE, 1.0);
         resultParams.put(CurveParameters.META_RMS, rms);
+
+        // Re-evaluate model with fitted parameters (unweighted) to compute gof metrics
+        double a = fitted[0], b = fitted[1], c = fitted[2], d = fitted[3];
+        double[] yPredicted = new double[xData.length];
+        for (int i = 0; i < xData.length; i++) {
+            double ratio = Math.pow(xData[i] / c, b);
+            yPredicted[i] = d + (a - d) / (1.0 + ratio);
+        }
+        resultParams.putAll(CurveFitter.computeGoodnessOfFit(yData, yPredicted, 4));
+
         return new CurveParameters(resultParams);
     }
 
