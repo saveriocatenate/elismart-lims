@@ -103,7 +103,8 @@ public class FourPLFitter implements CurveFitter {
      *   <li>A₀ = min(signal values)</li>
      *   <li>D₀ = max(signal values)</li>
      *   <li>C₀ = geometric mean of min/max concentration</li>
-     *   <li>B₀ = 1.0</li>
+     *   <li>B₀ = data-driven Hill slope estimate via {@link CurveFitter#estimateHillSlope}
+     *       (falls back to 1.0 when data are insufficient)</li>
      * </ul>
      *
      * @throws IllegalArgumentException if fewer than {@value MIN_POINTS} points are provided
@@ -283,7 +284,9 @@ public class FourPLFitter implements CurveFitter {
      *   <li>A₀ = min(y) — bottom asymptote estimate</li>
      *   <li>D₀ = max(y) — top asymptote estimate</li>
      *   <li>C₀ = √(xMin · xMax) — geometric mean of concentration range</li>
-     *   <li>B₀ = 1.0 — neutral starting slope</li>
+     *   <li>B₀ = estimated Hill slope from 10%/90% signal response levels
+     *       via {@link CurveFitter#estimateHillSlope}; falls back to 1.0 when
+     *       the data are insufficient to form a reliable estimate</li>
      * </ul>
      *
      * @param xData array of concentration values
@@ -307,6 +310,6 @@ public class FourPLFitter implements CurveFitter {
                 ? Math.sqrt(minX * maxX)
                 : (minX + maxX) / 2.0;
 
-        return new double[]{minY, 1.0, initialC, maxY};
+        return new double[]{minY, CurveFitter.estimateHillSlope(xData, yData), initialC, maxY};
     }
 }

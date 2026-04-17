@@ -406,6 +406,81 @@ class FourPLFitterTest {
                 .isLessThan(2.0);
     }
 
+    // -------------------------------------------------------------------------
+    // Data-driven B₀ initial guess
+    // -------------------------------------------------------------------------
+
+    /**
+     * Verifies that starting the LM optimizer from the data-driven B₀ estimate
+     * requires no more iterations than starting from the hardcoded B₀ = 1.0.
+     *
+     * <p>Reference data: true B = 1.5. {@code estimateHillSlope} returns ≈ 1.83,
+     * which is closer to the true value than 1.0 and should not increase iteration count.
+     * The assertion uses {@code ≤} (soft): equal counts are acceptable.</p>
+     */
+    @Test
+    @DisplayName("estimateHillSlope: data-driven B₀ needs no more LM iterations than B₀=1.0")
+    void fit_dataDrivenB0_needsNoMoreIterationsThanFixedB0() {
+        double[] xData = REFERENCE_POINTS.stream().mapToDouble(CalibrationPoint::concentration).toArray();
+        double[] yData = REFERENCE_POINTS.stream().mapToDouble(CalibrationPoint::signal).toArray();
+
+        double minY = DoubleStream.of(yData).min().orElse(0.0);
+        double maxY = DoubleStream.of(yData).max().orElse(2.0);
+        double minX = DoubleStream.of(xData).min().orElse(1.0);
+        double maxX = DoubleStream.of(xData).max().orElse(100.0);
+        double c0 = Math.sqrt(minX * maxX);
+
+        double estimatedB0 = CurveFitter.estimateHillSlope(xData, yData);
+
+        double[] startEstimated = {minY, estimatedB0, c0, maxY};
+        double[] startFixed     = {minY, 1.0,          c0, maxY};
+
+        int iterEstimated = count4PLIterations(xData, yData, startEstimated);
+        int iterFixed     = count4PLIterations(xData, yData, startFixed);
+
+        assertThat(iterEstimated)
+                .as("Data-driven B₀=%.3f should need no more LM iterations than fixed B₀=1.0 "
+                                + "(estimated=%d, fixed=%d)", estimatedB0, iterEstimated, iterFixed)
+                .isLessThanOrEqualTo(iterFixed);
+    }
+
+    /**
+     * Runs the 4PL LM optimizer from the given {@code start} vector and returns
+     * the iteration count. Used only to compare convergence speed of different
+     * starting guesses — not part of the production fitting path.
+     */
+    private static int count4PLIterations(double[] xData, double[] yData, double[] start) {
+        MultivariateJacobianFunction model = params -> {
+            double a = params.getEntry(0), b = params.getEntry(1);
+            double c = params.getEntry(2), d = params.getEntry(3);
+            double[] vals = new double[xData.length];
+            double[][] jac  = new double[xData.length][4];
+            for (int i = 0; i < xData.length; i++) {
+                double x     = xData[i];
+                double ratio = Math.pow(x / c, b);
+                double denom = 1.0 + ratio;
+                double den2  = denom * denom;
+                vals[i]   = d + (a - d) / denom;
+                jac[i][0] = 1.0 / denom;
+                double lnR = (x > 0 && c > 0) ? Math.log(x / c) : 0.0;
+                jac[i][1] = -(a - d) * ratio * lnR / den2;
+                jac[i][2] = (a - d) * b * ratio / (c * den2);
+                jac[i][3] = 1.0 - 1.0 / denom;
+            }
+            return Pair.create(new ArrayRealVector(vals, false),
+                    new Array2DRowRealMatrix(jac, false));
+        };
+
+        // Use unit weights to isolate the effect of B₀ (not WLS weight differences)
+        LeastSquaresProblem problem = new LeastSquaresBuilder()
+                .start(start).model(model).target(yData)
+                .lazyEvaluation(false).maxEvaluations(10_000).maxIterations(10_000)
+                .build();
+
+        LeastSquaresOptimizer.Optimum opt = new LevenbergMarquardtOptimizer().optimize(problem);
+        return opt.getIterations();
+    }
+
     /**
      * Fits a 4PL curve using OLS (unit weights) on the given points.
      * Used only in tests to compare WLS vs OLS behaviour.
