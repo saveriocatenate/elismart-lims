@@ -7,6 +7,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.List;
+import java.util.stream.DoubleStream;
+import org.apache.commons.math3.fitting.leastsquares.LeastSquaresBuilder;
+import org.apache.commons.math3.fitting.leastsquares.LeastSquaresOptimizer;
+import org.apache.commons.math3.fitting.leastsquares.LeastSquaresProblem;
+import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer;
+import org.apache.commons.math3.fitting.leastsquares.MultivariateJacobianFunction;
+import org.apache.commons.math3.linear.Array2DRowRealMatrix;
+import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.util.Pair;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.assertj.core.data.Offset.offset;
@@ -294,5 +303,92 @@ class FivePLFitterTest {
         assertThat(params.values().get(CurveParameters.META_R2)).isGreaterThan(0.999);
         assertThat(params.values().get(CurveParameters.META_RMSE)).isLessThan(0.01);
         assertThat(params.values().get(CurveParameters.META_DF)).isGreaterThanOrEqualTo(0.0);
+    }
+
+    // -------------------------------------------------------------------------
+    // Data-driven B₀ initial guess
+    // -------------------------------------------------------------------------
+
+    /**
+     * Verifies that starting the 5PL LM optimizer from the data-driven B₀ estimate
+     * requires no more iterations than starting from the hardcoded B₀ = 1.0.
+     *
+     * <p>Reference data: true B = 2.0, true E = 0.5. {@code estimateHillSlope}
+     * returns ≈ 1.78 — closer to the true B than 1.0. The assertion uses {@code ≤}
+     * (soft): equal counts are acceptable.</p>
+     */
+    @Test
+    @DisplayName("estimateHillSlope: data-driven B₀ needs no more LM iterations than B₀=1.0 (5PL)")
+    void fit_dataDrivenB0_needsNoMoreIterationsThanFixedB0() {
+        double[] xData = REFERENCE_POINTS.stream().mapToDouble(CalibrationPoint::concentration).toArray();
+        double[] yData = REFERENCE_POINTS.stream().mapToDouble(CalibrationPoint::signal).toArray();
+
+        double minY = DoubleStream.of(yData).min().orElse(0.0);
+        double maxY = DoubleStream.of(yData).max().orElse(3.0);
+        double minX = DoubleStream.of(xData).min().orElse(1.0);
+        double maxX = DoubleStream.of(xData).max().orElse(1000.0);
+        double c0 = Math.sqrt(minX * maxX);
+
+        double estimatedB0 = CurveFitter.estimateHillSlope(xData, yData);
+
+        // [A, B, C, D, E] — E₀ stays 1.0 in both cases
+        double[] startEstimated = {minY, estimatedB0, c0, maxY, 1.0};
+        double[] startFixed     = {minY, 1.0,          c0, maxY, 1.0};
+
+        int iterEstimated = count5PLIterations(xData, yData, startEstimated);
+        int iterFixed     = count5PLIterations(xData, yData, startFixed);
+
+        // isLessThanOrEqualTo (soft): equal counts are acceptable. Note: this asserts an
+        // optimizer-internal quantity (LM iterations) — if the test becomes flaky after a
+        // Commons Math upgrade, the iteration counts may have shifted; re-evaluate then.
+        assertThat(iterEstimated)
+                .as("Data-driven B₀=%.3f should need no more LM iterations than fixed B₀=1.0 "
+                                + "(estimated=%d, fixed=%d)", estimatedB0, iterEstimated, iterFixed)
+                .isLessThanOrEqualTo(iterFixed);
+    }
+
+    /**
+     * Runs the 5PL LM optimizer from the given {@code start} vector [A,B,C,D,E]
+     * and returns the iteration count. Uses unit weights (OLS) to isolate the effect
+     * of B₀ from WLS weight differences.
+     *
+     * @param xData concentration values
+     * @param yData signal values
+     * @param start initial parameter vector [A, B, C, D, E]
+     * @return number of LM optimizer iterations to convergence
+     */
+    private static int count5PLIterations(double[] xData, double[] yData, double[] start) {
+        MultivariateJacobianFunction model = params -> {
+            double a = params.getEntry(0), b = params.getEntry(1);
+            double c = params.getEntry(2), d = params.getEntry(3);
+            double e = params.getEntry(4);
+            double[] vals = new double[xData.length];
+            double[][] jac = new double[xData.length][5];
+            for (int i = 0; i < xData.length; i++) {
+                double x        = xData[i];
+                double u        = Math.pow(x / c, b);
+                double onePlusU = 1.0 + u;
+                double v        = Math.pow(onePlusU, e);
+                double lnXoverC   = (x > 0.0 && c > 0.0) ? Math.log(x / c) : 0.0;
+                double lnOnePlusU = Math.log(onePlusU);
+                vals[i]   = d + (a - d) / v;
+                jac[i][0] = 1.0 / v;
+                jac[i][1] = -(a - d) * e * u * lnXoverC / (onePlusU * v);
+                jac[i][2] = (a - d) * e * b * u / (c * onePlusU * v);
+                jac[i][3] = 1.0 - 1.0 / v;
+                jac[i][4] = -(a - d) * lnOnePlusU / v;
+            }
+            return Pair.create(new ArrayRealVector(vals, false),
+                    new Array2DRowRealMatrix(jac, false));
+        };
+
+        // Use unit weights to isolate the effect of B₀ (not WLS weight differences)
+        LeastSquaresProblem problem = new LeastSquaresBuilder()
+                .start(start).model(model).target(yData)
+                .lazyEvaluation(false).maxEvaluations(10_000).maxIterations(10_000)
+                .build();
+
+        LeastSquaresOptimizer.Optimum opt = new LevenbergMarquardtOptimizer().optimize(problem);
+        return opt.getIterations();
     }
 }

@@ -103,9 +103,10 @@ public class FivePLFitter implements CurveFitter {
      * <p>The initial parameter guess is derived automatically from the data:</p>
      * <ul>
      *   <li>A₀ = min(signal values)</li>
-     *   <li>D₀ = max(signal values)</li>
+     *   <li>B₀ = data-driven Hill slope estimate via {@link CurveFitter#estimateHillSlope}
+     *       (falls back to 1.0 when data are insufficient)</li>
      *   <li>C₀ = geometric mean of min/max concentration</li>
-     *   <li>B₀ = 1.0</li>
+     *   <li>D₀ = max(signal values)</li>
      *   <li>E₀ = 1.0 (symmetric starting point, equivalent to 4PL)</li>
      * </ul>
      *
@@ -309,9 +310,11 @@ public class FivePLFitter implements CurveFitter {
      * <p>Formula:</p>
      * <ul>
      *   <li>A₀ = min(y) — bottom asymptote estimate</li>
-     *   <li>D₀ = max(y) — top asymptote estimate</li>
+     *   <li>B₀ = estimated Hill slope from 10%/90% signal response levels
+     *       via {@link CurveFitter#estimateHillSlope}; falls back to 1.0 when
+     *       the data are insufficient to form a reliable estimate</li>
      *   <li>C₀ = √(xMin · xMax) — geometric mean of concentration range</li>
-     *   <li>B₀ = 1.0 — neutral starting slope</li>
+     *   <li>D₀ = max(y) — top asymptote estimate</li>
      *   <li>E₀ = 1.0 — symmetric starting point (reduces model to 4PL)</li>
      * </ul>
      *
@@ -336,6 +339,6 @@ public class FivePLFitter implements CurveFitter {
                 ? Math.sqrt(minX * maxX)
                 : (minX + maxX) / 2.0;
 
-        return new double[]{minY, 1.0, initialC, maxY, 1.0};
+        return new double[]{minY, CurveFitter.estimateHillSlope(xData, yData), initialC, maxY, 1.0};
     }
 }
