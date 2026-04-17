@@ -2,6 +2,7 @@ package it.elismart_lims.service.curve;
 
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -54,10 +55,22 @@ public class LinearFitter implements CurveFitter {
             regression.addData(p.concentration(), p.signal());
         }
 
-        return new CurveParameters(Map.of(
-                PARAM_M, regression.getSlope(),
-                PARAM_Q, regression.getIntercept()
-        ));
+        double m = regression.getSlope();
+        double q = regression.getIntercept();
+        int n = points.size();
+
+        double[] yActual    = new double[n];
+        double[] yPredicted = new double[n];
+        for (int i = 0; i < n; i++) {
+            yActual[i]    = points.get(i).signal();
+            yPredicted[i] = m * points.get(i).concentration() + q;
+        }
+
+        Map<String, Double> resultParams = new HashMap<>();
+        resultParams.put(PARAM_M, m);
+        resultParams.put(PARAM_Q, q);
+        resultParams.putAll(CurveFitter.computeGoodnessOfFit(yActual, yPredicted, 2));
+        return new CurveParameters(resultParams);
     }
 
     /**
