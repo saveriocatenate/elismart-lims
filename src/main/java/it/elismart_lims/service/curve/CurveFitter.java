@@ -198,8 +198,9 @@ public interface CurveFitter {
         }
 
         double b0 = Math.abs(Math.log(81.0) / Math.log(x90 / x10));
+        if (Double.isNaN(b0) || Double.isInfinite(b0)) return 1.0;
         b0 = Math.max(0.1, Math.min(b0, 10.0));
-        LOG.debug("Estimated initial Hill slope B\u2080 = {} from calibration data", b0);
+        LOG.debug("Estimated initial Hill slope B₀ = {} from calibration data", b0);
         return b0;
     }
 
@@ -219,6 +220,7 @@ public interface CurveFitter {
             double y1 = sortedY[i];
             double y2 = sortedY[i + 1];
             if ((y1 <= targetY && targetY <= y2) || (y2 <= targetY && targetY <= y1)) {
+                if (Math.abs(y2 - y1) < 1e-12) continue;
                 double t = (targetY - y1) / (y2 - y1);
                 return sortedX[i] + t * (sortedX[i + 1] - sortedX[i]);
             }
