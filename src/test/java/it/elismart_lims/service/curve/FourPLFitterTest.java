@@ -449,8 +449,13 @@ class FourPLFitterTest {
 
     /**
      * Runs the 4PL LM optimizer from the given {@code start} vector and returns
-     * the iteration count. Used only to compare convergence speed of different
-     * starting guesses — not part of the production fitting path.
+     * the iteration count. Uses unit weights (OLS) to isolate the effect of B₀
+     * from WLS weight differences. Not part of the production fitting path.
+     *
+     * @param xData concentration values
+     * @param yData signal values
+     * @param start initial parameter vector [A, B, C, D]
+     * @return number of LM optimizer iterations to convergence
      */
     private static int count4PLIterations(double[] xData, double[] yData, double[] start) {
         MultivariateJacobianFunction model = params -> {
