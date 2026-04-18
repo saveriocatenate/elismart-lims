@@ -1,5 +1,6 @@
 package it.elismart_lims.service.curve;
 
+import org.apache.commons.math3.distribution.TDistribution;
 import org.apache.commons.math3.exception.TooManyEvaluationsException;
 import org.apache.commons.math3.fitting.leastsquares.LeastSquaresBuilder;
 import org.apache.commons.math3.fitting.leastsquares.LeastSquaresOptimizer;
@@ -9,6 +10,7 @@ import org.apache.commons.math3.fitting.leastsquares.MultivariateJacobianFunctio
 import org.apache.commons.math3.linear.Array2DRowRealMatrix;
 import org.apache.commons.math3.linear.ArrayRealVector;
 import org.apache.commons.math3.linear.DiagonalMatrix;
+import org.apache.commons.math3.linear.RealMatrix;
 import org.apache.commons.math3.util.Pair;
 
 import org.slf4j.Logger;
@@ -226,6 +228,30 @@ public class FourPLFitter implements CurveFitter {
             }
         }
         resultParams.putAll(CurveFitter.computeGoodnessOfFit(yData, yPredicted, 4));
+
+        // 95% CI for EC50 (parameter C, index 2 in [A, B, C, D]).
+        // sigma² = weighted RMS² × n / df rescales the Fisher information matrix to the
+        // empirical residual variance, so the CI narrows for near-perfect data and widens
+        // proportionally to residual scatter.
+        int df = xData.length - 4;
+        if (df > 0) {
+            try {
+                RealMatrix cov = optimum.getCovariances(1e-10);
+                double sigma2 = optimum.getRMS() * optimum.getRMS() * xData.length / df;
+                double seC = Math.sqrt(cov.getEntry(2, 2) * sigma2);
+                double tValue = new TDistribution(df).inverseCumulativeProbability(0.975);
+                resultParams.put(CurveParameters.META_EC50_LOWER95, fitted[2] - tValue * seC);
+                resultParams.put(CurveParameters.META_EC50_UPPER95, fitted[2] + tValue * seC);
+            } catch (Exception e) {
+                log.warn("4PL: EC50 CI calculation failed (covariance matrix may be singular): {}", e.getMessage());
+                resultParams.put(CurveParameters.META_EC50_LOWER95, null);
+                resultParams.put(CurveParameters.META_EC50_UPPER95, null);
+            }
+        } else {
+            log.warn("4PL: EC50 CI skipped — insufficient degrees of freedom (n={}, p=4).", xData.length);
+            resultParams.put(CurveParameters.META_EC50_LOWER95, null);
+            resultParams.put(CurveParameters.META_EC50_UPPER95, null);
+        }
 
         return new CurveParameters(resultParams);
     }

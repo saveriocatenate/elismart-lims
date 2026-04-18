@@ -65,3 +65,11 @@ postman/
 # OS
 .DS_Store
 Thumbs.db
+/docs/superpowers/plans/2026-04-16-wls-curve-fitting.md
+/docs/superpowers/specs/2026-04-16-wls-curve-fitting-design.md
+/docs/superpowers/plans/2026-04-17-goodness-of-fit-metrics.md
+/docs/superpowers/specs/2026-04-17-goodness-of-fit-metrics-design.md
+/docs/superpowers/plans/2026-04-17-hill-slope-b0-datadriven.md
+/docs/superpowers/plans/2026-04-18-ai-single-experiment.md
+/docs/superpowers/specs/2026-04-18-ai-single-experiment-design.md
+/docs/superpowers/plans/2026-04-18-ux-fixes.md

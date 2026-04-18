@@ -489,6 +489,104 @@ class FourPLFitterTest {
         return opt.getIterations();
     }
 
+    // -------------------------------------------------------------------------
+    // EC50 95% Confidence Interval
+    // -------------------------------------------------------------------------
+
+    /**
+     * Noisy calibration data (≈5% signal noise) must yield a finite, symmetric 95% CI
+     * around EC50 (lower &lt; C &lt; upper) with a positive half-width.
+     *
+     * <p>The CI uses empirical σ² = weighted-RMS² × n / df so that it reflects actual
+     * residual scatter. For noiseless data the CI degenerates to a point (σ²≈0) and is
+     * not tested here.</p>
+     */
+    @Test
+    @DisplayName("fit() on noisy data produces a finite EC50 95% CI bracketing C")
+    void fit_noisyData_shouldProduceFiniteEC50CI() {
+        List<CalibrationPoint> noisyPoints = List.of(
+                new CalibrationPoint(5.0,   0.06130686 + 0.0030),
+                new CalibrationPoint(10.0,  0.16419903 - 0.0082),
+                new CalibrationPoint(25.0,  0.52240775 + 0.0261),
+                new CalibrationPoint(50.0,  1.00000000 - 0.0500),
+                new CalibrationPoint(100.0, 1.47759225 + 0.0739),
+                new CalibrationPoint(200.0, 1.77777778 - 0.0889)
+        );
+
+        CurveParameters params = fitter.fit(noisyPoints);
+
+        Double lower = params.values().get(CurveParameters.META_EC50_LOWER95);
+        Double upper = params.values().get(CurveParameters.META_EC50_UPPER95);
+        double c     = params.values().get(FourPLFitter.PARAM_C);
+
+        assertThat(lower).as("EC50 lower95 must not be null for noisy data").isNotNull();
+        assertThat(upper).as("EC50 upper95 must not be null for noisy data").isNotNull();
+        assertThat(lower).isFinite().isLessThan(c);
+        assertThat(upper).isFinite().isGreaterThan(c);
+        assertThat(upper - lower).as("CI half-width must be positive").isPositive();
+    }
+
+    /**
+     * With empirical σ² scaling, noisy data (larger residuals) must produce a wider CI
+     * than the same dataset with a small added perturbation — confirming that the CI
+     * reflects residual scatter.
+     */
+    @Test
+    @DisplayName("fit() CI widens with increasing residual noise")
+    void fit_largerNoise_shouldProduceWiderEC50CI() {
+        // Same calibration design, two noise levels: small vs large
+        List<CalibrationPoint> smallNoise = List.of(
+                new CalibrationPoint(5.0,   0.06130686 + 0.001),
+                new CalibrationPoint(10.0,  0.16419903 - 0.001),
+                new CalibrationPoint(25.0,  0.52240775 + 0.001),
+                new CalibrationPoint(50.0,  1.00000000 - 0.001),
+                new CalibrationPoint(100.0, 1.47759225 + 0.001),
+                new CalibrationPoint(200.0, 1.77777778 - 0.001)
+        );
+        List<CalibrationPoint> largeNoise = List.of(
+                new CalibrationPoint(5.0,   0.06130686 + 0.020),
+                new CalibrationPoint(10.0,  0.16419903 - 0.035),
+                new CalibrationPoint(25.0,  0.52240775 + 0.050),
+                new CalibrationPoint(50.0,  1.00000000 - 0.080),
+                new CalibrationPoint(100.0, 1.47759225 + 0.090),
+                new CalibrationPoint(200.0, 1.77777778 - 0.070)
+        );
+
+        CurveParameters smallParams = fitter.fit(smallNoise);
+        CurveParameters largeParams = fitter.fit(largeNoise);
+
+        double smallWidth = smallParams.values().get(CurveParameters.META_EC50_UPPER95)
+                          - smallParams.values().get(CurveParameters.META_EC50_LOWER95);
+        double largeWidth = largeParams.values().get(CurveParameters.META_EC50_UPPER95)
+                          - largeParams.values().get(CurveParameters.META_EC50_LOWER95);
+
+        assertThat(largeWidth)
+                .as("CI width for large-noise data (%.4f) must exceed CI width for small-noise data (%.4f)",
+                        largeWidth, smallWidth)
+                .isGreaterThan(smallWidth);
+    }
+
+    /**
+     * When n = p (exactly 4 points for 4PL, df = 0), the fitter must not crash
+     * and must store {@code null} for both CI keys.
+     */
+    @Test
+    @DisplayName("fit() with df=0 (n=p=4) stores null CI and does not crash")
+    void fit_zeroDegreesFreedom_shouldStoreNullCI() {
+        List<CalibrationPoint> minimalPoints = List.of(
+                new CalibrationPoint(5.0,   0.06130686),
+                new CalibrationPoint(25.0,  0.52240775),
+                new CalibrationPoint(100.0, 1.47759225),
+                new CalibrationPoint(200.0, 1.77777778)
+        );
+        CurveParameters params = fitter.fit(minimalPoints);
+
+        assertThat(params.values().get(CurveParameters.META_EC50_LOWER95))
+                .as("EC50 lower95 must be null when df=0").isNull();
+        assertThat(params.values().get(CurveParameters.META_EC50_UPPER95))
+                .as("EC50 upper95 must be null when df=0").isNull();
+    }
+
     /**
      * Fits a 4PL curve using OLS (unit weights) on the given points.
      * Used only in tests to compare WLS vs OLS behaviour.

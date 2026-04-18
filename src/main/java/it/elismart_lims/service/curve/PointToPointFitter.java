@@ -1,5 +1,8 @@
 package it.elismart_lims.service.curve;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +35,8 @@ import java.util.Map;
  */
 public class PointToPointFitter implements CurveFitter {
 
+    private static final Logger log = LoggerFactory.getLogger(PointToPointFitter.class);
+
     /** Minimum number of calibration points required for piecewise interpolation. */
     private static final int MIN_POINTS = 2;
 
@@ -60,6 +65,20 @@ public class PointToPointFitter implements CurveFitter {
         for (int i = 0; i < sorted.size(); i++) {
             map.put("x_" + i, sorted.get(i).concentration());
             map.put("y_" + i, sorted.get(i).signal());
+        }
+
+        // Detect flat segments and store warning flag so callers can surface it
+        for (int i = 0; i < sorted.size() - 1; i++) {
+            double dy = sorted.get(i + 1).signal() - sorted.get(i).signal();
+            if (Math.abs(dy) < 1e-12) {
+                map.put(CurveParameters.META_FLAT_SEGMENT_WARNING, 1.0);
+                log.warn("PointToPoint fit: flat calibration segment detected between "
+                        + "x={} (y={}) and x={} (y={}). Interpolation on this segment "
+                        + "returns the midpoint concentration and is approximate.",
+                        sorted.get(i).concentration(), sorted.get(i).signal(),
+                        sorted.get(i + 1).concentration(), sorted.get(i + 1).signal());
+                break;
+            }
         }
 
         return new CurveParameters(Map.copyOf(map));
@@ -106,8 +125,11 @@ public class PointToPointFitter implements CurveFitter {
             if (signal >= yLow && signal <= yHigh) {
                 double dy = ys[i + 1] - ys[i];
                 if (Math.abs(dy) < 1e-12) {
-                    // Flat segment — return midpoint concentration
-                    return (xs[i] + xs[i + 1]) / 2.0;
+                    double midpoint = (xs[i] + xs[i + 1]) / 2.0;
+                    log.warn("PointToPoint interpolation: flat segment between x={} and x={} "
+                            + "(|dy|<1e-12). Returning midpoint concentration {} — value is approximate.",
+                            xs[i], xs[i + 1], midpoint);
+                    return midpoint;
                 }
                 double result = xs[i] + (signal - ys[i]) * (xs[i + 1] - xs[i]) / dy;
                 if (Double.isNaN(result) || Double.isInfinite(result)) {

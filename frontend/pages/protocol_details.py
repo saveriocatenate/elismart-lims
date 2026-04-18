@@ -252,6 +252,7 @@ if saved:
             "numControlPairs": int(edit_ctrl),
             "maxCvAllowed": float(edit_cv),
             "maxErrorAllowed": float(edit_error),
+            "concentrationUnit": data.get("concentrationUnit", "ng/mL"),
         }
 
 if st.session_state.get("proto_pending_save"):

@@ -121,6 +121,7 @@ _CURVE_TYPE_DESCRIPTIONS: dict[str, str] = {
         "Non estrapolazione oltre l'ultimo calibratore."
     ),
 }
+_UNIT_OPTIONS: list[str] = ["ng/mL", "µg/mL", "pg/mL", "IU/mL", "nmol/L", "pmol/L", "Altro"]
 curve_label = st.selectbox(
     "Tipo di Curva",
     options=list(_CURVE_TYPE_OPTIONS.keys()),
@@ -140,7 +141,6 @@ with col3:
     max_cv = st.number_input("%CV Massimo", min_value=0.0, step=0.5, value=10.0, format="%.1f", key="proto_cv")
 max_error = st.number_input("%Errore Massimo Consentito", min_value=0.0, step=0.5, value=15.0, format="%.1f", key="proto_err")
 
-_UNIT_OPTIONS = ["ng/mL", "µg/mL", "pg/mL", "IU/mL", "nmol/L", "pmol/L", "Altro"]
 unit_choice = st.selectbox(
     "Unità di misura delle concentrazioni",
     options=_UNIT_OPTIONS,

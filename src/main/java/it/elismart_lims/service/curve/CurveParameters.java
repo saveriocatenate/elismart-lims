@@ -60,4 +60,29 @@ public record CurveParameters(Map<String, Double> values) {
      * Present for all fitter types.
      */
     public static final String META_DF = "_df";
+
+    /**
+     * Map key for the lower bound of the 95% confidence interval for EC50 (parameter C).
+     * Computed from the Levenberg-Marquardt covariance matrix as
+     * {@code C − t_{0.975,df} · SE(C)}.
+     * Present only for nonlinear fitters (4PL, 5PL, 3PL) when {@code df > 0} and the
+     * covariance matrix is non-singular; {@code null} otherwise.
+     */
+    public static final String META_EC50_LOWER95 = "_ec50_lower95";
+
+    /**
+     * Map key for the upper bound of the 95% confidence interval for EC50 (parameter C).
+     * Computed as {@code C + t_{0.975,df} · SE(C)}.
+     * Present only for nonlinear fitters (4PL, 5PL, 3PL) when {@code df > 0} and the
+     * covariance matrix is non-singular; {@code null} otherwise.
+     */
+    public static final String META_EC50_UPPER95 = "_ec50_upper95";
+
+    /**
+     * Map key indicating that at least one flat calibration segment was detected
+     * ({@code |Δy| < 1e-12} between adjacent sorted calibration points).
+     * Value is {@code 1.0} when present. Absent (or not present) means no flat segment.
+     * Only relevant for {@code PointToPointFitter}.
+     */
+    public static final String META_FLAT_SEGMENT_WARNING = "_flat_segment_warning";
 }

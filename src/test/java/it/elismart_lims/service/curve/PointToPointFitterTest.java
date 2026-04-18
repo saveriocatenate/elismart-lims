@@ -166,6 +166,33 @@ class PointToPointFitterTest {
         assertThat(fitter.interpolate(100.0, params)).isCloseTo(15.0, offset(ABS_TOLERANCE));
     }
 
+    /**
+     * When a flat segment is present, {@link PointToPointFitter#fit} must store
+     * {@link CurveParameters#META_FLAT_SEGMENT_WARNING} = 1.0 so callers can surface
+     * the approximation warning without re-scanning the calibration table.
+     */
+    @Test
+    @DisplayName("fit() stores flat_segment_warning=1.0 when a flat segment is detected")
+    void fit_shouldStoreFlatSegmentWarningFlag() {
+        List<CalibrationPoint> withFlat = List.of(
+                new CalibrationPoint(10.0, 100.0),
+                new CalibrationPoint(20.0, 100.0),   // flat
+                new CalibrationPoint(40.0, 300.0)
+        );
+        CurveParameters params = fitter.fit(withFlat);
+        assertThat(params.values().get(CurveParameters.META_FLAT_SEGMENT_WARNING)).isEqualTo(1.0);
+    }
+
+    /**
+     * When no flat segment is present the flag must be absent from the parameter map.
+     */
+    @Test
+    @DisplayName("fit() does not store flat_segment_warning when no flat segment is present")
+    void fit_shouldNotStoreFlatSegmentWarningWhenNonePresent() {
+        CurveParameters params = fitter.fit(REFERENCE_POINTS);
+        assertThat(params.values()).doesNotContainKey(CurveParameters.META_FLAT_SEGMENT_WARNING);
+    }
+
     // -------------------------------------------------------------------------
     // Points-not-provided-in-order test (fitter sorts by concentration)
     // -------------------------------------------------------------------------
