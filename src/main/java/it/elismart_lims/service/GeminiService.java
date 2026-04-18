@@ -9,7 +9,6 @@ import it.elismart_lims.dto.MeasurementPairResponse;
 import it.elismart_lims.dto.ProtocolResponse;
 import it.elismart_lims.dto.UsedReagentBatchResponse;
 import it.elismart_lims.exception.model.GeminiServiceException;
-import it.elismart_lims.model.PairStatus;
 import it.elismart_lims.model.PairType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -341,15 +340,15 @@ public class GeminiService {
         int idx = 1;
         for (MeasurementPairResponse p : pairs) {
             String outlierPrefix = Boolean.TRUE.equals(p.isOutlier()) ? "⚠️ OUTLIER " : "";
-            String cv  = p.cvPct()       != null ? String.format("%.1f%%", p.cvPct())       : "—";
-            String rec = p.recoveryPct() != null ? String.format("%.1f%%", p.recoveryPct()) : "—";
+            String cv   = p.cvPct()       != null ? String.format("%.1f%%", p.cvPct())       : "—";
+            String rec  = p.recoveryPct() != null ? String.format("%.1f%%", p.recoveryPct()) : "—";
             String status = p.pairStatus() != null ? p.pairStatus().name() : "—";
-            double conc = p.concentrationNominal() != null ? p.concentrationNominal() : 0.0;
-            double s1   = p.signal1()   != null ? p.signal1()   : 0.0;
-            double s2   = p.signal2()   != null ? p.signal2()   : 0.0;
-            double mean = p.signalMean() != null ? p.signalMean() : 0.0;
+            String conc = p.concentrationNominal() != null ? String.format("%.4f", p.concentrationNominal()) : "—";
+            String s1   = p.signal1()   != null ? String.format("%.4f", p.signal1())   : "—";
+            String s2   = p.signal2()   != null ? String.format("%.4f", p.signal2())   : "—";
+            String mean = p.signalMean() != null ? String.format("%.4f", p.signalMean()) : "—";
             sb.append(String.format(
-                    "%n  %s[%d] conc=%.4f | s1=%.4f | s2=%.4f | mean=%.4f | %%CV=%s | %%Rec=%s | %s",
+                    "%n  %s[%d] conc=%s | s1=%s | s2=%s | mean=%s | %%CV=%s | %%Rec=%s | %s",
                     outlierPrefix, idx++, conc, s1, s2, mean, cv, rec, status));
         }
         return sb.toString();
@@ -373,7 +372,6 @@ public class GeminiService {
             java.util.Map<String, Object> params =
                     objectMapper.readValue(curveParameters, java.util.Map.class);
 
-            StringBuilder sb = new StringBuilder("Curve fit:");
             Object r2          = params.get("_r2");
             Object rmse        = params.get("_rmse");
             Object convergence = params.get("_convergence");
@@ -382,23 +380,31 @@ public class GeminiService {
             Object ec50Upper   = params.get("_ec50_upper95");
             Object flatWarn    = params.get("_flat_segment_warning");
 
-            if (r2   != null) sb.append(String.format(" R²=%.4f",   ((Number) r2).doubleValue()));
-            if (rmse != null) sb.append(String.format(" | RMSE=%.4f", ((Number) rmse).doubleValue()));
+            StringBuilder content = new StringBuilder();
+
+            if (r2 != null) content.append(String.format("R²=%.4f", ((Number) r2).doubleValue()));
+            if (rmse != null) {
+                if (content.length() > 0) content.append(" | ");
+                content.append(String.format("RMSE=%.4f", ((Number) rmse).doubleValue()));
+            }
             if (ec50 != null) {
-                sb.append(String.format(" | EC50=%.3f", ((Number) ec50).doubleValue()));
+                if (content.length() > 0) content.append(" | ");
+                content.append(String.format("EC50=%.3f", ((Number) ec50).doubleValue()));
                 if (ec50Lower != null && ec50Upper != null) {
-                    sb.append(String.format(" (95%% CI: %.3f\u2013%.3f)",
+                    content.append(String.format(" (95%% CI: %.3f\u2013%.3f)",
                             ((Number) ec50Lower).doubleValue(), ((Number) ec50Upper).doubleValue()));
                 }
             }
             if (convergence != null) {
-                sb.append(((Number) convergence).doubleValue() == 1.0
-                        ? " | Converged" : " | NOT converged");
+                if (content.length() > 0) content.append(" | ");
+                content.append(((Number) convergence).doubleValue() == 1.0 ? "Converged" : "NOT converged");
             }
             if (flatWarn != null) {
-                sb.append(" | \u26a0\ufe0f Flat calibration segment");
+                if (content.length() > 0) content.append(" | ");
+                content.append("\u26a0\ufe0f Flat calibration segment");
             }
-            return sb.toString();
+
+            return content.isEmpty() ? "" : "Curve fit: " + content;
         } catch (Exception e) {
             log.warn("Failed to parse curveParameters JSON — omitting curve section from AI prompt: {}",
                     e.getMessage());
