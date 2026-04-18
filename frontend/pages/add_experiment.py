@@ -390,6 +390,28 @@ def _build_used_batches() -> list | None:
     ]
 
 
+def _cleanup_orphan(experiment_id: int) -> None:
+    """Delete a skeleton experiment created before a failed CSV import."""
+    try:
+        del_resp = requests.delete(
+            f"{BACKEND_URL}/api/experiments/{experiment_id}",
+            headers=get_auth_headers(),
+            timeout=10,
+        )
+        if del_resp.status_code in (200, 204):
+            st.session_state.pop("selected_exp_id", None)
+        else:
+            show_persistent_error(
+                f"L'esperimento {experiment_id} non è stato eliminato automaticamente "
+                f"(HTTP {del_resp.status_code}). Eliminalo manualmente dalla pagina Dettagli."
+            )
+    except requests.exceptions.RequestException:
+        show_persistent_error(
+            f"L'esperimento {experiment_id} non è stato eliminato automaticamente "
+            "(errore di rete). Eliminalo manualmente dalla pagina Dettagli o contatta l'amministratore."
+        )
+
+
 # ---------------------------------------------------------------------------
 # Mode A: Manual entry
 # ---------------------------------------------------------------------------
@@ -695,27 +717,6 @@ else:
             "signal2Column": signal2_col,
             "wellMapping":   well_mapping,
         }
-
-        def _cleanup_orphan(exp_id: int) -> None:
-            """Delete a skeleton experiment created before a failed CSV import."""
-            try:
-                del_resp = requests.delete(
-                    f"{BACKEND_URL}/api/experiments/{exp_id}",
-                    headers=get_auth_headers(),
-                    timeout=10,
-                )
-                if del_resp.status_code in (200, 204):
-                    st.session_state.pop("selected_exp_id", None)
-                else:
-                    st.warning(
-                        f"L'esperimento {exp_id} non è stato eliminato automaticamente "
-                        f"(HTTP {del_resp.status_code}). Eliminalo manualmente dalla pagina Dettagli."
-                    )
-            except requests.exceptions.RequestException:
-                st.warning(
-                    f"L'esperimento {exp_id} non è stato eliminato automaticamente "
-                    "(errore di rete). Eliminalo manualmente dalla pagina Dettagli o contatta l'amministratore."
-                )
 
         # ── Step 3: POST import-csv ───────────────────────────────────────
         csv_file.seek(0)
