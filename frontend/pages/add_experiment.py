@@ -396,25 +396,26 @@ def _build_used_batches() -> list | None:
 
 if input_mode == "Inserimento manuale":
 
-    _CV_LEGEND = (
-        '<span style="font-size:0.8em;color:#9E9E9E">'
-        'Segnale 1 &nbsp;|&nbsp; Segnale 2 &nbsp;|&nbsp; %CV live &nbsp;|&nbsp; Conc. Nominale'
-        '</span>'
-    )
+    def _pair_header():
+        c1, c2, c3, c4 = st.columns([2.5, 2.5, 2, 2])
+        c1.caption("**Segnale 1**")
+        c2.caption("**Segnale 2**")
+        c3.caption("**%CV live**")
+        c4.caption("**Conc. Nominale**")
 
     def _pair_row(prefix: str, idx: int) -> tuple:
         c1, c2, c3, c4 = st.columns([2.5, 2.5, 2, 2])
-        s1 = c1.number_input("S1", key=f"{prefix}_s1_{idx}", value=0.0,
+        s1 = c1.number_input("Segnale 1", key=f"{prefix}_s1_{idx}", value=0.0,
                              step=0.001, format="%.4f", label_visibility="collapsed")
-        s2 = c2.number_input("S2", key=f"{prefix}_s2_{idx}", value=0.0,
+        s2 = c2.number_input("Segnale 2", key=f"{prefix}_s2_{idx}", value=0.0,
                              step=0.001, format="%.4f", label_visibility="collapsed")
         c3.markdown(_cv_badge(s1, s2, max_cv), unsafe_allow_html=True)
-        conc = c4.number_input("Conc", key=f"{prefix}_conc_{idx}", value=0.0,
+        conc = c4.number_input("Conc. Nominale", key=f"{prefix}_conc_{idx}", value=0.0,
                                step=0.001, format="%.4f", label_visibility="collapsed")
         return s1, s2, conc
 
     st.subheader(f"Coppie di Calibrazione ({num_cal})")
-    st.markdown(_CV_LEGEND, unsafe_allow_html=True)
+    _pair_header()
     cal_s1, cal_s2, cal_conc = [], [], []
     for i in range(num_cal):
         s1, s2, c = _pair_row("cal", i)
@@ -424,7 +425,7 @@ if input_mode == "Inserimento manuale":
     st.markdown("---")
 
     st.subheader(f"Coppie di Controllo ({num_ctrl})")
-    st.markdown(_CV_LEGEND, unsafe_allow_html=True)
+    _pair_header()
     ctrl_s1, ctrl_s2, ctrl_conc = [], [], []
     for i in range(num_ctrl):
         s1, s2, c = _pair_row("ctrl", i)
