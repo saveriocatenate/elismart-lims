@@ -75,6 +75,32 @@ def get_auth_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def warn_if_form_dirty() -> None:
+    """Show a warning banner if add_experiment form has unsaved data.
+
+    Blocks page rendering with ``st.stop()`` until the user explicitly
+    chooses to return to the form or discard the unsaved data.
+    """
+    if not st.session_state.get("form_dirty"):
+        return
+    st.warning(
+        "⚠️ Hai dati non salvati nella pagina di creazione esperimento. "
+        "Tornando indietro li perderai."
+    )
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("← Torna al form", key="dirty_back", type="primary", use_container_width=True):
+            st.switch_page("pages/add_experiment.py")
+    with col2:
+        st.button(
+            "Continua (perdi i dati)",
+            key="dirty_continue",
+            use_container_width=True,
+            on_click=lambda: st.session_state.pop("form_dirty", None),
+        )
+    st.stop()
+
+
 # ---------------------------------------------------------------------------
 # Date formatting
 # ---------------------------------------------------------------------------

@@ -15,8 +15,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Detects outlier {@link MeasurementPair}s using two complementary criteria:
+ * Identifies statistical outlier {@link MeasurementPair}s using two complementary criteria.
  *
+ * <h2>What this service does</h2>
  * <ol>
  *   <li><b>%CV threshold</b> — any pair whose {@code cvPct} exceeds the protocol's
  *       {@code maxCvAllowed} is flagged immediately. This is the primary criterion for
@@ -30,6 +31,28 @@ import java.util.stream.Collectors;
  *       test here operates <em>across</em> pairs at the same concentration level (between-pair)
  *       and is only applied when there are ≥3 such pairs.</p>
  *   </li>
+ * </ol>
+ *
+ * <h2>What this service does NOT do</h2>
+ * <ul>
+ *   <li>It does <em>not</em> persist any outlier flag to the database.</li>
+ *   <li>It does <em>not</em> modify {@link MeasurementPair} entities directly.</li>
+ *   <li>It does <em>not</em> write to the audit log.</li>
+ * </ul>
+ * {@link #detectOutliers} returns only the IDs of pairs that should be flagged.
+ * The caller is responsible for applying the flags, persisting them, and creating
+ * audit entries for each change.
+ *
+ * <h2>Call site</h2>
+ * Invoked exclusively from
+ * {@link it.elismart_lims.service.ExperimentService#validate ExperimentService.validate()},
+ * which orchestrates the full validation workflow:
+ * <ol>
+ *   <li>Curve fitting via {@link it.elismart_lims.service.curve.CurveFittingService}</li>
+ *   <li>Outlier detection via {@code OutlierDetectionService.detectOutliers()} (this class)</li>
+ *   <li>Caller applies returned IDs: sets {@code isOutlier=true} and writes audit entries</li>
+ *   <li>%Recovery calculation and final OK/KO determination via
+ *       {@link it.elismart_lims.service.validation.ValidationEngine}</li>
  * </ol>
  */
 @Service

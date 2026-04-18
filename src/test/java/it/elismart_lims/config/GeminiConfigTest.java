@@ -55,7 +55,7 @@ class GeminiConfigTest {
      */
     @Test
     void chatLanguageModel_shouldNotThrow_whenApiKeyIsBlank() {
-        assertThatCode(() -> geminiConfig.chatLanguageModel("", DEFAULT_MODEL))
+        assertThatCode(() -> geminiConfig.chatLanguageModel("", DEFAULT_MODEL, 120000L))
                 .doesNotThrowAnyException();
     }
 
@@ -64,7 +64,7 @@ class GeminiConfigTest {
      */
     @Test
     void chatLanguageModel_shouldReturnNonNullBean_whenApiKeyIsBlank() {
-        ChatLanguageModel bean = geminiConfig.chatLanguageModel("", DEFAULT_MODEL);
+        ChatLanguageModel bean = geminiConfig.chatLanguageModel("", DEFAULT_MODEL, 120000L);
 
         assertThat(bean).isNotNull();
     }
@@ -76,7 +76,7 @@ class GeminiConfigTest {
      */
     @Test
     void chatLanguageModel_stubBean_shouldThrowWith401Pattern_whenCalled() {
-        ChatLanguageModel stub = geminiConfig.chatLanguageModel("", DEFAULT_MODEL);
+        ChatLanguageModel stub = geminiConfig.chatLanguageModel("", DEFAULT_MODEL, 120000L);
 
         assertThatThrownBy(() -> stub.generate("any prompt"))
                 .isInstanceOf(RuntimeException.class)
@@ -92,7 +92,7 @@ class GeminiConfigTest {
      */
     @Test
     void chatLanguageModel_shouldEmitWarn_whenApiKeyIsBlank() {
-        geminiConfig.chatLanguageModel("", DEFAULT_MODEL);
+        geminiConfig.chatLanguageModel("", DEFAULT_MODEL, 120000L);
 
         assertThat(listAppender.list)
                 .filteredOn(e -> e.getLevel() == Level.WARN)
@@ -104,7 +104,7 @@ class GeminiConfigTest {
      */
     @Test
     void chatLanguageModel_shouldEmitWarn_whenApiKeyIsNull() {
-        geminiConfig.chatLanguageModel(null, DEFAULT_MODEL);
+        geminiConfig.chatLanguageModel(null, DEFAULT_MODEL, 120000L);
 
         assertThat(listAppender.list)
                 .filteredOn(e -> e.getLevel() == Level.WARN)
@@ -116,7 +116,7 @@ class GeminiConfigTest {
      */
     @Test
     void chatLanguageModel_shouldEmitWarn_whenApiKeyIsWhitespace() {
-        geminiConfig.chatLanguageModel("   ", DEFAULT_MODEL);
+        geminiConfig.chatLanguageModel("   ", DEFAULT_MODEL, 120000L);
 
         assertThat(listAppender.list)
                 .filteredOn(e -> e.getLevel() == Level.WARN)
@@ -131,7 +131,7 @@ class GeminiConfigTest {
      */
     @Test
     void chatLanguageModel_shouldNotEmitWarn_whenApiKeyIsPresent() {
-        geminiConfig.chatLanguageModel("some-api-key-value", DEFAULT_MODEL);
+        geminiConfig.chatLanguageModel("some-api-key-value", DEFAULT_MODEL, 120000L);
 
         assertThat(listAppender.list)
                 .filteredOn(e -> e.getLevel() == Level.WARN)
@@ -148,7 +148,7 @@ class GeminiConfigTest {
     void chatLanguageModel_shouldNeverLogKeyValue() {
         String sentinelKey = "SUPER_SECRET_API_KEY_DO_NOT_LOG";
 
-        geminiConfig.chatLanguageModel(sentinelKey, DEFAULT_MODEL);
+        geminiConfig.chatLanguageModel(sentinelKey, DEFAULT_MODEL, 120000L);
 
         assertThat(listAppender.list)
                 .noneMatch(e -> e.getFormattedMessage().contains(sentinelKey));

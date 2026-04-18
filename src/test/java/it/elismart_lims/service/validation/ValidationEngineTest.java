@@ -53,7 +53,7 @@ class ValidationEngineTest {
 
     @BeforeEach
     void setUp() {
-        CurveFittingService curveFittingService = new CurveFittingService();
+        CurveFittingService curveFittingService = new CurveFittingService(new com.fasterxml.jackson.databind.ObjectMapper());
         engine = new ValidationEngine(curveFittingService);
         linearParams = curveFittingService.fitCurve(CurveType.LINEAR, LINEAR_CAL_POINTS);
 

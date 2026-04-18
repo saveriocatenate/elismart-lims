@@ -29,11 +29,15 @@ import java.util.Locale;
  * <p>After a successful response from the model, the question and answer are persisted via
  * {@link AiInsightService} so that the frontend can display past analyses without re-running them.</p>
  *
+ * <p>If all requested experiments contain zero measurement pairs the service returns a user-facing
+ * message without calling the API, avoiding unnecessary quota consumption.</p>
+ *
  * <p>The {@link ChatLanguageModel} bean is configured in {@link it.elismart_lims.config.GeminiConfig}
  * from the following properties:
  * <ul>
  *   <li>{@code gemini.api-key} — Google Gemini API key</li>
  *   <li>{@code gemini.model} — Gemini model name</li>
+ *   <li>{@code gemini.timeout-ms} — HTTP read timeout in milliseconds (default: 120000)</li>
  * </ul>
  * </p>
  */
@@ -71,6 +75,18 @@ public class GeminiService {
         List<ExperimentResponse> experiments = request.experimentIds().stream()
                 .map(experimentService::getById)
                 .toList();
+
+        long totalPairs = experiments.stream()
+                .mapToLong(e -> e.measurementPairs() == null ? 0 : e.measurementPairs().size())
+                .sum();
+        if (totalPairs == 0) {
+            log.warn("AI analysis aborted — no measurement pairs found for experiments: {}",
+                    request.experimentIds());
+            return GeminiAnalysisResponse.builder()
+                    .analysis("L'esperimento non contiene dati di misurazione. "
+                            + "L'analisi AI richiede almeno una coppia di misurazioni.")
+                    .build();
+        }
 
         log.info("Running Gemini analysis for {} experiment(s): {}",
                 experiments.size(), request.experimentIds());
@@ -242,7 +258,7 @@ public class GeminiService {
             String userQuestion) {
 
         String systemContext = buildSystemContext(experiments.size(), protocol);
-        String experimentData = buildExperimentData(experiments);
+        String experimentData = buildExperimentData(experiments, protocol.maxCvAllowed(), protocol.maxErrorAllowed());
 
         return "[SYSTEM_CONTEXT]\n" + systemContext
                 + "\n\n[EXPERIMENT_DATA]\n" + experimentData
@@ -268,15 +284,18 @@ public class GeminiService {
     }
 
     /**
-     * Builds the EXPERIMENT_DATA block with a concise summary of each experiment.
+     * Builds the EXPERIMENT_DATA block with a detailed summary of each experiment.
      *
-     * @param experiments the fetched experiment DTOs
+     * @param experiments    the fetched experiment DTOs
+     * @param maxCvAllowed   protocol %CV upper limit, used to flag violations per pair
+     * @param maxErrorAllowed protocol %Error upper limit, used to flag %Recovery violations
      * @return the EXPERIMENT_DATA string
      */
-    private String buildExperimentData(List<ExperimentResponse> experiments) {
+    private String buildExperimentData(List<ExperimentResponse> experiments,
+                                        double maxCvAllowed, double maxErrorAllowed) {
         StringBuilder sb = new StringBuilder();
         for (ExperimentResponse exp : experiments) {
-            sb.append(formatExperiment(exp)).append("\n");
+            sb.append(formatExperiment(exp, maxCvAllowed, maxErrorAllowed)).append("\n");
         }
         return sb.toString().stripTrailing();
     }
@@ -285,10 +304,12 @@ public class GeminiService {
      * Formats a single experiment into a detailed multi-line summary including
      * per-pair signal values, outlier flags, pair status, and curve fit metrics.
      *
-     * @param exp the experiment DTO
+     * @param exp             the experiment DTO
+     * @param maxCvAllowed    protocol %CV limit for per-pair violation markers
+     * @param maxErrorAllowed protocol %Error limit for per-pair %Recovery violation markers
      * @return the formatted experiment string
      */
-    private String formatExperiment(ExperimentResponse exp) {
+    private String formatExperiment(ExperimentResponse exp, double maxCvAllowed, double maxErrorAllowed) {
         StringBuilder sb = new StringBuilder();
         String date = exp.date() != null ? exp.date().toLocalDate().toString() : "unknown date";
         sb.append(String.format(Locale.ROOT, "Exp %d \"%s\" (%s): Status %s.",
@@ -316,7 +337,7 @@ public class GeminiService {
                 List<MeasurementPairResponse> typePairs = exp.measurementPairs().stream()
                         .filter(p -> type.equals(p.pairType()))
                         .toList();
-                sb.append(formatPairsDetail(type.name(), typePairs));
+                sb.append(formatPairsDetail(type.name(), typePairs, maxCvAllowed, maxErrorAllowed));
             }
         }
 
@@ -324,33 +345,60 @@ public class GeminiService {
     }
 
     /**
-     * Produces a detailed per-pair listing for one {@link PairType}.
+     * Produces a tabular per-pair listing for one {@link PairType}.
      * Each row includes signals, computed metrics, outlier flag, and pair status.
-     * Null numeric fields are shown as {@code —}.
+     * Cells exceeding the protocol limits are marked with ⚠️. Null numeric fields are shown as {@code —}.
      *
-     * @param label display label (e.g. "CALIBRATION")
-     * @param pairs measurement pair DTOs for this type
-     * @return multi-line string, or empty string when {@code pairs} is empty
+     * <p>Note: interpolated concentration and outlier reason are not included because they
+     * are not part of {@link MeasurementPairResponse} and would require additional service calls.</p>
+     *
+     * @param label           display label (e.g. "CALIBRATION")
+     * @param pairs           measurement pair DTOs for this type
+     * @param maxCvAllowed    protocol %CV upper limit
+     * @param maxErrorAllowed protocol %Error (|%Recovery − 100|) upper limit
+     * @return multi-line markdown table string, or empty string when {@code pairs} is empty
      */
-    private String formatPairsDetail(String label, List<MeasurementPairResponse> pairs) {
+    private String formatPairsDetail(String label, List<MeasurementPairResponse> pairs,
+                                      double maxCvAllowed, double maxErrorAllowed) {
         if (pairs.isEmpty()) {
             return "";
         }
-        StringBuilder sb = new StringBuilder(
-                String.format(Locale.ROOT, "\n%s (%d pair%s):", label, pairs.size(), pairs.size() == 1 ? "" : "s"));
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format(Locale.ROOT, "\n%s (%d pair%s):", label, pairs.size(), pairs.size() == 1 ? "" : "s"));
+        sb.append(String.format(Locale.ROOT,
+                "%n  | # | Outlier | ConcNom | S1 | S2 | Mean | %%CV (≤%.1f%%) | %%Rec (err≤%.1f%%) | Status |",
+                maxCvAllowed, maxErrorAllowed));
+        sb.append("\n  |---|---------|---------|----|----|------|--------------|------------------|--------|");
+
         int idx = 1;
         for (MeasurementPairResponse p : pairs) {
-            String outlierPrefix = Boolean.TRUE.equals(p.isOutlier()) ? "⚠️ OUTLIER " : "";
-            String cv   = p.cvPct()       != null ? String.format(Locale.ROOT, "%.1f%%", p.cvPct())       : "—";
-            String rec  = p.recoveryPct() != null ? String.format(Locale.ROOT, "%.1f%%", p.recoveryPct()) : "—";
+            String outlierStr = Boolean.TRUE.equals(p.isOutlier()) ? "YES ⚠️" : "No";
+
+            String cvCell;
+            if (p.cvPct() != null) {
+                boolean cvOver = p.cvPct() > maxCvAllowed;
+                cvCell = String.format(Locale.ROOT, "%.1f%%%s", p.cvPct(), cvOver ? " ⚠️" : "");
+            } else {
+                cvCell = "—";
+            }
+
+            String recCell;
+            if (p.recoveryPct() != null) {
+                boolean recOver = Math.abs(p.recoveryPct() - 100.0) > maxErrorAllowed;
+                recCell = String.format(Locale.ROOT, "%.1f%%%s", p.recoveryPct(), recOver ? " ⚠️" : "");
+            } else {
+                recCell = "—";
+            }
+
             String status = p.pairStatus() != null ? p.pairStatus().name() : "—";
-            String conc = p.concentrationNominal() != null ? String.format(Locale.ROOT, "%.4f", p.concentrationNominal()) : "—";
-            String s1   = p.signal1()   != null ? String.format(Locale.ROOT, "%.4f", p.signal1())   : "—";
-            String s2   = p.signal2()   != null ? String.format(Locale.ROOT, "%.4f", p.signal2())   : "—";
-            String mean = p.signalMean() != null ? String.format(Locale.ROOT, "%.4f", p.signalMean()) : "—";
+            String conc   = p.concentrationNominal() != null ? String.format(Locale.ROOT, "%.4f", p.concentrationNominal()) : "—";
+            String s1     = p.signal1()   != null ? String.format(Locale.ROOT, "%.4f", p.signal1())    : "—";
+            String s2     = p.signal2()   != null ? String.format(Locale.ROOT, "%.4f", p.signal2())    : "—";
+            String mean   = p.signalMean() != null ? String.format(Locale.ROOT, "%.4f", p.signalMean()) : "—";
+
             sb.append(String.format(Locale.ROOT,
-                    "%n  %s[%d] conc=%s | s1=%s | s2=%s | mean=%s | %%CV=%s | %%Rec=%s | %s",
-                    outlierPrefix, idx++, conc, s1, s2, mean, cv, rec, status));
+                    "%n  | %d | %s | %s | %s | %s | %s | %s | %s | %s |",
+                    idx++, outlierStr, conc, s1, s2, mean, cvCell, recCell, status));
         }
         return sb.toString();
     }

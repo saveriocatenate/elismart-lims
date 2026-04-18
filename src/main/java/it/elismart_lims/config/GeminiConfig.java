@@ -26,6 +26,7 @@ import java.time.Duration;
  * <ul>
  *   <li>{@code gemini.api-key} — Google Gemini API key (optional; app starts without it)</li>
  *   <li>{@code gemini.model} — Gemini model name (e.g. {@code gemini-2.0-flash})</li>
+ *   <li>{@code gemini.timeout-ms} — HTTP read timeout in milliseconds (default: 120000)</li>
  * </ul>
  * </p>
  */
@@ -36,7 +37,8 @@ public class GeminiConfig {
     /**
      * Creates a {@link ChatLanguageModel} bean pointed at the Google AI Gemini API.
      *
-     * <p>The read timeout is set to 120 seconds to accommodate long-running analysis prompts.</p>
+     * <p>The read timeout is driven by {@code gemini.timeout-ms} (default: 120 000 ms),
+     * overridable via the {@code GEMINI_TIMEOUT_MS} environment variable.</p>
      *
      * <p><strong>Graceful degradation</strong>: if {@code apiKey} is blank, a {@code WARN}-level
      * message is logged and a stub {@link ChatLanguageModel} is returned instead of calling the
@@ -48,13 +50,15 @@ public class GeminiConfig {
      *
      * @param apiKey    the Google Gemini API key, from {@code gemini.api-key} (defaults to empty)
      * @param modelName the Gemini model name, from {@code gemini.model}
+     * @param timeoutMs HTTP read timeout in milliseconds, from {@code gemini.timeout-ms}
      * @return a fully configured {@link GoogleAiGeminiChatModel}, or a fail-fast stub when
      *         the key is absent
      */
     @Bean
     public ChatLanguageModel chatLanguageModel(
             @Value("${gemini.api-key:}") String apiKey,
-            @Value("${gemini.model}") String modelName) {
+            @Value("${gemini.model}") String modelName,
+            @Value("${gemini.timeout-ms}") long timeoutMs) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("GEMINI_API_KEY environment variable is not set. "
                     + "AI analysis features (POST /api/ai/analyze) will fail at runtime. "
@@ -71,7 +75,7 @@ public class GeminiConfig {
         return GoogleAiGeminiChatModel.builder()
                 .apiKey(apiKey)
                 .modelName(modelName)
-                .timeout(Duration.ofSeconds(120))
+                .timeout(Duration.ofMillis(timeoutMs))
                 .build();
     }
 }

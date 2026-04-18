@@ -21,9 +21,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, get_auth_headers, resolve_backend_url, show_confirmation_dialog, show_persistent_error, show_stored_errors, translate_error
+from utils import check_auth, get_auth_headers, resolve_backend_url, show_confirmation_dialog, show_persistent_error, show_stored_errors, translate_error, warn_if_form_dirty
 
 check_auth()
+warn_if_form_dirty()
 
 # ADMIN-only guard
 if st.session_state.get("role") != "ADMIN":

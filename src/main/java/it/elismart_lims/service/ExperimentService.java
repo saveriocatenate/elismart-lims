@@ -1,7 +1,5 @@
 package it.elismart_lims.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import it.elismart_lims.dto.CsvImportConfig;
 import it.elismart_lims.dto.ExperimentPage;
 import it.elismart_lims.dto.MeasurementPairRequest;
@@ -71,7 +69,6 @@ public class ExperimentService {
     private final OutlierDetectionService outlierDetectionService;
     private final ValidationEngine validationEngine;
     private final CsvImportService csvImportService;
-    private final ObjectMapper objectMapper;
 
     /**
      * Statuses that can only be written by the internal validation engine.
@@ -266,13 +263,22 @@ public class ExperimentService {
     /**
      * Runs the full validation workflow for an experiment:
      * <ol>
-     *   <li>Fits the calibration curve from CALIBRATION pairs.</li>
-     *   <li>Runs {@link OutlierDetectionService#detectOutliers} to auto-flag pairs whose
-     *       %CV exceeds the protocol limit or that are statistical outliers (Grubbs test).
-     *       Each newly flagged pair is audited with reason {@code "SYSTEM:outlier-detection"}.</li>
-     *   <li>Back-interpolates concentrations for every non-outlier CONTROL/SAMPLE pair.</li>
-     *   <li>Evaluates %CV and %Recovery against the protocol limits.</li>
-     *   <li>Updates the experiment status to OK or KO.</li>
+     *   <li><b>Curve fitting</b> — {@link CurveFittingService#fitCurve} fits the calibration
+     *       curve from CALIBRATION pairs. Fitted parameters are serialised as JSON via
+     *       {@link CurveFittingService#serializeParameters} and stored on the entity.</li>
+     *   <li><b>Outlier detection</b> — {@link OutlierDetectionService#detectOutliers} returns
+     *       the IDs of pairs that exceed the %CV limit or are Grubbs-flagged.
+     *       <em>This service does not persist anything.</em></li>
+     *   <li><b>Outlier flag application</b> — this method sets {@code isOutlier=true} on each
+     *       returned ID and writes an audit entry ({@code "SYSTEM:outlier-detection"}) for
+     *       every newly flagged pair.</li>
+     *   <li><b>%Recovery calculation</b> — {@link ValidationEngine#evaluate} back-interpolates
+     *       concentration from the fitted curve for every non-outlier CONTROL/SAMPLE pair and
+     *       computes {@code recoveryPct}.</li>
+     *   <li><b>Status determination</b> — {@link ValidationEngine#evaluate} compares each
+     *       non-outlier pair's {@code cvPct} and {@code recoveryPct} against the protocol
+     *       limits and sets the experiment status to {@link ExperimentStatus#OK} or
+     *       {@link ExperimentStatus#KO}.</li>
      * </ol>
      *
      * <p>The fitted {@link CurveParameters} are serialised as JSON and stored on
@@ -340,11 +346,7 @@ public class ExperimentService {
             return ExperimentMapper.toResponse(experiment);
         }
 
-        try {
-            experiment.setCurveParameters(objectMapper.writeValueAsString(curveParams));
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to serialise curve parameters: " + e.getMessage(), e);
-        }
+        experiment.setCurveParameters(curveFittingService.serializeParameters(curveParams));
 
         // Outlier detection — must run before ValidationEngine so flagged pairs are excluded.
         List<Long> outlierIds = outlierDetectionService.detectOutliers(

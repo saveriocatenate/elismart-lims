@@ -1,7 +1,5 @@
 package it.elismart_lims.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import it.elismart_lims.dto.ExperimentPage;
 import it.elismart_lims.dto.ExperimentRequest;
 import it.elismart_lims.dto.ExperimentResponse;
@@ -99,9 +97,6 @@ class ExperimentServiceTest {
 
     @Mock
     private CsvImportService csvImportService;
-
-    @Mock
-    private ObjectMapper objectMapper;
 
     @InjectMocks
     private ExperimentService experimentService;
@@ -571,7 +566,7 @@ class ExperimentServiceTest {
      * and curveParameters to be written back to the entity.
      */
     @Test
-    void validate_shouldReturnOk_whenDatasetValid() throws JsonProcessingException {
+    void validate_shouldReturnOk_whenDatasetValid() {
         MeasurementPair calPair = MeasurementPair.builder()
                 .id(1L)
                 .pairType(PairType.CALIBRATION)
@@ -598,7 +593,7 @@ class ExperimentServiceTest {
 
         when(experimentRepository.findById(1L)).thenReturn(Optional.of(experimentWithPairs));
         when(curveFittingService.fitCurve(any(), anyList())).thenReturn(params);
-        when(objectMapper.writeValueAsString(params)).thenReturn("{\"values\":{\"slope\":2.0}}");
+        when(curveFittingService.serializeParameters(params)).thenReturn("{\"values\":{\"slope\":2.0}}");
         when(validationEngine.evaluate(any(), any(), any())).thenReturn(okResult);
         when(experimentRepository.save(any(Experiment.class))).thenReturn(experimentWithPairs);
 
@@ -616,7 +611,7 @@ class ExperimentServiceTest {
      * Validates an experiment that fails protocol limits. Expects the status to update to KO.
      */
     @Test
-    void validate_shouldReturnKo_whenDatasetInvalid() throws JsonProcessingException {
+    void validate_shouldReturnKo_whenDatasetInvalid() {
         MeasurementPair calPair = MeasurementPair.builder()
                 .id(1L)
                 .pairType(PairType.CALIBRATION)
@@ -643,7 +638,7 @@ class ExperimentServiceTest {
 
         when(experimentRepository.findById(1L)).thenReturn(Optional.of(experimentWithPairs));
         when(curveFittingService.fitCurve(any(), anyList())).thenReturn(params);
-        when(objectMapper.writeValueAsString(params)).thenReturn("{\"values\":{\"slope\":2.0}}");
+        when(curveFittingService.serializeParameters(params)).thenReturn("{\"values\":{\"slope\":2.0}}");
         when(validationEngine.evaluate(any(), any(), any())).thenReturn(koResult);
         when(experimentRepository.save(any(Experiment.class))).thenReturn(experimentWithPairs);
 
@@ -673,7 +668,7 @@ class ExperimentServiceTest {
      * delegating to {@link ValidationEngine}.
      */
     @Test
-    void validate_shouldAutoFlagOutliers_andAuditEachFlag() throws JsonProcessingException {
+    void validate_shouldAutoFlagOutliers_andAuditEachFlag() {
         MeasurementPair calPair = MeasurementPair.builder()
                 .id(1L)
                 .pairType(PairType.CALIBRATION)
@@ -707,7 +702,7 @@ class ExperimentServiceTest {
 
         when(experimentRepository.findById(1L)).thenReturn(Optional.of(experimentWithPairs));
         when(curveFittingService.fitCurve(any(), anyList())).thenReturn(params);
-        when(objectMapper.writeValueAsString(params)).thenReturn("{}");
+        when(curveFittingService.serializeParameters(params)).thenReturn("{}");
         // OutlierDetectionService flags pair id=2
         when(outlierDetectionService.detectOutliers(anyList(), any(Protocol.class)))
                 .thenReturn(List.of(2L));

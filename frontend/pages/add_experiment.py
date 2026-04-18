@@ -25,6 +25,11 @@ from utils import check_auth, get_auth_headers, resolve_backend_url, show_persis
 check_auth()
 BACKEND_URL = resolve_backend_url()
 
+
+def _mark_dirty() -> None:
+    """Set the form_dirty flag so other pages can warn about unsaved data."""
+    st.session_state["form_dirty"] = True
+
 if st.button("← Torna alla Dashboard"):
     st.switch_page("pages/dashboard.py")
 
@@ -47,6 +52,7 @@ if "exp_created" in st.session_state:
     with c2:
         if st.button("➕ Crea un altro esperimento", use_container_width=True):
             st.session_state.pop("exp_created", None)
+            st.session_state.pop("form_dirty", None)
             for k in list(st.session_state.keys()):
                 if k.startswith(("cal_", "ctrl_", "wmap_", "editor_")):
                     st.session_state.pop(k, None)
@@ -57,6 +63,7 @@ if "exp_created" in st.session_state:
         if st.button("← Dashboard", use_container_width=True):
             st.session_state.pop("exp_created", None)
             st.switch_page("pages/dashboard.py")
+    st.session_state.pop("form_dirty", None)
     st.stop()
 
 st.markdown("---")
@@ -248,6 +255,7 @@ input_mode = st.radio(
     options=["Inserimento manuale", "Importa da CSV"],
     horizontal=True,
     key="input_mode",
+    on_change=_mark_dirty,
 )
 
 st.markdown("---")
@@ -263,7 +271,7 @@ exp_top_error_ph = st.empty()
 
 col_name, col_status = st.columns([3, 1])
 with col_name:
-    exp_name = st.text_input("Nome *", placeholder="es. IgG Corsa 2026-04-06", key="exp_name")
+    exp_name = st.text_input("Nome *", placeholder="es. IgG Corsa 2026-04-06", key="exp_name", on_change=_mark_dirty)
 with col_status:
     exp_status = st.selectbox(
         "Stato", ["PENDING", "COMPLETED"], key="exp_status"
@@ -271,7 +279,7 @@ with col_status:
 exp_name_ph = st.empty()
 if not exp_name.strip():
     exp_name_ph.warning("⚠️ Il nome è obbligatorio")
-exp_date = st.date_input("Data", value=datetime.date.today(), key="exp_date")
+exp_date = st.date_input("Data", value=datetime.date.today(), key="exp_date", on_change=_mark_dirty)
 
 st.markdown("---")
 
@@ -412,6 +420,30 @@ def _cleanup_orphan(experiment_id: int) -> None:
         )
 
 
+def _parse_well(well_str: str) -> tuple[str, int] | None:
+    """Parse a standard well ID like 'A1' into ('A', 1). Returns None if invalid."""
+    s = well_str.strip().upper()
+    if len(s) < 2 or not s[0].isalpha():
+        return None
+    try:
+        return (s[0], int(s[1:]))
+    except ValueError:
+        return None
+
+
+def _well_in_range(
+    well_str: str,
+    from_well: tuple[str, int],
+    to_well: tuple[str, int],
+) -> bool:
+    """Return True if well_str falls in the rectangular block [from_row..to_row] x [from_col..to_col]."""
+    parsed = _parse_well(well_str)
+    if parsed is None:
+        return False
+    row, col = parsed
+    return from_well[0] <= row <= to_well[0] and from_well[1] <= col <= to_well[1]
+
+
 # ---------------------------------------------------------------------------
 # Mode A: Manual entry
 # ---------------------------------------------------------------------------
@@ -428,12 +460,15 @@ if input_mode == "Inserimento manuale":
     def _pair_row(prefix: str, idx: int) -> tuple:
         c1, c2, c3, c4 = st.columns([2.5, 2.5, 2, 2])
         s1 = c1.number_input("Segnale 1", key=f"{prefix}_s1_{idx}", value=0.0,
-                             step=0.001, format="%.4f", label_visibility="collapsed")
+                             step=0.001, format="%.4f", label_visibility="collapsed",
+                             on_change=_mark_dirty)
         s2 = c2.number_input("Segnale 2", key=f"{prefix}_s2_{idx}", value=0.0,
-                             step=0.001, format="%.4f", label_visibility="collapsed")
+                             step=0.001, format="%.4f", label_visibility="collapsed",
+                             on_change=_mark_dirty)
         c3.markdown(_cv_badge(s1, s2, max_cv), unsafe_allow_html=True)
         conc = c4.number_input("Conc. Nominale", key=f"{prefix}_conc_{idx}", value=0.0,
-                               step=0.001, format="%.4f", label_visibility="collapsed")
+                               step=0.001, format="%.4f", label_visibility="collapsed",
+                               on_change=_mark_dirty)
         return s1, s2, conc
 
     st.subheader(f"Coppie di Calibrazione ({num_cal})")
@@ -555,11 +590,11 @@ else:
     st.caption("Seleziona quali colonne CSV corrispondono all'identificatore del pozzetto e ai valori di segnale.")
 
     c1, c2, c3 = st.columns(3)
-    well_col    = c1.selectbox("Colonna pozzetto",    columns, key="well_col")
+    well_col    = c1.selectbox("Colonna pozzetto",    columns, key="well_col", on_change=_mark_dirty)
     signal1_col = c2.selectbox("Colonna Segnale 1", columns,
-                               index=min(1, len(columns) - 1), key="sig1_col")
+                               index=min(1, len(columns) - 1), key="sig1_col", on_change=_mark_dirty)
     signal2_col = c3.selectbox("Colonna Segnale 2", columns,
-                               index=min(2, len(columns) - 1), key="sig2_col")
+                               index=min(2, len(columns) - 1), key="sig2_col", on_change=_mark_dirty)
 
     if len({well_col, signal1_col, signal2_col}) < 3:
         st.warning("Pozzetto, Segnale 1 e Segnale 2 devono essere tre colonne diverse.")
@@ -599,6 +634,81 @@ else:
             "Tipo Coppia":    ["(salta)"] * len(unique_wells),
             "Conc. Nominale": [None] * len(unique_wells),
         })
+
+    # ── Bulk assign ───────────────────────────────────────────────────────────
+    with st.expander("⚡ Assegna in blocco", expanded=False):
+        bc1, bc2 = st.columns(2)
+        bulk_from = bc1.text_input("Well da", value="A1", key="bulk_from", placeholder="es. A1")
+        bulk_to   = bc2.text_input("Well a",  value="A12", key="bulk_to",  placeholder="es. A12")
+        bulk_type = st.selectbox(
+            "Tipo", ["CALIBRATION", "CONTROL", "SAMPLE", "(salta)"], key="bulk_type"
+        )
+        bulk_conc: float | None = None
+        if bulk_type != "(salta)":
+            bulk_conc = st.number_input(
+                "Conc. Nominale", min_value=0.0, value=0.0, step=0.001,
+                format="%.4f", key="bulk_conc",
+            )
+        if st.button("Applica", key="btn_bulk_apply", type="primary"):
+            from_parsed = _parse_well(bulk_from)
+            to_parsed   = _parse_well(bulk_to)
+            if from_parsed is None or to_parsed is None:
+                st.error("Formato well non valido. Usa notazione standard, es. A1, H12.")
+            else:
+                _df = st.session_state[mapping_state_key].copy()
+                for _idx in _df.index:
+                    if _well_in_range(str(_df.at[_idx, "Pozzetto"]), from_parsed, to_parsed):
+                        _df.at[_idx, "Tipo Coppia"]    = bulk_type
+                        _df.at[_idx, "Conc. Nominale"] = bulk_conc
+                st.session_state[mapping_state_key] = _df
+                st.session_state.pop(f"editor_{mapping_state_key}", None)
+                st.rerun()
+
+    # ── Preset comuni ─────────────────────────────────────────────────────────
+    with st.expander("📋 Preset comuni", expanded=False):
+        pr_c1, pr_c2 = st.columns(2)
+
+        with pr_c1:
+            st.caption("**Plate standard ELISA 96-well**")
+            st.caption("Calibratori in A1–A12, concentrazioni decrescenti per diluizione seriale.")
+            ep1, ep2 = st.columns(2)
+            elisa_highest = ep1.number_input(
+                "Conc. più alta", min_value=0.0, value=0.0, step=0.001,
+                format="%.4f", key="elisa_highest",
+            )
+            elisa_factor = ep2.number_input(
+                "Fattore diluizione", min_value=1.01, value=2.0, step=0.5,
+                format="%.2f", key="elisa_factor",
+            )
+            if st.button("Applica Preset ELISA", key="btn_preset_elisa", use_container_width=True):
+                if elisa_highest <= 0:
+                    st.error("La concentrazione più alta deve essere > 0.")
+                else:
+                    _df = st.session_state[mapping_state_key].copy()
+                    for _i, _col_num in enumerate(range(1, 13)):
+                        _well_id = f"A{_col_num}"
+                        _conc    = elisa_highest / (elisa_factor ** _i)
+                        _mask    = _df["Pozzetto"] == _well_id
+                        if _mask.any():
+                            _df.loc[_mask, "Tipo Coppia"]    = "CALIBRATION"
+                            _df.loc[_mask, "Conc. Nominale"] = _conc
+                    st.session_state[mapping_state_key] = _df
+                    st.session_state.pop(f"editor_{mapping_state_key}", None)
+                    st.rerun()
+
+        with pr_c2:
+            st.caption("**Tutte SAMPLE**")
+            st.caption("Imposta tutti i pozzetti come campioni (tipo SAMPLE, nessuna concentrazione nominale).")
+            if st.button("Applica — Tutte SAMPLE", key="btn_preset_all_sample", use_container_width=True):
+                _df = st.session_state[mapping_state_key].copy()
+                _df["Tipo Coppia"]    = "SAMPLE"
+                _df["Conc. Nominale"] = None
+                st.session_state[mapping_state_key] = _df
+                st.session_state.pop(f"editor_{mapping_state_key}", None)
+                st.rerun()
+
+    st.markdown("---")
+    st.caption("Modifica singola riga nella tabella sottostante per correzioni puntuali.")
 
     edited_mapping: pd.DataFrame = st.data_editor(
         st.session_state[mapping_state_key],

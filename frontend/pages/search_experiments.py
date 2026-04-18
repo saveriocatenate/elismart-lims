@@ -13,9 +13,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, format_date, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
+from utils import check_auth, format_date, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error, warn_if_form_dirty
 
 check_auth()
+warn_if_form_dirty()
 BACKEND_URL = resolve_backend_url()
 
 if st.button("← Torna alla Dashboard"):

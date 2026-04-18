@@ -50,7 +50,7 @@ class CurveFittingServiceTest {
     /** Creates a fresh {@link CurveFittingService} before each test. */
     @BeforeEach
     void setUp() {
-        service = new CurveFittingService();
+        service = new CurveFittingService(new com.fasterxml.jackson.databind.ObjectMapper());
     }
 
     // -------------------------------------------------------------------------

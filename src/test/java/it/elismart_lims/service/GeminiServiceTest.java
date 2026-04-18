@@ -130,6 +130,32 @@ class GeminiServiceTest {
     }
 
     /**
+     * When all requested experiments have zero measurement pairs, analyze() must return
+     * a user-facing Italian message without calling the Gemini API.
+     * This prevents wasting quota and avoids a confusing 500.
+     */
+    @Test
+    void analyze_returnsUserMessage_whenExperimentHasNoPairs() {
+        ExperimentResponse emptyExp = ExperimentResponse.builder()
+                .id(1L)
+                .name("Empty Exp")
+                .date(LocalDateTime.of(2026, 4, 1, 9, 0))
+                .status(ExperimentStatus.PENDING)
+                .protocolName("ELISA Dose-Response")
+                .usedReagentBatches(List.of())
+                .measurementPairs(List.of())
+                .build();
+
+        when(experimentService.getById(1L)).thenReturn(emptyExp);
+
+        GeminiAnalysisResponse response = geminiService.analyze(
+                new GeminiAnalysisRequest(List.of(1L), "Analyze"));
+
+        assertThat(response.analysis()).contains("non contiene dati di misurazione");
+        verify(chatLanguageModel, org.mockito.Mockito.never()).generate(anyString());
+    }
+
+    /**
      * Verifies that analyze() returns the AI text from the ChatLanguageModel response
      * when all dependencies resolve correctly.
      */
@@ -348,8 +374,8 @@ class GeminiServiceTest {
     /**
      * Verifies that the prompt sent to Gemini includes:
      * <ul>
-     *   <li>per-pair signals, %CV, %Recovery, and pair status ({@code FAIL})</li>
-     *   <li>the outlier prefix ({@code ⚠️ OUTLIER}) for flagged pairs</li>
+     *   <li>per-pair signals, %CV, %Recovery, and pair status ({@code FAIL}) in tabular form</li>
+     *   <li>the outlier marker ({@code YES ⚠️}) in the Outlier column for flagged pairs</li>
      *   <li>curve fit metrics: R², RMSE, EC50 with 95% CI, and convergence status</li>
      *   <li>the section header with the correct pair count ({@code CALIBRATION (1 pair):})</li>
      * </ul>
@@ -398,14 +424,14 @@ class GeminiServiceTest {
         verify(chatLanguageModel).generate(promptCaptor.capture());
         String prompt = promptCaptor.getValue();
 
-        assertThat(prompt).contains("⚠️ OUTLIER");
+        assertThat(prompt).contains("YES ⚠️");         // outlier marker in table column
         assertThat(prompt).contains("R²=0.9987");
         assertThat(prompt).contains("RMSE=0.0021");
         assertThat(prompt).contains("EC50=12.340");
         assertThat(prompt).contains("95% CI:");
         assertThat(prompt).contains("Converged");
-        assertThat(prompt).contains("%CV=8.1%");
-        assertThat(prompt).contains("%Rec=105.2%");
+        assertThat(prompt).contains("8.1%");            // %CV value in table cell
+        assertThat(prompt).contains("105.2%");          // %Recovery value in table cell
         assertThat(prompt).contains("| FAIL");
         assertThat(prompt).contains("CALIBRATION (1 pair):");
     }

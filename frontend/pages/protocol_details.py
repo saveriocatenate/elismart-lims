@@ -16,9 +16,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import requests
 import streamlit as st
-from utils import check_auth, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error
+from utils import check_auth, get_auth_headers, resolve_backend_url, show_persistent_error, show_stored_errors, translate_error, warn_if_form_dirty
 
 check_auth()
+warn_if_form_dirty()
 BACKEND_URL = resolve_backend_url()
 
 _CURVE_TYPE_OPTIONS: dict[str, str] = {
@@ -114,7 +115,7 @@ try:
         timeout=10,
     )
     if resp.status_code != 200:
-        show_persistent_error(translate_error(f"Failed to load protocol (HTTP {resp.status_code})"))
+        show_persistent_error(translate_error(f"Impossibile caricare il protocollo (HTTP {resp.status_code})"))
         st.stop()
     data = resp.json()
 except requests.exceptions.RequestException as e:

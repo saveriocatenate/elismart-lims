@@ -14,9 +14,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Parses plate-reader CSV files into {@link MeasurementPairRequest} DTOs ready for
@@ -41,6 +44,16 @@ import java.util.Set;
 public class CsvImportService {
 
     /**
+     * Accepts well IDs in the standard microplate format: one uppercase letter A–P
+     * (covering 96-well A–H and 384-well A–P) followed by a column number 1–24.
+     * Examples of valid IDs: {@code A1}, {@code H12}, {@code P24}.
+     * Examples of invalid IDs: {@code Z99} (letter beyond P, column beyond 24),
+     * {@code A0} (column must be ≥ 1).
+     */
+    private static final Pattern VALID_WELL_PATTERN =
+            Pattern.compile("^[A-P]([1-9]|1[0-9]|2[0-4])$");
+
+    /**
      * Parses the supplied CSV stream according to the provided configuration.
      *
      * @param csv    the raw CSV content; must not be {@code null}; caller is responsible for closing
@@ -48,7 +61,9 @@ public class CsvImportService {
      * @return list of {@link MeasurementPairRequest}s parsed from the file; never {@code null}
      * @throws IOException              if the stream cannot be read
      * @throws IllegalArgumentException if the file is empty, a required column is missing,
-     *                                  any mapped row contains a negative signal value, or
+     *                                  the well mapping contains an invalid well ID format,
+     *                                  any mapped row contains a negative signal value,
+     *                                  the same mapped well ID appears more than once, or
      *                                  no rows match the well mapping
      * @throws UnsupportedOperationException if the requested format is not yet implemented
      */
@@ -127,14 +142,26 @@ public class CsvImportService {
                         "CSV file contains no data rows (header only).");
             }
 
+            // ── 3b. Validate well mapping key format ─────────────────────────
+            validateWellMappingKeys(config.wellMapping());
+
             List<MeasurementPairRequest> result = new ArrayList<>();
             List<String> validationErrors = new ArrayList<>();
+            Set<String> seenWellIds = new HashSet<>();
 
             for (CSVRecord record : records) {
                 String wellId = record.get(config.wellColumn());
                 WellMapping mapping = config.wellMapping().get(wellId);
                 if (mapping == null) {
                     log.debug("Skipping unmapped well '{}' at CSV line {}", wellId, record.getRecordNumber());
+                    continue;
+                }
+
+                // ── Duplicate well guard ──────────────────────────────────────
+                if (!seenWellIds.add(wellId)) {
+                    validationErrors.add(String.format(Locale.ROOT,
+                            "Row %d: duplicate well ID '%s' — each well ID may appear at most once in the CSV",
+                            record.getRecordNumber(), wellId));
                     continue;
                 }
 
@@ -186,6 +213,28 @@ public class CsvImportService {
             log.debug("GENERIC CSV import: {} rows matched out of {} total data rows",
                     result.size(), records.size());
             return result;
+        }
+    }
+
+    /**
+     * Validates that every key in the well mapping matches {@link #VALID_WELL_PATTERN}.
+     *
+     * <p>All invalid keys are collected before throwing so that the caller receives a
+     * complete list in a single error response.</p>
+     *
+     * @param wellMapping the mapping to validate
+     * @throws IllegalArgumentException if any key does not match the expected format
+     */
+    private static void validateWellMappingKeys(Map<String, WellMapping> wellMapping) {
+        List<String> invalid = wellMapping.keySet().stream()
+                .filter(k -> !VALID_WELL_PATTERN.matcher(k).matches())
+                .sorted()
+                .toList();
+        if (!invalid.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Well mapping contains invalid well ID(s): " + invalid
+                    + ". Expected format: one letter A-P followed by a column number 1-24"
+                    + " (e.g. A1, H12, P24).");
         }
     }
 

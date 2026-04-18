@@ -48,6 +48,14 @@ public class MeasurementPairService {
      * Every field that actually changes produces an {@link it.elismart_lims.model.AuditLog}
      * entry via {@link AuditLogService}.</p>
      *
+     * <p><b>Transaction note:</b> this method is {@code @Transactional} (REQUIRED propagation).
+     * {@link AuditLogService#logChange} joins the <em>same</em> transaction. If
+     * {@code measurementPairRepository.save()} fails and rolls back, the audit entry is also
+     * rolled back — there is no orphaned audit record for a failed save.
+     * This is the intended behaviour for data integrity.
+     * If the audit must survive a save failure (e.g. compliance write-once log), the audit
+     * service method would need {@code @Transactional(propagation = REQUIRES_NEW)}.</p>
+     *
      * @param request      the update payload (id, signal1, signal2, concentrationNominal)
      * @param experimentId the ID of the owning experiment, used to validate ownership
      * @throws ResourceNotFoundException if no pair exists with the given ID
@@ -100,6 +108,9 @@ public class MeasurementPairService {
      * <p>Produces an {@link it.elismart_lims.model.AuditLog} entry when the flag value changes.
      * The {@code reason} from the request is forwarded to the audit entry, supporting
      * ALCOA+ traceability for manual outlier overrides (21 CFR Part 11 §11.10(e)).</p>
+     *
+     * <p><b>Transaction note:</b> same REQUIRED-propagation behaviour as {@link #update} —
+     * the audit entry and the entity save share one transaction and roll back together on failure.</p>
      *
      * @param id      the measurement pair ID
      * @param request the outlier update payload (isOutlier + optional reason)

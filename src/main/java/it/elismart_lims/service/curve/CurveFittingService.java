@@ -1,5 +1,7 @@
 package it.elismart_lims.service.curve;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import it.elismart_lims.model.CurveType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ import java.util.Map;
 public class CurveFittingService {
 
     private final Map<CurveType, CurveFitter> fitters;
+    private final ObjectMapper objectMapper;
 
     /**
      * Constructs the service and registers one {@link CurveFitter} per {@link CurveType}.
@@ -40,7 +43,11 @@ public class CurveFittingService {
      *   <tr><td>POINT_TO_POINT</td><td>{@link PointToPointFitter}</td><td>Full</td></tr>
      * </table>
      */
-    public CurveFittingService() {
+    /**
+     * @param objectMapper Spring-managed Jackson mapper used by {@link #serializeParameters}
+     */
+    public CurveFittingService(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
         Map<CurveType, CurveFitter> map = new EnumMap<>(CurveType.class);
         map.put(CurveType.FOUR_PARAMETER_LOGISTIC, new FourPLFitter());
         map.put(CurveType.FIVE_PARAMETER_LOGISTIC, new FivePLFitter());
@@ -83,6 +90,25 @@ public class CurveFittingService {
         double concentration = getFitter(type).interpolate(signal, params);
         log.debug("Interpolated concentration={} from signal={} using {} curve", concentration, signal, type);
         return concentration;
+    }
+
+    /**
+     * Serialises {@code params} to a JSON string for storage in {@code Experiment.curveParameters}.
+     *
+     * <p>Centralised here so that callers (e.g. {@link it.elismart_lims.service.ExperimentService})
+     * do not need to import or inject Jackson directly.</p>
+     *
+     * @param params the fitted curve parameters to serialise
+     * @return JSON representation of {@code params.values()}
+     * @throws IllegalStateException if Jackson serialisation fails (should never happen for a
+     *         plain {@code Map<String, Double>})
+     */
+    public String serializeParameters(CurveParameters params) {
+        try {
+            return objectMapper.writeValueAsString(params);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialise curve parameters: " + e.getMessage(), e);
+        }
     }
 
     /**

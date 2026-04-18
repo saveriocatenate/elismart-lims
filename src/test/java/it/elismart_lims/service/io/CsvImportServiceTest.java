@@ -337,6 +337,77 @@ class CsvImportServiceTest {
     }
 
     // -------------------------------------------------------------------------
+    // Well mapping validation
+    // -------------------------------------------------------------------------
+
+    /**
+     * A well mapping that contains a key with an invalid format (letter beyond A-P,
+     * column beyond 24) must throw {@link IllegalArgumentException} before any CSV
+     * data is parsed, naming the offending key.
+     */
+    @Test
+    @DisplayName("well mapping with invalid well ID 'Z99' throws IllegalArgumentException")
+    void parse_invalidWellIdInMapping_throwsIllegalArgumentException() {
+        Map<String, WellMapping> mapping = Map.of("Z99", new WellMapping(PairType.CALIBRATION, 1.0));
+        CsvImportConfig config = new CsvImportConfig(
+                CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, mapping);
+        String csv = "WellId,Signal1,Signal2\nZ99,0.1,0.2";
+
+        assertThatThrownBy(() -> service.parse(toStream(csv), config))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Z99")
+                .hasMessageContaining("invalid well ID");
+    }
+
+    /**
+     * A CSV where a mapped well ID appears in two data rows must throw
+     * {@link IllegalArgumentException} that names the duplicate well ID.
+     */
+    @Test
+    @DisplayName("CSV with duplicate mapped well ID 'A1' throws IllegalArgumentException")
+    void parse_duplicateWellId_throwsIllegalArgumentException() {
+        String csv = String.join("\n",
+                "WellId,Signal1,Signal2",
+                "A1,0.100,0.110",   // first occurrence
+                "A1,0.200,0.210"    // duplicate
+        );
+        Map<String, WellMapping> mapping = Map.of("A1", new WellMapping(PairType.CALIBRATION, 1.0));
+        CsvImportConfig config = new CsvImportConfig(
+                CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, mapping);
+
+        assertThatThrownBy(() -> service.parse(toStream(csv), config))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("A1")
+                .hasMessageContaining("duplicate well ID");
+    }
+
+    /**
+     * A well mapping containing only valid IDs (A1, H12, P24) must pass format
+     * validation and produce the expected number of pairs.
+     */
+    @Test
+    @DisplayName("valid well IDs A1, H12, P24 pass format validation and parse correctly")
+    void parse_validWellIds_noFormatError() throws IOException {
+        String csv = String.join("\n",
+                "WellId,Signal1,Signal2",
+                "A1,0.100,0.110",
+                "H12,0.200,0.210",
+                "P24,0.300,0.310"
+        );
+        Map<String, WellMapping> mapping = Map.of(
+                "A1",  new WellMapping(PairType.CALIBRATION, 1.0),
+                "H12", new WellMapping(PairType.CALIBRATION, 2.0),
+                "P24", new WellMapping(PairType.CALIBRATION, 4.0)
+        );
+        CsvImportConfig config = new CsvImportConfig(
+                CsvFormat.GENERIC, WELL_COL, SIGNAL1_COL, SIGNAL2_COL, mapping);
+
+        List<MeasurementPairRequest> result = service.parse(toStream(csv), config);
+
+        assertThat(result).hasSize(3);
+    }
+
+    // -------------------------------------------------------------------------
     // Stub formats
     // -------------------------------------------------------------------------
 

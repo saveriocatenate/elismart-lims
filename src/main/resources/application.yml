@@ -26,6 +26,7 @@ server:
 gemini:
   api-key: ${GEMINI_API_KEY:}
   model: ${GEMINI_MODEL:gemini-2.0-flash}
+  timeout-ms: ${GEMINI_TIMEOUT_MS:120000}
 
 jwt:
   secret: ${JWT_SECRET}
