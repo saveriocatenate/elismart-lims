@@ -24,6 +24,7 @@ class ProtocolMapperTest {
         assertThat(entity.getMaxCvAllowed()).isEqualTo(15.0);
         assertThat(entity.getMaxErrorAllowed()).isEqualTo(10.0);
         assertThat(entity.getCurveType()).isEqualTo(CurveType.FOUR_PARAMETER_LOGISTIC);
+        assertThat(entity.getConcentrationUnit()).isEqualTo("ng/mL");
     }
 
     @Test
@@ -68,5 +69,21 @@ class ProtocolMapperTest {
         var response = ProtocolMapper.toResponse(entity);
 
         assertThat(response.concentrationUnit()).isEqualTo("pg/mL");
+    }
+
+    @Test
+    void updateEntity_shouldMapConcentrationUnit() {
+        var entity = Protocol.builder()
+                .id(1L).name("Old").numCalibrationPairs(7).numControlPairs(3)
+                .maxCvAllowed(15.0).maxErrorAllowed(10.0)
+                .curveType(CurveType.FOUR_PARAMETER_LOGISTIC)
+                .concentrationUnit("ng/mL")
+                .build();
+        var request = new ProtocolRequest("Old", 7, 3, 15.0, 10.0,
+                CurveType.FOUR_PARAMETER_LOGISTIC, "IU/mL");
+
+        ProtocolMapper.updateEntity(entity, request);
+
+        assertThat(entity.getConcentrationUnit()).isEqualTo("IU/mL");
     }
 }

@@ -57,6 +57,7 @@ class ProtocolServiceTest {
                 .maxCvAllowed(15.0)
                 .maxErrorAllowed(10.0)
                 .curveType(CurveType.FOUR_PARAMETER_LOGISTIC)
+                .concentrationUnit("ng/mL")
                 .build();
     }
 
@@ -200,6 +201,7 @@ class ProtocolServiceTest {
         var result = protocolService.update(1L, updateRequest);
 
         assertThat(result.name()).isEqualTo("IgG v2");
+        assertThat(result.concentrationUnit()).isEqualTo("ng/mL");
         verify(protocolRepository).save(protocol);
     }
 
