@@ -237,6 +237,10 @@ if st.button(
     name_ph.empty()
     top_error_ph.empty()
 
+    if unit_choice == "Altro" and not concentration_unit:
+        st.warning("⚠️ Specifica l'unità di misura prima di salvare.")
+        st.stop()
+
     # Client-side duplicate check for new reagents
     duplicate_found = False
     for row_id in rows:
