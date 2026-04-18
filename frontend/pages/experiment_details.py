@@ -351,6 +351,10 @@ st.markdown("---")
 batches = data.get("usedReagentBatches", [])
 pairs = data.get("measurementPairs", [])
 
+# Concentration unit label — used in both view and edit modes
+_conc_unit = data.get("protocolConcentrationUnit") or ""
+_conc_header = f"Conc. ({_conc_unit})" if _conc_unit else "Conc."
+
 if edit_mode:
     st.markdown(
         "<div style='border:2px solid #2E7D32;border-radius:6px;padding:0.5rem 1rem;"
@@ -444,7 +448,7 @@ if not edit_mode:
 
         header_cells = "".join(
             f"<th style='padding:6px 10px;text-align:left;border-bottom:2px solid #ccc'>{h}</th>"
-            for h in ["Tipo", "Conc.", "Segnale 1", "Segnale 2", "Media", "%CV", "%Recovery", "Stato", "Outlier"]
+            for h in ["Tipo", _conc_header, "Segnale 1", "Segnale 2", "Media", "%CV", "%Recovery", "Stato", "Outlier"]
         )
         rows_html = ""
         for p in pairs:
@@ -611,7 +615,7 @@ else:
         if pairs:
             header_cols = st.columns([1.5, 1.5, 1.5, 1.5, 1.5, 1])
             for lbl, col in zip(
-                ["Tipo", "Conc.", "Segnale 1", "Segnale 2", "Media*", "%CV*"], header_cols
+                ["Tipo", _conc_header, "Segnale 1", "Segnale 2", "Media*", "%CV*"], header_cols
             ):
                 col.caption(f"**{lbl}**")
 

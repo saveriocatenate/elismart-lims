@@ -140,6 +140,24 @@ with col3:
     max_cv = st.number_input("%CV Massimo", min_value=0.0, step=0.5, value=10.0, format="%.1f", key="proto_cv")
 max_error = st.number_input("%Errore Massimo Consentito", min_value=0.0, step=0.5, value=15.0, format="%.1f", key="proto_err")
 
+_UNIT_OPTIONS = ["ng/mL", "µg/mL", "pg/mL", "IU/mL", "nmol/L", "pmol/L", "Altro"]
+unit_choice = st.selectbox(
+    "Unità di misura delle concentrazioni",
+    options=_UNIT_OPTIONS,
+    index=0,
+    key="proto_unit",
+    help="Unità usata per i calibratori e i controlli di questo protocollo.",
+)
+if unit_choice == "Altro":
+    concentration_unit = st.text_input(
+        "Specifica unità",
+        max_chars=20,
+        key="proto_unit_custom",
+        placeholder="es. copies/mL",
+    ).strip()
+else:
+    concentration_unit = unit_choice
+
 st.markdown("---")
 st.subheader("Reagenti")
 
@@ -245,6 +263,7 @@ if st.button(
                     "numControlPairs": int(num_ctrl),
                     "maxCvAllowed": max_cv,
                     "maxErrorAllowed": max_error,
+                    "concentrationUnit": concentration_unit,
                 },
                 headers=get_auth_headers(),
                 timeout=10,

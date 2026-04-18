@@ -338,12 +338,15 @@ def _render_pairs(experiments: list[dict], pair_type: str, cv_thr: float):
             def _fmt2(v):
                 return f"{v:.2f}" if v is not None else "—"
 
+            _unit = exp.get("protocolConcentrationUnit") or ""
+            _conc_key = f"Conc. ({_unit})" if _unit else "Conc."
+
             rows = []
             for p in pairs:
                 cv = p.get("cvPct")
                 cv_flag = cv is not None and cv > cv_thr
                 rows.append({
-                    "Conc.": _fmt(p.get("concentrationNominal")),
+                    _conc_key: _fmt(p.get("concentrationNominal")),
                     "Seg. 1": _fmt(p.get("signal1")),
                     "Seg. 2": _fmt(p.get("signal2")),
                     "Media": _fmt(p.get("signalMean")),
