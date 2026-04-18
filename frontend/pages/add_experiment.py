@@ -696,6 +696,27 @@ else:
             "wellMapping":   well_mapping,
         }
 
+        def _cleanup_orphan(exp_id: int) -> None:
+            """Delete a skeleton experiment created before a failed CSV import."""
+            try:
+                del_resp = requests.delete(
+                    f"{BACKEND_URL}/api/experiments/{exp_id}",
+                    headers=get_auth_headers(),
+                    timeout=10,
+                )
+                if del_resp.status_code in (200, 204):
+                    st.session_state.pop("selected_exp_id", None)
+                else:
+                    st.warning(
+                        f"L'esperimento {exp_id} non è stato eliminato automaticamente "
+                        f"(HTTP {del_resp.status_code}). Eliminalo manualmente dalla pagina Dettagli."
+                    )
+            except requests.exceptions.RequestException:
+                st.warning(
+                    f"L'esperimento {exp_id} non è stato eliminato automaticamente "
+                    "(errore di rete). Eliminalo manualmente dalla pagina Dettagli o contatta l'amministratore."
+                )
+
         # ── Step 3: POST import-csv ───────────────────────────────────────
         csv_file.seek(0)
         csv_bytes = csv_file.read()
@@ -714,18 +735,17 @@ else:
                     timeout=30,
                 )
             except requests.exceptions.RequestException as e:
-                st.warning(
-                    f"L'esperimento **{exp_id}** è stato creato ma l'importazione CSV è fallita "
-                    f"per un errore di rete: {e}"
-                )
+                _cleanup_orphan(exp_id)
+                show_persistent_error(f"Importazione CSV fallita per un errore di rete: {e}")
                 st.stop()
 
         if import_resp.status_code != 200:
-            detail = import_resp.json().get("message", import_resp.text)
-            st.warning(
-                f"L'esperimento **{exp_id}** è stato creato ma l'importazione è fallita "
-                f"({import_resp.status_code}): {detail}"
-            )
+            try:
+                detail = import_resp.json().get("message", import_resp.text)
+            except Exception:
+                detail = import_resp.text
+            _cleanup_orphan(exp_id)
+            show_persistent_error(f"Importazione CSV fallita ({import_resp.status_code}): {detail}")
             st.stop()
 
         # ── Step 4: Display results ──────────────────────────────────────
