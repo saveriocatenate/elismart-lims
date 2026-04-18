@@ -27,6 +27,7 @@ public final class ProtocolMapper {
                 .maxCvAllowed(request.maxCvAllowed())
                 .maxErrorAllowed(request.maxErrorAllowed())
                 .curveType(request.curveType())
+                .concentrationUnit(request.concentrationUnit())
                 .build();
     }
 
@@ -43,6 +44,7 @@ public final class ProtocolMapper {
         entity.setMaxCvAllowed(request.maxCvAllowed());
         entity.setMaxErrorAllowed(request.maxErrorAllowed());
         entity.setCurveType(request.curveType());
+        entity.setConcentrationUnit(request.concentrationUnit());
     }
 
     /**
@@ -60,6 +62,7 @@ public final class ProtocolMapper {
                 .maxCvAllowed(entity.getMaxCvAllowed())
                 .maxErrorAllowed(entity.getMaxErrorAllowed())
                 .curveType(entity.getCurveType())
+                .concentrationUnit(entity.getConcentrationUnit())
                 .build();
     }
 }

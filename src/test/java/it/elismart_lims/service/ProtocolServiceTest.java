@@ -192,7 +192,7 @@ class ProtocolServiceTest {
     @Test
     void update_shouldUpdateFieldsAndReturnResponse() {
         protocol.setId(1L);
-        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
         when(protocolRepository.findById(1L)).thenReturn(Optional.of(protocol));
         when(experimentService.existsByProtocolId(1L)).thenReturn(false);
         when(protocolRepository.save(any(Protocol.class))).thenReturn(protocol);
@@ -206,7 +206,7 @@ class ProtocolServiceTest {
     @Test
     void update_shouldThrow_whenProtocolHasLinkedExperiments() {
         protocol.setId(1L);
-        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
         when(protocolRepository.findById(1L)).thenReturn(Optional.of(protocol));
         when(experimentService.existsByProtocolId(1L)).thenReturn(true);
 

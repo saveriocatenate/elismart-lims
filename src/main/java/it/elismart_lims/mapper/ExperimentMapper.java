@@ -49,6 +49,7 @@ public final class ExperimentMapper {
                 .protocolCurveType(experiment.getProtocol().getCurveType())
                 .protocolMaxCvAllowed(experiment.getProtocol().getMaxCvAllowed())
                 .protocolMaxErrorAllowed(experiment.getProtocol().getMaxErrorAllowed())
+                .protocolConcentrationUnit(experiment.getProtocol().getConcentrationUnit())
                 .curveParameters(experiment.getCurveParameters())
                 .createdAt(experiment.getCreatedAt())
                 .updatedAt(experiment.getUpdatedAt())

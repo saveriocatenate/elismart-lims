@@ -44,8 +44,8 @@ class ProtocolControllerTest {
 
     @Test
     void getAll_shouldReturnProtocolList() throws Exception {
-        var p1 = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
-        var p2 = new ProtocolResponse(2L, "IgM Test", 5, 2, 10.0, 8.0, CurveType.FIVE_PARAMETER_LOGISTIC);
+        var p1 = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
+        var p2 = new ProtocolResponse(2L, "IgM Test", 5, 2, 10.0, 8.0, CurveType.FIVE_PARAMETER_LOGISTIC, "ng/mL");
         when(protocolService.getAll()).thenReturn(List.of(p1, p2));
 
         mockMvc.perform(get("/api/protocols"))
@@ -66,7 +66,7 @@ class ProtocolControllerTest {
 
     @Test
     void getById_shouldReturnProtocol() throws Exception {
-        var response = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        var response = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
         when(protocolService.getById(1L)).thenReturn(response);
 
         mockMvc.perform(get("/api/protocols/1"))
@@ -87,8 +87,8 @@ class ProtocolControllerTest {
 
     @Test
     void create_shouldReturn201() throws Exception {
-        var request = new ProtocolRequest("IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
-        var response = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        var request = new ProtocolRequest("IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
+        var response = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
         when(protocolService.create(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/protocols")
@@ -102,7 +102,7 @@ class ProtocolControllerTest {
 
     @Test
     void create_shouldReturn400_whenInvalid() throws Exception {
-        var request = new ProtocolRequest("", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        var request = new ProtocolRequest("", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
 
         mockMvc.perform(post("/api/protocols")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -150,7 +150,7 @@ class ProtocolControllerTest {
      */
     @Test
     void create_shouldReturn400_whenMaxCvAllowedIsNegative() throws Exception {
-        var request = new ProtocolRequest("IgG Test", 7, 3, -5.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        var request = new ProtocolRequest("IgG Test", 7, 3, -5.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
 
         mockMvc.perform(post("/api/protocols")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -164,7 +164,7 @@ class ProtocolControllerTest {
      */
     @Test
     void create_shouldReturn400_whenMaxErrorAllowedIsNegative() throws Exception {
-        var request = new ProtocolRequest("IgG Test", 7, 3, 15.0, -10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        var request = new ProtocolRequest("IgG Test", 7, 3, 15.0, -10.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
 
         mockMvc.perform(post("/api/protocols")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -178,8 +178,8 @@ class ProtocolControllerTest {
      */
     @Test
     void create_shouldReturn201_whenMaxCvAllowedIsPositive() throws Exception {
-        var request = new ProtocolRequest("IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
-        var response = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC);
+        var request = new ProtocolRequest("IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
+        var response = new ProtocolResponse(1L, "IgG Test", 7, 3, 15.0, 10.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
         when(protocolService.create(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/protocols")

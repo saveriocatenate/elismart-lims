@@ -14,6 +14,7 @@ public record ProtocolResponse(
         Integer numControlPairs,
         Double maxCvAllowed,
         Double maxErrorAllowed,
-        CurveType curveType
+        CurveType curveType,
+        String concentrationUnit
 ) {
 }

@@ -48,6 +48,10 @@ public class Protocol extends Auditable {
     @Column(name = "curve_type", nullable = false, length = 50)
     private CurveType curveType;
 
+    /** Unit of measurement for concentrations in this protocol (e.g. "ng/mL", "IU/mL"). */
+    @Column(name = "concentration_unit", nullable = false, length = 20)
+    private String concentrationUnit;
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

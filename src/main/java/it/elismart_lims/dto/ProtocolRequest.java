@@ -4,6 +4,7 @@ import it.elismart_lims.model.CurveType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 /**
  * Request payload for creating or updating a Protocol.
@@ -18,6 +19,7 @@ public record ProtocolRequest(
         @NotNull @Positive(message = "numControlPairs must be positive") Integer numControlPairs,
         @NotNull @Positive(message = "maxCvAllowed must be positive") Double maxCvAllowed,
         @NotNull @Positive(message = "maxErrorAllowed must be positive") Double maxErrorAllowed,
-        @NotNull CurveType curveType
+        @NotNull CurveType curveType,
+        @NotBlank @Size(max = 20) String concentrationUnit
 ) {
 }

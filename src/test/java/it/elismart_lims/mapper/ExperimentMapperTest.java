@@ -64,4 +64,28 @@ class ExperimentMapperTest {
         assertThat(response.usedReagentBatches()).isEmpty();
         assertThat(response.measurementPairs()).isEmpty();
     }
+
+    @Test
+    void toResponse_shouldMapProtocolConcentrationUnit() {
+        var protocol = Protocol.builder()
+                .name("IgG Test")
+                .curveType(CurveType.FOUR_PARAMETER_LOGISTIC)
+                .maxCvAllowed(15.0)
+                .maxErrorAllowed(20.0)
+                .concentrationUnit("IU/mL")
+                .build();
+        var entity = Experiment.builder()
+                .id(1L)
+                .name("Run A")
+                .date(java.time.LocalDateTime.of(2026, 4, 18, 10, 0))
+                .status(it.elismart_lims.model.ExperimentStatus.PENDING)
+                .protocol(protocol)
+                .usedReagentBatches(java.util.List.of())
+                .measurementPairs(java.util.List.of())
+                .build();
+
+        var response = ExperimentMapper.toResponse(entity);
+
+        assertThat(response.protocolConcentrationUnit()).isEqualTo("IU/mL");
+    }
 }

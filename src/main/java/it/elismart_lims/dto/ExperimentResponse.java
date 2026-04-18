@@ -22,6 +22,8 @@ public record ExperimentResponse(
         Double protocolMaxCvAllowed,
         /* Maximum %Error (recovery deviation from 100%) allowed by the protocol; {@code null} if not configured. */
         Double protocolMaxErrorAllowed,
+        /* Unit of measurement for concentrations in the linked protocol (e.g. "ng/mL"). */
+        String protocolConcentrationUnit,
         /* JSON-serialized calibration curve parameters; {@code null} before first validation. */
         String curveParameters,
         LocalDateTime createdAt,
