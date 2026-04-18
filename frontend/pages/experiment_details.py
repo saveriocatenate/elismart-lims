@@ -65,10 +65,14 @@ def _render_fit_quality(curve_params_str):
     except Exception:
         return
 
-    r2          = params.get("_r2")
-    rmse        = params.get("_rmse")
-    df          = params.get("_df")
-    convergence = params.get("_convergence")
+    r2            = params.get("_r2")
+    rmse          = params.get("_rmse")
+    df            = params.get("_df")
+    convergence   = params.get("_convergence")
+    ec50          = params.get("C")
+    ec50_lower    = params.get("_ec50_lower95")
+    ec50_upper    = params.get("_ec50_upper95")
+    flat_warning  = params.get("_flat_segment_warning")
 
     if all(v is None for v in [r2, rmse, df, convergence]):
         return
@@ -109,6 +113,23 @@ def _render_fit_quality(curve_params_str):
         # Convergence ok badge (nonlinear only)
         if convergence is not None and convergence == 1.0:
             st.caption("✅ Convergito")
+
+        # EC50 with 95% CI (nonlinear fitters only)
+        if ec50 is not None:
+            if ec50_lower is not None and ec50_upper is not None:
+                st.markdown(
+                    f"**EC50** = {ec50:.3f}  "
+                    f"(95% CI: {ec50_lower:.3f} — {ec50_upper:.3f})"
+                )
+            else:
+                st.markdown(f"**EC50** = {ec50:.3f}  *(CI non disponibile)*")
+
+        # Flat segment warning (PointToPoint only)
+        if flat_warning:
+            st.warning(
+                "Segmento piatto rilevato nella curva di calibrazione — "
+                "la concentrazione interpolata su questo segmento è approssimata."
+            )
 
 
 exp_id = st.session_state.get("selected_exp_id")
@@ -692,54 +713,82 @@ try:
 except requests.exceptions.RequestException:
     existing_insights = []
 
+# ── When insights exist: show latest prominently + Ri-analizza toggle ──────
 if existing_insights:
-    with st.expander(f"Analisi precedenti ({len(existing_insights)})", expanded=False):
-        for ins in existing_insights:
-            gen_at = format_date(ins.get("generatedAt"))
-            gen_by = ins.get("generatedBy", "—")
-            st.markdown(f"**{gen_at}** — _{gen_by}_")
-            st.caption(f"**Q:** {ins.get('userQuestion', '')}")
-            with st.container(border=True):
-                st.markdown(ins.get("aiResponse", ""))
-            st.markdown("---")
-
-# New analysis input — outside a form so the spinner doesn't block the whole page
-ai_question = st.text_area(
-    "Chiedi all'Analista AI",
-    placeholder=(
-        "es. Perché il controllo è fallito? "
-        "Il %CV è entro i limiti accettabili per tutti i calibratori?"
-    ),
-    height=100,
-    key="ai_question_input",
-)
-
-if st.button("Analizza con AI", type="primary", key="ai_analyze_btn"):
-    question = (ai_question or "").strip()
-    if not question:
-        st.warning("Inserisci una domanda prima di avviare l'analisi.")
-    else:
-        with st.spinner("L'AI sta analizzando l'esperimento…"):
-            try:
-                ai_resp = requests.post(
-                    f"{BACKEND_URL}/api/ai/analyze",
-                    json={"experimentIds": [exp_id], "userQuestion": question},
-                    headers=get_auth_headers(),
-                    timeout=120,
-                )
-                if ai_resp.status_code == 200:
-                    st.session_state[f"ai_result_{exp_id}"] = ai_resp.json().get("analysis", "")
-                    st.rerun()
-                else:
-                    detail = ai_resp.json().get("message", ai_resp.text[:300]) if ai_resp.content else ai_resp.text[:300]
-                    show_persistent_error(translate_error(detail), key="experiment_details")
-            except requests.exceptions.RequestException as e:
-                show_persistent_error(translate_error(str(e)), key="experiment_details")
-
-if st.session_state.get(f"ai_result_{exp_id}"):
-    st.markdown("**Ultimo Risultato Analisi:**")
+    latest = existing_insights[0]
+    gen_at = format_date(latest.get("generatedAt"))
+    gen_by = latest.get("generatedBy", "—")
+    st.markdown(f"**Ultima analisi** — {gen_at} — _{gen_by}_")
+    st.caption(f"**Q:** {latest.get('userQuestion', '')}")
     with st.container(border=True):
-        st.markdown(st.session_state[f"ai_result_{exp_id}"])
+        st.markdown(latest.get("aiResponse", ""))
+
+    if st.button("🔄 Ri-analizza", key="ai_reanalyze_btn"):
+        current = st.session_state.get(f"ai_show_form_{exp_id}", False)
+        st.session_state[f"ai_show_form_{exp_id}"] = not current
+        st.rerun()
+
+    if len(existing_insights) > 1:
+        with st.expander(f"Analisi precedenti ({len(existing_insights) - 1})", expanded=False):
+            for ins in existing_insights[1:]:
+                h_at = format_date(ins.get("generatedAt"))
+                h_by = ins.get("generatedBy", "—")
+                st.markdown(f"**{h_at}** — _{h_by}_")
+                st.caption(f"**Q:** {ins.get('userQuestion', '')}")
+                with st.container(border=True):
+                    st.markdown(ins.get("aiResponse", ""))
+                st.markdown("---")
+
+    show_form = st.session_state.get(f"ai_show_form_{exp_id}", False)
+else:
+    show_form = True
+
+# ── AI form — always visible when no insights; toggled when insights exist ─
+if show_form:
+    ai_question = st.text_area(
+        "Domanda per l'analista AI",
+        placeholder=(
+            "es. Perché il controllo è fallito? "
+            "Il %CV è entro i limiti accettabili per tutti i calibratori?"
+        ),
+        height=100,
+        key="ai_question_input",
+    )
+    ai_context = st.text_area(
+        "Contesto aggiuntivo (opzionale)",
+        placeholder="es. Lotto reagente appena aperto, temperatura lab sopra la media, ecc.",
+        height=80,
+        key="ai_context_input",
+    )
+
+    if st.button("Chiedi all'AI", type="primary", key="ai_analyze_btn"):
+        question = (ai_question or "").strip()
+        if not question:
+            st.warning("Inserisci una domanda prima di avviare l'analisi.")
+        else:
+            context = (ai_context or "").strip()
+            combined = question
+            if context:
+                combined += "\n\nContesto aggiuntivo: " + context
+            with st.spinner("L'AI sta analizzando l'esperimento…"):
+                try:
+                    ai_resp = requests.post(
+                        f"{BACKEND_URL}/api/ai/analyze",
+                        json={"experimentIds": [exp_id], "userQuestion": combined},
+                        headers=get_auth_headers(),
+                        timeout=120,
+                    )
+                    if ai_resp.status_code == 200:
+                        st.session_state[f"ai_show_form_{exp_id}"] = False
+                        st.rerun()
+                    else:
+                        detail = (
+                            ai_resp.json().get("message", ai_resp.text[:300])
+                            if ai_resp.content else ai_resp.text[:300]
+                        )
+                        show_persistent_error(translate_error(detail), key="experiment_details")
+                except requests.exceptions.RequestException as e:
+                    show_persistent_error(translate_error(str(e)), key="experiment_details")
 
 # ---------------------------------------------------------------------------
 # Audit footer
