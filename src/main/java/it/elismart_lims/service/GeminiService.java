@@ -1,5 +1,6 @@
 package it.elismart_lims.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import it.elismart_lims.dto.ExperimentResponse;
 import it.elismart_lims.dto.GeminiAnalysisRequest;
@@ -8,6 +9,7 @@ import it.elismart_lims.dto.MeasurementPairResponse;
 import it.elismart_lims.dto.ProtocolResponse;
 import it.elismart_lims.dto.UsedReagentBatchResponse;
 import it.elismart_lims.exception.model.GeminiServiceException;
+import it.elismart_lims.model.PairStatus;
 import it.elismart_lims.model.PairType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +18,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.OptionalDouble;
 
 /**
  * Service that builds a structured prompt from experiment data and queries the Google Gemini API
@@ -51,6 +52,7 @@ public class GeminiService {
     private final ExperimentService experimentService;
     private final ProtocolService protocolService;
     private final AiInsightService aiInsightService;
+    private final ObjectMapper objectMapper;
 
     /**
      * Fetches each experiment, builds a structured prompt, calls the Gemini API via LangChain4j,
@@ -280,7 +282,8 @@ public class GeminiService {
     }
 
     /**
-     * Formats a single experiment into a concise multi-line summary.
+     * Formats a single experiment into a detailed multi-line summary including
+     * per-pair signal values, outlier flags, pair status, and curve fit metrics.
      *
      * @param exp the experiment DTO
      * @return the formatted experiment string
@@ -301,55 +304,105 @@ public class GeminiService {
             sb.append(" Reagent Lots: [").append(lots).append("].");
         }
 
-        // Calibration pairs
-        List<MeasurementPairResponse> calPairs = filterPairs(exp, PairType.CALIBRATION);
-        sb.append(formatPairsSummary("Calibration", calPairs));
+        // Curve fit summary
+        String curveSummary = formatCurveParams(exp.curveParameters());
+        if (!curveSummary.isBlank()) {
+            sb.append("\n").append(curveSummary);
+        }
 
-        // Control pairs
-        List<MeasurementPairResponse> ctrlPairs = filterPairs(exp, PairType.CONTROL);
-        sb.append(formatPairsSummary("Controls", ctrlPairs));
+        // Per-pair detail for each type in display order
+        if (exp.measurementPairs() != null) {
+            for (PairType type : new PairType[]{PairType.CALIBRATION, PairType.CONTROL, PairType.SAMPLE}) {
+                List<MeasurementPairResponse> typePairs = exp.measurementPairs().stream()
+                        .filter(p -> type.equals(p.pairType()))
+                        .toList();
+                sb.append(formatPairsDetail(type.name(), typePairs));
+            }
+        }
 
         return sb.toString();
     }
 
     /**
-     * Filters measurement pairs by type.
+     * Produces a detailed per-pair listing for one {@link PairType}.
+     * Each row includes signals, computed metrics, outlier flag, and pair status.
+     * Null numeric fields are shown as {@code —}.
      *
-     * @param exp      the experiment DTO
-     * @param pairType the pair type to filter by
-     * @return the filtered list, empty if no pairs are recorded
+     * @param label display label (e.g. "CALIBRATION")
+     * @param pairs measurement pair DTOs for this type
+     * @return multi-line string, or empty string when {@code pairs} is empty
      */
-    private List<MeasurementPairResponse> filterPairs(ExperimentResponse exp, PairType pairType) {
-        if (exp.measurementPairs() == null) {
-            return List.of();
-        }
-        return exp.measurementPairs().stream()
-                .filter(p -> pairType.equals(p.pairType()))
-                .toList();
-    }
-
-    /**
-     * Produces a one-line summary of a set of measurement pairs.
-     *
-     * @param label the human-readable label (e.g. "Calibration")
-     * @param pairs the measurement pair DTOs
-     * @return the formatted summary string, empty if no pairs
-     */
-    private String formatPairsSummary(String label, List<MeasurementPairResponse> pairs) {
+    private String formatPairsDetail(String label, List<MeasurementPairResponse> pairs) {
         if (pairs.isEmpty()) {
             return "";
         }
-        OptionalDouble avgCv = pairs.stream()
-                .filter(p -> p.cvPct() != null)
-                .mapToDouble(MeasurementPairResponse::cvPct)
-                .average();
-        OptionalDouble avgRec = pairs.stream()
-                .filter(p -> p.recoveryPct() != null)
-                .mapToDouble(MeasurementPairResponse::recoveryPct)
-                .average();
+        StringBuilder sb = new StringBuilder(
+                String.format("\n%s (%d pair%s):", label, pairs.size(), pairs.size() == 1 ? "" : "s"));
+        int idx = 1;
+        for (MeasurementPairResponse p : pairs) {
+            String outlierPrefix = Boolean.TRUE.equals(p.isOutlier()) ? "⚠️ OUTLIER " : "";
+            String cv  = p.cvPct()       != null ? String.format("%.1f%%", p.cvPct())       : "—";
+            String rec = p.recoveryPct() != null ? String.format("%.1f%%", p.recoveryPct()) : "—";
+            String status = p.pairStatus() != null ? p.pairStatus().name() : "—";
+            double conc = p.concentrationNominal() != null ? p.concentrationNominal() : 0.0;
+            double s1   = p.signal1()   != null ? p.signal1()   : 0.0;
+            double s2   = p.signal2()   != null ? p.signal2()   : 0.0;
+            double mean = p.signalMean() != null ? p.signalMean() : 0.0;
+            sb.append(String.format(
+                    "%n  %s[%d] conc=%.4f | s1=%.4f | s2=%.4f | mean=%.4f | %%CV=%s | %%Rec=%s | %s",
+                    outlierPrefix, idx++, conc, s1, s2, mean, cv, rec, status));
+        }
+        return sb.toString();
+    }
 
-        String cvStr = avgCv.isPresent() ? String.format("%.1f%%", avgCv.getAsDouble()) : "n/a";
-        String recStr = avgRec.isPresent() ? String.format("%.1f%%", avgRec.getAsDouble()) : "n/a";
-        return String.format(" %s (%d pairs): Avg %%CV=%s | Avg %%Rec=%s.", label, pairs.size(), cvStr, recStr);
+    /**
+     * Extracts goodness-of-fit metrics and EC50 CI from the JSON {@code curveParameters} string
+     * stored on the experiment. Returns an empty string when the field is null, blank, or
+     * cannot be parsed — the caller simply omits the curve section from the prompt.
+     *
+     * @param curveParameters JSON string from {@link it.elismart_lims.dto.ExperimentResponse#curveParameters()}
+     * @return a single-line summary such as {@code "Curve fit: R²=0.9987 | RMSE=0.0021 | EC50=12.340 ..."},
+     *         or {@code ""} on failure
+     */
+    private String formatCurveParams(String curveParameters) {
+        if (curveParameters == null || curveParameters.isBlank()) {
+            return "";
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> params =
+                    objectMapper.readValue(curveParameters, java.util.Map.class);
+
+            StringBuilder sb = new StringBuilder("Curve fit:");
+            Object r2          = params.get("_r2");
+            Object rmse        = params.get("_rmse");
+            Object convergence = params.get("_convergence");
+            Object ec50        = params.get("C");
+            Object ec50Lower   = params.get("_ec50_lower95");
+            Object ec50Upper   = params.get("_ec50_upper95");
+            Object flatWarn    = params.get("_flat_segment_warning");
+
+            if (r2   != null) sb.append(String.format(" R²=%.4f",   ((Number) r2).doubleValue()));
+            if (rmse != null) sb.append(String.format(" | RMSE=%.4f", ((Number) rmse).doubleValue()));
+            if (ec50 != null) {
+                sb.append(String.format(" | EC50=%.3f", ((Number) ec50).doubleValue()));
+                if (ec50Lower != null && ec50Upper != null) {
+                    sb.append(String.format(" (95%% CI: %.3f\u2013%.3f)",
+                            ((Number) ec50Lower).doubleValue(), ((Number) ec50Upper).doubleValue()));
+                }
+            }
+            if (convergence != null) {
+                sb.append(((Number) convergence).doubleValue() == 1.0
+                        ? " | Converged" : " | NOT converged");
+            }
+            if (flatWarn != null) {
+                sb.append(" | \u26a0\ufe0f Flat calibration segment");
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            log.warn("Failed to parse curveParameters JSON — omitting curve section from AI prompt: {}",
+                    e.getMessage());
+            return "";
+        }
     }
 }
