@@ -83,6 +83,7 @@ Dashboard (/)
 |  Curve Type: [ 4PL — Four Parameter Logistic ▼ ]       |
 |  Calibration Pairs: [5]  Control Pairs: [3]            |
 |  Max CV (%): [10.0]      Max Error (%): [15.0]         |
+|  Concentration Unit: [ ng/mL ▼ ]  (or free-text)       |
 |                                                        |
 |  ── Reagents ──────────────────────────────────────    |
 |  Select existing reagents: [ multi-select ▼ ]          |
@@ -98,6 +99,7 @@ Dashboard (/)
 | Element                | Behaviour                                                          |
 |------------------------|--------------------------------------------------------------------|
 | Curve Type selector    | Selectbox with 6 options (4PL, 5PL, 3PL, Linear, Semi-log, P2P); default 4PL |
+| Concentration Unit     | Selectbox with common units (ng/mL, pg/mL, IU/L, nmol/L…) + "Altro" for free-text entry; stored as `concentrationUnit` |
 | Calibration/control    | Number inputs; drive the measurement-pair rows in add_experiment   |
 | Reagents multi-select  | Loaded from `GET /api/reagent-catalogs` (size=1000)               |
 | Add reagent row button | Increments session-state counter; renders one extra input row      |
@@ -233,6 +235,8 @@ Filters on top (including calendar date pickers), paginated results table below.
 +--------------------------------------------------------+
 |  ← Back to Dashboard                                   |
 |                                                        |
+|  🔀 My experiments  [toggle — on by default]           |
+|                                                        |
 |  [Name filter]  [Status ▼]  [Page size ▼]              |
 |  [📅 Date]  [📅 Date from]  [📅 Date to]  [ Search ]   |
 |                                                        |
@@ -248,6 +252,7 @@ Filters on top (including calendar date pickers), paginated results table below.
 
 | Element           | Behaviour                                                |
 |-------------------|----------------------------------------------------------|
+| My experiments    | `st.toggle` stored in `session_state["mine_exp"]`; default `true` for ANALYST/REVIEWER, `false` for ADMIN. Sends `mine=true/false` in search request body. |
 | Date pickers      | `st.date_input` with `value=None`; converted to ISO on submit |
 | Checkboxes        | Select up to 4 experiments for comparison                |
 | Compare Selected  | Navigates to `/compare_experiments` with pre-filled IDs  |
@@ -258,28 +263,43 @@ Filters on top (including calendar date pickers), paginated results table below.
 
 ## 8. Experiment Details `/experiment_details`
 
-Read-only view showing the full experiment, its measurement pairs, and used reagent batches.
+Read/write view of a single experiment. Opens in **View mode** by default; click Edit to enter
+Edit mode (green banner). Includes AI analysis shortcut and curve fit quality metrics.
 
 ```
 +--------------------------------------------------------+
-|  ← Back to Search                                      |
+|  ← Back to Search                         [✏️ Edit]   |
 |                                                        |
-|  [Status: OK]  Protocol: IgG Test  Date: 2026-04-05   |
+|  [Status: OK ✅]  Protocol: IgG Test  Date: 2026-04-05 |
 |  Experiment: Run 001                                   |
+|                                                        |
+|  ── Protocol Details ▼ (expander) ──────────────────   |
+|  Curve: 4PL | R²: 0.9987 | RMSE: 0.012 | df: 4        |
+|  EC50: 0.32 ng/mL [95% CI: 0.27 – 0.38]               |
 |                                                        |
 |  ── Measurement Pairs ─────────────────────────────    |
 |  Type | Conc. | Sig 1 | Sig 2 | Mean | %CV | %Rec | Out|
+|  🟢 green = pass   🔴 red = fail   ~~strikethrough~~ = outlier |
 |  ...                                                   |
 |                                                        |
 |  ── Reagent Batches Used ──────────────────────────    |
 |  Reagent | Lot | Expiry                                |
 |  ...                                                   |
+|                                                        |
+|  ── AI Analysis ────────────────────────────────────   |
+|  [ Analyse with AI ]  →  inline question + submit      |
 +--------------------------------------------------------+
 ```
 
-| Element  | Behaviour                                              |
-|----------|--------------------------------------------------------|
-| Load     | `GET /api/experiments/{id}` via `st.session_state`     |
+| Element        | Behaviour                                                         |
+|----------------|-------------------------------------------------------------------|
+| Load           | `GET /api/experiments/{id}` via `st.session_state`               |
+| Edit / View    | Toggle between read-only and editable mode; green banner in Edit  |
+| Save (Edit)    | `PUT /api/experiments/{id}`; shows confirmation dialog           |
+| Curve metrics  | R², RMSE, df, EC₅₀ CI read from `curveParameters` JSON in response |
+| Outlier toggle | `PATCH /api/measurement-pairs/{id}/outlier`; requires justification |
+| AI shortcut    | `POST /api/ai/analyze` with this experiment's ID; result persisted in `AI_INSIGHT` and displayed inline |
+| Status override| REVIEWER/ADMIN only; requires written justification stored in audit log |
 
 ---
 
@@ -336,7 +356,7 @@ Displays protocol metadata and the linked reagent spec list.
 |                                                        |
 |  Protocol: IgG Test Protocol                           |
 |  Curve Type: 4PL  | Cal. Pairs: 7 | Ctrl Pairs: 3     |
-|  Max %CV: 10%     | Max %Error: 15%                    |
+|  Max %CV: 10%     | Max %Error: 15%  | Unit: ng/mL     |
 |                                                        |
 |  ── Reagents Required ──────────────────────────────   |
 |  🧪 Anti-IgG Antibody      [obbligatorio]              |
@@ -344,12 +364,13 @@ Displays protocol metadata and the linked reagent spec list.
 +--------------------------------------------------------+
 ```
 
-| Element     | Behaviour                                           |
-|-------------|-----------------------------------------------------|
-| Load        | `GET /api/protocols/{id}` via `selected_protocol_id` |
-| Edit button | Toggles edit mode (green banner)                    |
-| Save        | `PUT /api/protocols/{id}`                           |
-| Delete      | `DELETE /api/protocols/{id}` with confirmation dialog (ADMIN only) |
+| Element            | Behaviour                                                              |
+|--------------------|------------------------------------------------------------------------|
+| Load               | `GET /api/protocols/{id}` via `selected_protocol_id`                  |
+| Concentration Unit | Displayed alongside curve type and acceptance criteria (read-only)     |
+| Edit button        | Toggles edit mode (green banner); exposes editable fields including `concentrationUnit` |
+| Save               | `PUT /api/protocols/{id}`                                              |
+| Delete             | `DELETE /api/protocols/{id}` with confirmation dialog (ADMIN only)     |
 
 ---
 
@@ -402,7 +423,9 @@ Dashboard
   │     ├── Details ─────────────  GET  /api/experiments/{id}
   │     │                          PUT  /api/experiments/{id}
   │     │                          POST /api/experiments/{id}/validate
+  │     │                          PATCH /api/measurement-pairs/{id}/outlier
   │     │                          POST /api/ai/analyze
+  │     │                          GET  /api/ai/insights
   │     └── Compare ─────────────  GET  /api/experiments/{id} (×N)
   │                                POST /api/ai/analyze
   └── [ADMIN] User Management ──  GET  /api/users

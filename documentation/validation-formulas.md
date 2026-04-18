@@ -1,6 +1,6 @@
 # EliSmart LIMS — Validation Formulas and Calculation Specifications
 
-**Version:** 1.0  
+**Version:** 2.0  
 **Status:** Normative  
 **Audience:** Software developers, laboratory scientists, system validators, regulatory auditors
 
@@ -21,6 +21,8 @@ against the implementation.
    - 1.2 [Coefficient of Variation (%CV)](#12-coefficient-of-variation-cv)
    - 1.3 [Percent Recovery (%Recovery)](#13-percent-recovery-recovery)
 2. [Calibration Curve Models](#2-calibration-curve-models)
+   - 2.0 [Weighted Least Squares (WLS) — default for nonlinear fitters](#20-weighted-least-squares-wls--default-for-nonlinear-fitters)
+   - 2.0b [Data-Driven Initial Parameter Guess (B₀)](#20b-data-driven-initial-parameter-guess-b)
    - 2.1 [Four-Parameter Logistic (4PL)](#21-four-parameter-logistic-4pl)
    - 2.2 [Five-Parameter Logistic (5PL)](#22-five-parameter-logistic-5pl)
    - 2.3 [Three-Parameter Log-Logistic (3PL)](#23-three-parameter-log-logistic-3pl)
@@ -29,14 +31,17 @@ against the implementation.
    - 2.6 [Point-to-Point](#26-point-to-point)
 3. [Outlier Detection](#3-outlier-detection)
    - 3.1 [Percent CV Threshold](#31-percent-cv-threshold)
-   - 3.2 [Grubbs Test (between-pair)](#32-grubbs-test-between-pair)
+   - 3.2 [Grubbs Test (between-pair) — iterative](#32-grubbs-test-between-pair--iterative)
 4. [Validation Engine Logic](#4-validation-engine-logic)
 5. [Numerical Safeguards](#5-numerical-safeguards)
    - 5.1 [NaN / Infinity Guard](#51-nan--infinity-guard)
    - 5.2 [Zero-Concentration Points in Non-Linear Fitting](#52-zero-concentration-points-in-non-linear-fitting)
    - 5.3 [Zero or Negative Nominal Concentration — %Recovery Skip Rule](#53-zero-or-negative-nominal-concentration--recovery-skip-rule)
    - 5.4 [Grubbs Degenerate Distribution Guard](#54-grubbs-degenerate-distribution-guard)
-6. [Curve Fitting Convergence Metadata](#6-curve-fitting-convergence-metadata)
+6. [Curve Fitting Convergence Metadata and Goodness-of-Fit](#6-curve-fitting-convergence-metadata-and-goodness-of-fit)
+   - 6.1 [Convergence and Weighted RMS](#61-convergence-and-weighted-rms)
+   - 6.2 [Goodness-of-Fit: R², Unweighted RMSE, and Degrees of Freedom](#62-goodness-of-fit-r-unweighted-rmse-and-degrees-of-freedom)
+   - 6.3 [95% Confidence Interval on EC₅₀ (4PL parameter C)](#63-95-confidence-interval-on-ec-4pl-parameter-c)
 7. [Traceability and Audit](#7-traceability-and-audit)
 8. [References](#8-references)
 
@@ -228,6 +233,92 @@ of the `experiment` table. All subsequent %Recovery calculations reuse these sto
 
 ---
 
+### 2.0 Weighted Least Squares (WLS) — default for nonlinear fitters
+
+All three nonlinear fitters (4PL, 5PL, 3PL) use **Weighted Least Squares** rather than ordinary
+least squares. This is the regulatory-recommended approach for immunoassays, where signal variance
+increases proportionally with signal magnitude (heteroscedastic noise).
+
+#### Rationale
+
+In a typical ELISA, the absolute instrument variability (pipetting noise, reader noise) scales
+with the signal level. Fitting with uniform weights (OLS) over-penalises residuals at high-signal
+calibrators, which distorts the fitted curve across the entire concentration range. WLS
+down-weights high-signal points so that low-concentration calibrators — where analytical
+sensitivity matters most — are fitted with the same relative influence as high-signal points.
+
+#### Weight formula
+
+```
+wᵢ = 1 / signalᵢ²
+```
+
+Where `signalᵢ` is the `signalMean` of the i-th calibration point. This is the 1/y² weighting
+scheme recommended in Findlay & Dillard (2007) and adopted in most ELISA analysis software.
+
+**Fallback:** when `signalᵢ ≤ 0`, the weight is set to `1.0` to avoid division by zero or
+negative weights. This prevents a blank calibrator (zero signal) from receiving infinite weight.
+
+**Normalisation:** weights are not normalised before being passed to the Levenberg-Marquardt
+optimizer — `DiagonalMatrix(weights)` is passed directly as the weight matrix.
+
+```java
+// CurveFitter.computeWeights() — used by FourPLFitter, FivePLFitter, LogLogistic3PFitter
+static double[] computeWeights(List<CalibrationPoint> points) {
+    double[] w = new double[points.size()];
+    for (int i = 0; i < points.size(); i++) {
+        double s = points.get(i).signal();
+        w[i] = (s > 0) ? 1.0 / (s * s) : 1.0;
+    }
+    return w;
+}
+```
+
+**Not applied to:** `LinearFitter`, `SemiLogLinearFitter` (OLS via `SimpleRegression`),
+`PointToPointFitter` (non-parametric).
+
+**Standards / References:** Findlay & Dillard (2007); EMA Guideline on Bioanalytical Method
+Validation (2011), §4.1.1 — recommends weighted regression for calibration models when the
+variance is not constant across the calibration range.
+
+---
+
+### 2.0b Data-Driven Initial Parameter Guess (B₀)
+
+The Hill slope initial guess (B₀) for all nonlinear fitters (4PL, 5PL, 3PL) is computed from
+the calibration data rather than set to a fixed constant of 1.0.
+
+#### Formula
+
+The Hill slope is estimated from the 10th-percentile and 90th-percentile concentration values
+that bracket the linear region of the sigmoid:
+
+```
+B₀ = |ln(81) / ln(x₉₀ / x₁₀)|
+```
+
+Where `x₁₀` is the concentration at 10% of the signal range above the minimum, and `x₉₀` is
+the concentration at 90% of the signal range. The factor `ln(81) = ln(9²) = 2 × ln(9)` is
+derived from the 4PL inverse: when y = 10% above floor and y = 90% of span, the ratio
+`(A − D)/(y − D) − 1` evaluates to 9 at both ends, and their ratio gives slope directly.
+
+**Clamp:** the computed estimate is clamped to `[0.1, 10.0]` to prevent degenerate starting
+points. If the formula produces NaN or Infinity (e.g., too few distinct concentration levels),
+the fallback value `1.0` is used.
+
+```java
+// CurveFitter.estimateHillSlope() — called by FourPLFitter, FivePLFitter, LogLogistic3PFitter
+double b0 = Math.abs(Math.log(81.0) / Math.log(x90 / x10));
+if (Double.isNaN(b0) || Double.isInfinite(b0)) return 1.0;
+b0 = Math.max(0.1, Math.min(b0, 10.0));
+```
+
+**Effect:** a data-driven B₀ closer to the true slope reduces the number of Levenberg-Marquardt
+iterations to convergence and lowers the probability of the optimizer finding a local minimum
+for shallow or steep sigmoid curves.
+
+---
+
 ### 2.1 Four-Parameter Logistic (4PL)
 
 **CurveType enum constant:** `FOUR_PARAMETER_LOGISTIC`  
@@ -253,17 +344,17 @@ point C.
 
 #### Regression method
 
-Non-linear least squares via the **Levenberg-Marquardt algorithm** (Apache Commons Math 3,
-`LevenbergMarquardtOptimizer`). An analytic Jacobian is provided to improve convergence speed
-and numerical stability.
+**Weighted Least Squares** via the **Levenberg-Marquardt algorithm** (Apache Commons Math 3,
+`LevenbergMarquardtOptimizer`) with 1/y² weights (see §2.0). An analytic Jacobian is provided
+to improve convergence speed and numerical stability.
 
 **Initial parameter guess (data-driven):**
 
 ```
-A₀ = min(signal values)          — bottom asymptote estimate
-D₀ = max(signal values)          — top asymptote estimate
-C₀ = √(xMin × xMax)              — geometric mean of concentration range
-B₀ = 1.0                         — neutral starting slope
+A₀ = min(signal values)                          — bottom asymptote estimate
+D₀ = max(signal values)                          — top asymptote estimate
+C₀ = √(xMin × xMax)                              — geometric mean of concentration range
+B₀ = estimateHillSlope(xData, yData)             — data-driven slope (see §2.0b; clamp [0.1, 10])
 ```
 
 **Minimum calibration points required:** 4 (one per free parameter).
@@ -321,7 +412,8 @@ slight asymmetry that the 4PL cannot capture; the 5PL typically yields lower res
 
 #### Regression method
 
-Levenberg-Marquardt with analytic Jacobian, identical library as 4PL.
+**Weighted Least Squares** via Levenberg-Marquardt with analytic Jacobian and 1/y² weights
+(see §2.0), identical library as 4PL.
 
 **Initial parameter guess:**
 
@@ -329,7 +421,7 @@ Levenberg-Marquardt with analytic Jacobian, identical library as 4PL.
 A₀ = min(signal values)
 D₀ = max(signal values)
 C₀ = √(xMin × xMax)
-B₀ = 1.0
+B₀ = estimateHillSlope(xData, yData)    — data-driven (see §2.0b)
 E₀ = 1.0   ← starts the optimizer at the symmetric 4PL solution
 ```
 
@@ -390,12 +482,13 @@ independently estimate A.
 
 #### Regression method
 
-Levenberg-Marquardt with analytic Jacobian.
+**Weighted Least Squares** via Levenberg-Marquardt with analytic Jacobian and 1/y² weights
+(see §2.0).
 
 **Initial guess:**
 
 ```
-B₀ = 1.0
+B₀ = estimateHillSlope(xData, yData)    — data-driven (see §2.0b)
 C₀ = √(xMin × xMax)
 D₀ = max(signal values) × 1.1    — slightly above maximum to ensure D > observed signals
 ```
@@ -609,12 +702,38 @@ the two raw signals within a single pair.
 
 ---
 
-### 3.2 Grubbs Test (between-pair)
+### 3.2 Grubbs Test (between-pair) — iterative
 
-The Grubbs test detects a **between-pair** outlier: a pair whose `signalMean` is anomalous
+The Grubbs test detects **between-pair** outliers: pairs whose `signalMean` is anomalous
 relative to other pairs measured at the same concentration level.
 
-**Test statistic:**
+#### Algorithm — iterative Grubbs
+
+The test is applied **iteratively** within each group (one outlier removed per pass) until
+no further outlier is detected or the active group shrinks below the minimum size (n = 3).
+
+**Iteration pseudocode:**
+
+```
+activeGroup ← copy of group
+do:
+    candidate ← pair with maximum |signalMean − mean(activeGroup)|
+    G          ← |signalMean_candidate − mean| / SD
+    if G > critical(|activeGroup|):
+        flag candidate as outlier
+        remove candidate from activeGroup
+        iteration++
+    else:
+        stop
+while flagged AND |activeGroup| ≥ 3
+```
+
+At each pass, `mean` and `SD` are **recomputed from the current active group** (excluding
+previously flagged pairs). The critical value is also re-looked-up for the updated group size.
+This ensures that masking effects — where one extreme outlier suppresses the detectability
+of a second — are resolved across passes.
+
+**Test statistic (per pass):**
 
 ```
 G = |x_suspect − mean| / SD
@@ -622,20 +741,16 @@ G = |x_suspect − mean| / SD
 
 Where:
 
-- `x_suspect` — `signalMean` of the candidate pair (the one with the largest absolute
-  deviation from the group mean)
-- `mean` — arithmetic mean of `signalMean` across all non-flagged pairs in the group
-- `SD` — sample standard deviation of `signalMean` across the group:
+- `x_suspect` — `signalMean` of the candidate pair (maximum absolute deviation from the group mean)
+- `mean` — arithmetic mean of `signalMean` across the current active group
+- `SD` — sample standard deviation of `signalMean` across the current active group:
   ```
   SD = √( Σ(xi − mean)² / (n − 1) )
   ```
 
-The pair with the maximum `|signalMean − mean|` is the candidate. If G exceeds the
-critical value for the group size at α = 0.05 (two-sided), that pair is flagged.
-
 **Grouping:** Pairs are grouped by `(pairType, concentrationNominal)`. The test is applied
-independently within each group. Only non-flagged pairs (not already caught by the CV criterion)
-are included in groups.
+independently within each group. Only pairs not already flagged by the %CV criterion are
+included.
 
 **Critical values** at α = 0.05 (two-sided), sourced from Grubbs (1969) and ISO 5725-2 Annex A:
 
@@ -652,7 +767,8 @@ are included in groups.
 | >10 | 2.290 (conservative) |
 
 **Applicability constraint:** The test requires **n ≥ 3 pairs per group**. Groups with fewer
-than 3 pairs are skipped; the CV criterion is the sole applicable test for those groups.
+than 3 pairs are skipped; the CV criterion is the sole applicable test for those groups. The
+iterative loop also stops when the active group would drop below 3 after removing an outlier.
 
 > **Known limitation for n = 3:** The theoretical maximum of the Grubbs statistic for three
 > observations is (n−1)/√n = 2/√3 ≈ 1.1547, which is effectively equal to the α = 0.05
@@ -660,12 +776,15 @@ than 3 pairs are skipped; the CV criterion is the sole applicable test for those
 > exactly 3 pairs. It becomes effective from n = 4 onward.
 
 ```java
-// OutlierDetectionService.applyGrubbsTest()
-double g = Math.abs(candidate.getSignalMean() - mean) / sd;
-double critical = GRUBBS_CRITICAL_VALUES.getOrDefault(n, GRUBBS_CRITICAL_VALUES.get(10));
-if (g > critical) {
-    return candidate.getId();   // flagged
-}
+// OutlierDetectionService.applyGrubbsTestIterative() — simplified
+do {
+    flaggedId = runSingleGrubbsPass(activeGroup, groupKey, iteration);
+    if (flaggedId != null) {
+        outlierIds.add(flaggedId);
+        activeGroup.removeIf(p -> p.getId().equals(flaggedId));
+        iteration++;
+    }
+} while (flaggedId != null && activeGroup.size() >= GRUBBS_MIN_GROUP_SIZE);
 ```
 
 **Standards / References:** Grubbs (1969); ASTM E178 §6; ISO 5725-2:2019 Annex A.
@@ -868,59 +987,175 @@ pairs in a group read exactly the same signal, the CV criterion (§3.1) will als
 
 ---
 
-## 6. Curve Fitting Convergence Metadata
+## 6. Curve Fitting Convergence Metadata and Goodness-of-Fit
 
-Non-linear fitters (4PL, 5PL, 3PL) append two diagnostic keys to the `CurveParameters`
+Non-linear fitters (4PL, 5PL, 3PL) append diagnostic metadata keys to the `CurveParameters`
 map after a successful fit. These keys use the `_` prefix to distinguish them from model
 parameters (e.g. `"A"`, `"B"`, `"C"`).
 
 **File:** `src/main/java/it/elismart_lims/service/curve/CurveParameters.java`
 
-| Key | Constant | Value when present | Fitters |
-|-----|----------|--------------------|---------|
-| `_convergence` | `CurveParameters.META_CONVERGENCE` | `1.0` if the Levenberg-Marquardt optimizer converged normally; `0.0` if not | 4PL, 5PL, 3PL |
-| `_rms` | `CurveParameters.META_RMS` | Root-mean-square residual of the final fit (same units as the signal axis) | 4PL, 5PL, 3PL |
+| Key constant | JSON key | Fitters | Meaning |
+|---|---|---|---|
+| `META_CONVERGENCE` | `_convergence` | 4PL, 5PL, 3PL | `1.0` = converged; `0.0` = did not converge |
+| `META_RMS` | `_rms` | 4PL, 5PL, 3PL | Weighted RMS residual from LM optimizer |
+| `META_R2` | `_r2` | 4PL, 5PL, 3PL | Unweighted coefficient of determination R² |
+| `META_RMSE` | `_rmse` | 4PL, 5PL, 3PL | Unweighted RMSE (signal units) |
+| `META_DF` | `_df` | 4PL, 5PL, 3PL | Degrees of freedom (n − p) |
+| `META_EC50_LOWER95` | `_ec50_lower95` | 4PL only | 95% CI lower bound on EC₅₀ (parameter C) |
+| `META_EC50_UPPER95` | `_ec50_upper95` | 4PL only | 95% CI upper bound on EC₅₀ (parameter C) |
 
 **Linear models** (`LinearFitter`, `SemiLogLinearFitter`) do not include these keys because
 OLS regression always produces a unique solution with no iterative convergence.
 `PointToPointFitter` does not include them because it stores calibration point arrays, not
 a converged parametric fit.
 
-### `_convergence` semantics
+All metadata keys are accessible via `GET /api/experiments/{id}` in the `curveParameters`
+field of the JSON response. They are stored for diagnostic and auditing purposes — none of
+them feed directly into the pass/fail decision.
 
-The fitter throws `IllegalStateException` (propagated as `VALIDATION_ERROR`) if the
-Levenberg-Marquardt optimizer raises a `ConvergenceException`. In practice, the value
-`_convergence = 0.0` should never appear in a stored `CurveParameters` because the fitter
-already threw before setting it; it is written defensively.
+---
 
-`ExperimentService` reads this key as a second-level guard:
+### 6.1 Convergence and Weighted RMS
+
+**`_convergence`** — the fitter throws `IllegalStateException` (propagated as
+`VALIDATION_ERROR`) if the Levenberg-Marquardt optimizer raises a `ConvergenceException`.
+In practice `_convergence = 0.0` should never appear in a stored `CurveParameters`; it is
+written defensively as a second-level guard read by `ExperimentService`:
 
 ```java
 double convergenceFlag = curveParams.values()
     .getOrDefault(CurveParameters.META_CONVERGENCE, 1.0);
 if (convergenceFlag == 0.0) {
-    log.warn("Experiment id={} — curve parameters carry _convergence=0 ...", id);
     // experiment status → VALIDATION_ERROR
 }
 ```
 
-### `_rms` semantics
+**`_rms`** — the WLS residual from the Levenberg-Marquardt final iteration. It reflects the
+fit quality on the **weighted** scale (residuals divided by σ = 1/wᵢ). A high value indicates
+that the WLS objective was not well-minimised; a low value does not by itself mean a good fit
+in signal units (see `_rmse` below for an unweighted assessment).
 
-The RMS residual is the square root of the mean squared difference between observed
-signals and the model predictions at each calibration concentration:
+---
+
+### 6.2 Goodness-of-Fit: R², Unweighted RMSE, and Degrees of Freedom
+
+These three metrics are computed **after** the WLS optimizer converges, using **unweighted**
+residuals between the observed calibration signals and the signals predicted by the fitted
+model. They quantify how well the model explains the calibration data on the original signal
+scale.
+
+**File:** `CurveFitter.computeGoodnessOfFit(List<CalibrationPoint>, double[])` — called by
+all three nonlinear fitters after storing the LM result.
+
+#### Degrees of Freedom (df)
 
 ```
-RMS = √( Σ(yᵢ_observed − yᵢ_predicted)² / n )
+df = n − p
 ```
 
-It is stored for diagnostic and auditing purposes only — it does **not** feed into the
-pass/fail decision. A high RMS indicates a poor curve fit; the analyst should inspect
-the calibration data for outlier calibrators or reagent degradation before accepting
-the experiment.
+Where `n` = number of valid calibration points, `p` = number of free parameters in the model
+(4 for 4PL, 5 for 5PL, 3 for 3PL). Stored as `_df`.
 
-The RMS is serialised into the `curve_parameters` JSON column on the `experiment` table
-alongside the model parameters. It is accessible via `GET /api/experiments/{id}` in the
-`curveParameters` field of the response.
+When `df ≤ 0`, R² and RMSE are set to `null` — the system is exactly or over-determined and
+the metrics are undefined.
+
+#### Unweighted RMSE
+
+```
+RMSE = √( Σ(yᵢ_observed − yᵢ_predicted)² / n )
+```
+
+Units are the same as the signal axis (e.g., absorbance units). Stored as `_rmse`.
+
+**Interpretation:** RMSE expresses the average absolute prediction error in signal units. A
+value below 1–5% of the total signal range is typically indicative of an acceptable fit. High
+RMSE (> 10% of range) should prompt the analyst to inspect the calibration data for outlier
+calibrators or reagent degradation.
+
+#### Coefficient of Determination (R²)
+
+```
+SS_res = Σ(yᵢ_observed − yᵢ_predicted)²
+SS_tot = Σ(yᵢ_observed − ȳ)²             where ȳ = mean(yᵢ_observed)
+R²     = 1 − SS_res / SS_tot
+```
+
+R² is dimensionless. Stored as `_r2`.
+
+**Interpretation:** R² = 1.0 is a perfect fit; R² < 0 means the model is worse than the
+horizontal line at ȳ. For immunoassay calibration, R² ≥ 0.99 is typically acceptable; values
+below 0.99 should be investigated.
+
+> **Important:** R² is an unweighted measure. Because the WLS optimizer intentionally
+> down-weights high-signal points, a high R² does not guarantee good WLS convergence, and
+> vice versa. Both `_rms` (weighted) and `_r2` / `_rmse` (unweighted) should be reviewed
+> together.
+
+```java
+// CurveFitter.computeGoodnessOfFit() — simplified
+double ssRes = IntStream.range(0, n).mapToDouble(i ->
+    Math.pow(obs[i] - pred[i], 2)).sum();
+double ssTot = IntStream.range(0, n).mapToDouble(i ->
+    Math.pow(obs[i] - mean, 2)).sum();
+double r2   = (ssTot < 1e-12) ? null : 1.0 - ssRes / ssTot;
+double rmse = Math.sqrt(ssRes / n);
+```
+
+---
+
+### 6.3 95% Confidence Interval on EC₅₀ (4PL parameter C)
+
+The 95% confidence interval on the EC₅₀ (inflection point C of the 4PL model) is derived
+from the asymptotic covariance matrix of the Levenberg-Marquardt solution.
+
+**Applicability:** 4PL fitter only. Requires `df ≥ 1` (at least 5 calibration points for a
+4-parameter model). Stored as `_ec50_lower95` and `_ec50_upper95`.
+
+#### Formula
+
+```
+SE(C) = √( σ² × [J^T W J]⁻¹ ₍C,C₎ )
+
+CI₉₅ = C ± t(df, 0.025) × SE(C)
+```
+
+Where:
+
+- `J` — Jacobian matrix of the 4PL model evaluated at the converged parameter vector
+  (n × 4, one row per calibration point, one column per parameter A/B/C/D).
+- `W` — diagonal weight matrix (`wᵢ = 1/signalᵢ²`, same as the fitting weights).
+- `[J^T W J]⁻¹` — Fisher information matrix inverse (approximate covariance matrix at the
+  solution). The `(C, C)` element (index `[2][2]`) is the variance of the C estimate.
+- `σ²` — scale factor: `σ² = weighted_rms² × n / df`. This re-scales the Fisher information
+  matrix from the normalised LM space back to signal-variance units.
+- `t(df, 0.025)` — Student's t critical value at two-tailed α = 0.05 for `df` degrees of
+  freedom, computed via `TDistribution(df).inverseCumulativeProbability(0.975)`.
+
+**Failure modes:** if the covariance matrix is singular (near-zero determinant — occurs when
+calibration points provide insufficient curvature information), both bounds are set to `null`
+and a WARN-level log entry is produced. The experiment proceeds normally; the CI is simply
+not available for that run.
+
+```java
+// FourPLFitter — EC50 CI (simplified)
+double df       = xData.length - 4;
+double sigma2   = weightedRms * weightedRms * xData.length / df;
+double varC     = sigma2 * covMatrix[2][2];   // (C, C) element
+double seC      = Math.sqrt(varC);
+double tValue   = new TDistribution(df).inverseCumulativeProbability(0.975);
+double lower95  = fitted[2] - tValue * seC;
+double upper95  = fitted[2] + tValue * seC;
+```
+
+**How to read the CI:** If `_ec50_lower95 = 0.25` and `_ec50_upper95 = 0.40` with units
+ng/mL, there is 95% probability that the true EC₅₀ lies between 0.25 and 0.40 ng/mL under
+the WLS model assumptions. A narrow CI indicates a well-defined inflection point; a wide CI
+(spanning more than an order of magnitude on the concentration axis) indicates insufficient
+calibrators around the sigmoid midpoint.
+
+**Standards / References:** Seber & Wild (2003), *Nonlinear Regression* §5.1 (asymptotic
+standard errors); Motulsky & Christopoulos (2004), *Fitting Models to Biological Data* §20.
 
 ---
 

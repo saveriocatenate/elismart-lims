@@ -152,7 +152,7 @@ If your plate reader software can export results as a CSV file (Tecan Magellan, 
 
 1. After filling in the experiment header and reagent lots (steps 1–4 above), select the **Import from CSV** tab.
 2. Upload your CSV file.
-3. A well-mapping interface will appear. Assign each well to a **pair type** (Calibrator, Control, or Sample) and enter the nominal concentrations for the calibration points.
+3. A well-mapping interface will appear. For each well, select a **pair type** (Calibrator, Control, or Sample) and enter the nominal concentration for calibration points. You can assign multiple wells to the same pair type in a single step using the **bulk-assign** control — select several wells at once, choose their pair type and nominal concentration, and click **Apply to selected** to set all of them together.
 4. Click **Import**. The system parses the file, maps the signals to measurement pairs, and calculates all quality metrics automatically.
 5. Review the imported pairs and click **Save Experiment**.
 
@@ -194,6 +194,38 @@ This page shows:
 
 > **Understanding the colour coding:** A green row means both %CV and %Recovery are within the protocol limits. A red row means at least one value is out of range. Outlier pairs are shown with a strikethrough or a distinct style and were excluded from the pass/fail decision.
 
+### Calibration Curve Quality Metrics
+
+For experiments using nonlinear curve models (4PL, 5PL, 3PL), additional goodness-of-fit
+statistics are displayed in the **Protocol details** expander and in the curve parameters
+section:
+
+| Metric | What it means |
+|---|---|
+| **R²** | Coefficient of determination. How well the fitted curve explains the calibration signal data. Values ≥ 0.99 are generally acceptable; lower values indicate a poor fit. |
+| **RMSE** | Root-mean-square error in signal units. The average absolute deviation between observed calibrator signals and the model's predicted signals. Compare this to the total signal range — an RMSE below 1–5% of range is typically good. |
+| **df** | Degrees of freedom (number of calibrators minus number of model parameters). Shown for context; CI calculations require df ≥ 1. |
+
+### EC₅₀ Confidence Interval (4PL only)
+
+For experiments fitted with the 4PL model, the **95% confidence interval on EC₅₀** (the
+inflection point of the sigmoid, stored as parameter C) is shown alongside the C value:
+
+```
+EC₅₀ = 0.32 ng/mL  [95% CI: 0.27 – 0.38]
+```
+
+**How to read it:** the true EC₅₀ lies within this range with 95% probability under the
+weighted regression model. A **narrow CI** (less than a 2-fold concentration range) indicates
+a well-defined sigmoid midpoint — the calibration data adequately constrained the inflection
+point. A **wide CI** (spanning an order of magnitude or more) means the sigmoid midpoint is
+poorly defined — you may need more calibration points near the EC₅₀ region or a broader
+concentration range.
+
+If the CI is shown as `—` (not available), the covariance matrix was singular: the calibration
+data did not provide enough curvature information to compute a reliable standard error for C.
+This does not invalidate the fit, but the uncertainty on C is not quantifiable from these data.
+
 ---
 
 ## 9. Editing an Experiment Record
@@ -226,6 +258,17 @@ From the Dashboard, click **Search Experiments** to open the search page. You ca
 Click **Search** to run the query. Results are displayed in a paginated table showing name, protocol, date, and status.
 
 Each row has a **Details** button to open the full record, and a **checkbox** to select experiments for comparison or batch export.
+
+### My Experiments Filter
+
+At the top of the search page you will find a **"My experiments"** toggle. When enabled
+(the default for Analysts and Reviewers), the results are restricted to experiments you
+created. Disable the toggle to see all experiments accessible under your role.
+
+> **Administrators** see all experiments by default — their toggle is off when the page loads.
+
+This filter helps keep your personal work front-and-centre in busy multi-user labs without
+hiding the full experiment database when you need to review other team members' runs.
 
 ---
 

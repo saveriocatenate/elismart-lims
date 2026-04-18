@@ -115,6 +115,7 @@ Copy `.env.example` to `.env` and source it before starting the backend (`source
 | `ADMIN_PASSWORD` | No | *(random)* | Password for the `admin` user created on first boot. If absent or blank, a cryptographically random 16-character password is generated and printed to **stdout only** (see [First Login](#getting-started) above). Ignored on subsequent starts. |
 | `GEMINI_API_KEY` | No | *(empty)* | Google Gemini API key. Required for `POST /api/ai/analyze`. If absent, the endpoint returns HTTP 502; all other features work normally. |
 | `GEMINI_MODEL` | No | `gemini-2.0-flash` | Overrides the Gemini model name. Only useful when testing with a specific model version. |
+| `GEMINI_TIMEOUT_MS` | No | `120000` | Gemini HTTP read timeout in milliseconds (120 s). Increase for very large prompts or slow network links. |
 | `JWT_EXPIRATION_MS` | No | `86400000` | JWT token lifetime in milliseconds. Default is 24 hours (86,400,000 ms). |
 | `CORS_ALLOWED_ORIGIN` | No | `http://localhost:8501` | Origin allowed by the CORS policy. Must match the URL where the Streamlit frontend is served. **Required for any non-local deployment** (e.g., Pinggy tunnels, cloud hosting). |
 
@@ -129,6 +130,41 @@ Copy `.env.example` to `.env` and source it before starting the backend (`source
 > backend_url = "http://localhost:8080"
 > ```
 > This file is gitignored and must never be committed.
+
+---
+
+## 👥 Multi-User Data Isolation
+
+EliSmart LIMS supports multiple concurrent users with per-user data isolation in the
+experiment search view.
+
+**Default behaviour:** each user sees only their own experiments (those where `createdBy`
+matches their username). The **Search Experiments** page opens with the "My experiments"
+toggle enabled by default.
+
+**Administrators:** the default is reversed — Admins see all experiments immediately
+(toggle is off by default) to facilitate oversight and troubleshooting.
+
+**Switching views:** any user can disable the "My experiments" toggle on the search page
+to view all experiments they have permission to access (role-based rules still apply).
+
+This behaviour is controlled server-side via the `mine` boolean field in `ExperimentSearchRequest`.
+When `mine = true`, `ExperimentService` injects `createdBy = <authenticated username>` into
+the JPA specification before querying.
+
+---
+
+## 📐 Concentration Units in Protocols
+
+Each Protocol stores a `concentrationUnit` field that specifies the unit of measure for
+nominal concentrations in that assay (e.g. `ng/mL`, `pg/mL`, `IU/L`, `nmol/L`).
+
+The unit is set once at protocol creation and displayed throughout the application wherever
+nominal or interpolated concentrations are shown. Pre-defined common units are available in
+the protocol creation form; an "Other" option allows free-text entry for non-standard units.
+
+The `concentrationUnit` field is informational — it is stored and displayed but does not
+affect any arithmetic calculation in the validation engine or curve fitting.
 
 ---
 

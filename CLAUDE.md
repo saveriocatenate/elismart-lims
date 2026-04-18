@@ -23,6 +23,7 @@ EliSmart LIMS: a Laboratory Information Management System featuring hierarchical
 - `ADMIN_PASSWORD` — password for the `admin` user seeded on first boot (optional; random 16-char password generated if absent)
 - `GEMINI_API_KEY` — Google Gemini API key (required for `/api/ai/analyze`; other endpoints work without it)
 - `GEMINI_MODEL` — override Gemini model name (optional, defaults to `gemini-2.0-flash`)
+- `GEMINI_TIMEOUT_MS` — Gemini HTTP read timeout in milliseconds (optional, defaults to `120000` = 120 s)
 - `JWT_EXPIRATION_MS` — token expiration in milliseconds (optional, defaults to `86400000` = 24 h)
 - `CORS_ALLOWED_ORIGIN` — allowed CORS origin (optional, defaults to `http://localhost:8501`; **required for non-local deployments**)
 
@@ -117,14 +118,21 @@ Each constant carries `displayName`, `description`, and `requiredParameters` fie
 
 **%CV formula:** `%CV = (SD / Mean) × 100` where `SD = |signal1 − signal2| / √2` for n=2 replicates. This is the ISO 5725 / CLSI EP15-A3 compliant definition. The formula is documented in `ValidationConstants.java`.
 
+**Grubbs test — iterative:** `OutlierDetectionService` applies the Grubbs between-pair outlier test iteratively within each `(pairType, concentrationNominal)` group. Each pass removes one outlier and recomputes mean/SD/critical-value for the reduced group before the next pass. The loop stops when no outlier is detected or the active group would drop below 3 pairs. See `applyGrubbsTestIterative()` in `OutlierDetectionService`.
+
 ### Curve Fitting
 
 Each `CurveType` has a corresponding fitter class implementing `CurveFitter` interface:
-- `FourPLFitter`: fits `y = D + (A - D) / (1 + (x / C)^B)` using Levenberg-Marquardt optimization.
-- `FivePLFitter`: adds asymmetry parameter E.
-- `LinearFitter`, `SemiLogLinearFitter`, `PointToPointFitter`: simpler models.
+- `FourPLFitter`: fits `y = D + (A - D) / (1 + (x / C)^B)` using Levenberg-Marquardt optimization with **WLS (1/y² weights)**.
+- `FivePLFitter`: adds asymmetry parameter E; also uses WLS.
+- `LogLogistic3PFitter`: 4PL with A fixed at 0; uses WLS.
+- `LinearFitter`, `SemiLogLinearFitter`, `PointToPointFitter`: simpler models (OLS or non-parametric).
 
-Fitted parameters are stored as JSON in `Experiment.curveParameters` (column `curve_parameters`, type CLOB). Non-linear fitters (4PL, 5PL, 3PL) also store two diagnostic keys: `_convergence` (`1.0` = converged) and `_rms` (root-mean-square residual). The `CurveFittingService.interpolateConcentration(CurveType, double signal, CurveParameters)` method returns the back-calculated concentration.
+**WLS default for nonlinear fitters:** `FourPLFitter`, `FivePLFitter`, and `LogLogistic3PFitter` use 1/y² weighted least squares via `CurveFitter.computeWeights()`. Weights are `1/signal²` (fallback `1.0` when signal ≤ 0). This is the regulatory-recommended approach for heteroscedastic immunoassay data (Findlay & Dillard 2007).
+
+**Data-driven initial slope (B₀):** `CurveFitter.estimateHillSlope()` estimates B₀ from the 10th/90th-percentile concentration ratio instead of defaulting to `1.0`. The estimate is clamped to `[0.1, 10]`; fallback is `1.0` if computation yields NaN/Infinity.
+
+Fitted parameters are stored as JSON in `Experiment.curveParameters` (column `curve_parameters`, type CLOB). Non-linear fitters (4PL, 5PL, 3PL) store metadata keys: `_convergence`, `_rms` (weighted), `_r2`, `_rmse` (unweighted), `_df`, and for 4PL: `_ec50_lower95` / `_ec50_upper95` (95% CI on parameter C via Fisher information matrix). See `CurveParameters` constants. The `CurveFittingService.interpolateConcentration(CurveType, double signal, CurveParameters)` method returns the back-calculated concentration.
 
 ### CSV Import
 
@@ -199,6 +207,8 @@ Backend port: `8080`. Frontend reads `backend_url` from `secrets.toml` or `BACKE
 
 Frontend auth: every page calls `check_auth()` which verifies JWT token validity via session state. If no valid token, redirects to login page. Login page sends credentials to `/api/auth/login` and stores returned JWT. Sidebar contains a logout button that clears the token.
 
+**Experiment data isolation (`mine` filter):** `ExperimentSearchRequest` carries a `mine` boolean. When `true`, `ExperimentService.searchExperiments()` resolves the authenticated principal and injects `createdBy = <username>` into the JPA specification before executing the query. The frontend (`search_experiments.py`) exposes this as a toggle defaulting to `true` for ANALYST/REVIEWER and `false` for ADMIN. Never bypass this by querying `ExperimentRepository` directly — always go through `ExperimentService.searchExperiments()`.
+
 ### AI Integration
 
 `GeminiService` builds a three-section structured prompt (`[SYSTEM_CONTEXT]`, `[EXPERIMENT_DATA]`, `[USER_QUERY]`) and calls the LangChain4j `ChatLanguageModel` bean configured in `GeminiConfig`. The timeout is set to 120 seconds to accommodate long-running analysis. The application starts without a Gemini key (empty default) — the `/api/ai/analyze` endpoint will fail gracefully with a `GeminiServiceException` (502) if the key is missing or invalid. Gemini calls use retry with exponential backoff (3 attempts). AI analysis results are persisted in `AiInsight` entity linked to the experiment(s) analyzed, so they survive page refresh.
@@ -231,7 +241,8 @@ Rules that apply to every arithmetic operation inside fitter classes (`FourPLFit
   The message must include the input values so the cause is diagnosable from logs alone.
 - **Zero-concentration points**: calibration points with `concentrationNominal == 0` must be excluded from nonlinear fitting (4PL, 5PL, 3PL) before the optimisation loop. If such points exist, log a warning at `WARN` level and proceed with the remaining points. Do not silently include them — `Math.log(0)` is `-Infinity`.
 - **%Recovery skip rule**: if `concentrationNominal <= 0` for a CONTROL or SAMPLE pair, skip the %Recovery calculation, set `recoveryPct = null`, and log a `WARN`-level message. Never divide by zero or produce `Infinity` in a persisted field.
-- **Grubbs SD threshold**: the Grubbs outlier test uses `Math.abs(sd) < 1e-12` (not `sd == 0`) to detect degenerate distributions where all replicates are identical. When this threshold is met, skip the test and return no outliers.
+- **Grubbs SD threshold**: the Grubbs outlier test uses `Math.abs(sd) < 1e-12` (not `sd == 0`) to detect degenerate distributions where all replicates are identical. When this threshold is met, skip the test and return no outliers for that pass.
+- **Grubbs iterative**: `OutlierDetectionService.applyGrubbsTestIterative()` calls `runSingleGrubbsPass()` in a loop, removing one flagged pair per pass and recomputing mean/SD/critical value for the reduced group, until no outlier is found or the group drops below 3 pairs.
 
 ### Experiment Status — State Machine
 

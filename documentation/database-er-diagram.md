@@ -21,6 +21,7 @@ erDiagram
         Double max_cv_allowed "Max acceptable %CV between replicates"
         Double max_error_allowed "Max acceptable %Recovery error"
         String curve_type "FOUR_PARAMETER_LOGISTIC | FIVE_PARAMETER_LOGISTIC | LOG_LOGISTIC_3P | LINEAR | SEMI_LOG_LINEAR | POINT_TO_POINT"
+        String concentration_unit "Unit of measure for nominal concentrations (e.g. ng/mL, pg/mL) — added in V15"
         Timestamp created_at "Set by JPA auditing"
         Timestamp updated_at "Set by JPA auditing"
         String created_by "Set by JPA auditing"
@@ -33,7 +34,7 @@ erDiagram
         LocalDateTime date
         String status "PENDING | COMPLETED | OK | KO | VALIDATION_ERROR"
         Long protocol_id FK
-        String curve_parameters "JSON: fitted curve params (A,B,C,D for 4PL etc.)"
+        String curve_parameters "JSON: fitted curve params + metadata (_convergence, _rms, _r2, _rmse, _df, _ec50_lower95/upper95 for 4PL)"
         Timestamp created_at "Set by JPA auditing"
         Timestamp updated_at "Set by JPA auditing"
         String created_by "Set by JPA auditing"
@@ -152,8 +153,9 @@ erDiagram
 
 ## Schema Notes
 
-- Migrations live in `src/main/resources/db/migration/` (V1–V14).
+- Migrations live in `src/main/resources/db/migration/` (V1–V15).
 - `USED_REAGENT_BATCH.reagent_batch_id` replaced the old `reagent_id + lot_number` columns in V12–V13.
-- `EXPERIMENT.curve_parameters` stores fitted model coefficients as a JSON string (added in V10).
+- `EXPERIMENT.curve_parameters` stores fitted model coefficients as a JSON string (added in V10). Non-linear fitters (4PL, 5PL, 3PL) also persist diagnostic keys: `_convergence`, `_rms` (weighted), `_r2`, `_rmse`, `_df`, and for 4PL: `_ec50_lower95` / `_ec50_upper95`.
+- `PROTOCOL.concentration_unit` stores the measurement unit for nominal concentrations (e.g. `ng/mL`) — added in V15. NOT NULL, max 20 chars.
 - All entities extend `Auditable` — `created_at`, `updated_at`, `created_by`, `updated_by` are populated automatically by Spring Data JPA auditing.
 - `AUDIT_LOG` has no `updated_at` column — entries are immutable by design.

@@ -170,6 +170,7 @@ Search experiments with optional filters and paginated results.
   "dateFrom": "2026-04-01T00:00:00",
   "dateTo": "2026-04-30T23:59:59",
   "status": "OK",
+  "mine": true,
   "page": 0,
   "size": 20
 }
@@ -181,6 +182,7 @@ Search experiments with optional filters and paginated results.
 - `dateFrom` (LocalDateTime, optional) — range start
 - `dateTo` (LocalDateTime, optional) — range end
 - `status` (String, optional) — exact match; one of `OK`, `KO`, `VALIDATION_ERROR`
+- `mine` (boolean, optional, default `false`) — when `true`, restricts results to experiments where `createdBy` equals the authenticated user's username. Resolved server-side from the JWT principal; any `createdBy` value in the request body is ignored.
 - `page` (int) — zero-based page number
 - `size` (int) — page size
 
