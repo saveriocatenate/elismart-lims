@@ -17,6 +17,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Service that builds a structured prompt from experiment data and queries the Google Gemini API
@@ -256,7 +257,7 @@ public class GeminiService {
      * @return the SYSTEM_CONTEXT string
      */
     private String buildSystemContext(int count, ProtocolResponse protocol) {
-        return String.format(
+        return String.format(Locale.ROOT,
                 "You are a senior Biotech Analyst for EliSmart. " +
                 "Analyze the following %d laboratory assay experiment(s) run under the \"%s\" protocol.\n" +
                 "Protocol Limits: Max %%CV: %.1f%% | Max %%Error: %.1f%%.",
@@ -290,7 +291,7 @@ public class GeminiService {
     private String formatExperiment(ExperimentResponse exp) {
         StringBuilder sb = new StringBuilder();
         String date = exp.date() != null ? exp.date().toLocalDate().toString() : "unknown date";
-        sb.append(String.format("Exp %d \"%s\" (%s): Status %s.",
+        sb.append(String.format(Locale.ROOT, "Exp %d \"%s\" (%s): Status %s.",
                 exp.id(), exp.name(), date, exp.status()));
 
         // Reagent lots
@@ -336,18 +337,18 @@ public class GeminiService {
             return "";
         }
         StringBuilder sb = new StringBuilder(
-                String.format("\n%s (%d pair%s):", label, pairs.size(), pairs.size() == 1 ? "" : "s"));
+                String.format(Locale.ROOT, "\n%s (%d pair%s):", label, pairs.size(), pairs.size() == 1 ? "" : "s"));
         int idx = 1;
         for (MeasurementPairResponse p : pairs) {
             String outlierPrefix = Boolean.TRUE.equals(p.isOutlier()) ? "⚠️ OUTLIER " : "";
-            String cv   = p.cvPct()       != null ? String.format("%.1f%%", p.cvPct())       : "—";
-            String rec  = p.recoveryPct() != null ? String.format("%.1f%%", p.recoveryPct()) : "—";
+            String cv   = p.cvPct()       != null ? String.format(Locale.ROOT, "%.1f%%", p.cvPct())       : "—";
+            String rec  = p.recoveryPct() != null ? String.format(Locale.ROOT, "%.1f%%", p.recoveryPct()) : "—";
             String status = p.pairStatus() != null ? p.pairStatus().name() : "—";
-            String conc = p.concentrationNominal() != null ? String.format("%.4f", p.concentrationNominal()) : "—";
-            String s1   = p.signal1()   != null ? String.format("%.4f", p.signal1())   : "—";
-            String s2   = p.signal2()   != null ? String.format("%.4f", p.signal2())   : "—";
-            String mean = p.signalMean() != null ? String.format("%.4f", p.signalMean()) : "—";
-            sb.append(String.format(
+            String conc = p.concentrationNominal() != null ? String.format(Locale.ROOT, "%.4f", p.concentrationNominal()) : "—";
+            String s1   = p.signal1()   != null ? String.format(Locale.ROOT, "%.4f", p.signal1())   : "—";
+            String s2   = p.signal2()   != null ? String.format(Locale.ROOT, "%.4f", p.signal2())   : "—";
+            String mean = p.signalMean() != null ? String.format(Locale.ROOT, "%.4f", p.signalMean()) : "—";
+            sb.append(String.format(Locale.ROOT,
                     "%n  %s[%d] conc=%s | s1=%s | s2=%s | mean=%s | %%CV=%s | %%Rec=%s | %s",
                     outlierPrefix, idx++, conc, s1, s2, mean, cv, rec, status));
         }
@@ -382,16 +383,16 @@ public class GeminiService {
 
             StringBuilder content = new StringBuilder();
 
-            if (r2 != null) content.append(String.format("R²=%.4f", ((Number) r2).doubleValue()));
+            if (r2 != null) content.append(String.format(Locale.ROOT, "R²=%.4f", ((Number) r2).doubleValue()));
             if (rmse != null) {
                 if (content.length() > 0) content.append(" | ");
-                content.append(String.format("RMSE=%.4f", ((Number) rmse).doubleValue()));
+                content.append(String.format(Locale.ROOT, "RMSE=%.4f", ((Number) rmse).doubleValue()));
             }
             if (ec50 != null) {
                 if (content.length() > 0) content.append(" | ");
-                content.append(String.format("EC50=%.3f", ((Number) ec50).doubleValue()));
+                content.append(String.format(Locale.ROOT, "EC50=%.3f", ((Number) ec50).doubleValue()));
                 if (ec50Lower != null && ec50Upper != null) {
-                    content.append(String.format(" (95%% CI: %.3f\u2013%.3f)",
+                    content.append(String.format(Locale.ROOT, " (95%% CI: %.3f\u2013%.3f)",
                             ((Number) ec50Lower).doubleValue(), ((Number) ec50Upper).doubleValue()));
                 }
             }

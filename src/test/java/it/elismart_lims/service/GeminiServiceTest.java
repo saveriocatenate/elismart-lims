@@ -11,8 +11,10 @@ import it.elismart_lims.dto.UsedReagentBatchResponse;
 import it.elismart_lims.exception.model.GeminiServiceException;
 import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.ExperimentStatus;
+import it.elismart_lims.model.PairStatus;
 import it.elismart_lims.model.PairType;
 import org.junit.jupiter.api.BeforeEach;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -69,7 +71,7 @@ class GeminiServiceTest {
 
     @BeforeEach
     void setUp() {
-        geminiService = new GeminiService(chatLanguageModel, experimentService, protocolService, aiInsightService);
+        geminiService = new GeminiService(chatLanguageModel, experimentService, protocolService, aiInsightService, new com.fasterxml.jackson.databind.ObjectMapper());
 
         // Set up a test security context so resolveCurrentUsername() returns "testuser"
         SecurityContextHolder.getContext().setAuthentication(
@@ -340,5 +342,65 @@ class GeminiServiceTest {
 
         // then
         verify(aiInsightService).save(eq("Q"), eq("Insight text"), eq("testuser"), eq(List.of(1L)));
+    }
+
+    /**
+     * Verifies that the prompt sent to Gemini includes per-pair signals, outlier flag,
+     * curve fit metrics (R², RMSE, EC50, CI), and convergence status.
+     */
+    @Test
+    void analyze_promptContainsPerPairDetailAndCurveParams() {
+        // given — an experiment with curve parameters and one outlier calibration pair
+        String curveJson = "{\"A\":0.05,\"B\":1.8,\"C\":12.34,\"D\":3.2,"
+                + "\"_convergence\":1.0,\"_rms\":0.002,\"_r2\":0.9987,\"_rmse\":0.0021,"
+                + "\"_df\":4.0,\"_ec50_lower95\":11.8,\"_ec50_upper95\":12.9}";
+
+        MeasurementPairResponse outlierPair = MeasurementPairResponse.builder()
+                .id(10L)
+                .pairType(PairType.CALIBRATION)
+                .concentrationNominal(5.0)
+                .signal1(4.5)
+                .signal2(4.6)
+                .signalMean(4.55)
+                .cvPct(8.1)
+                .recoveryPct(105.2)
+                .isOutlier(true)
+                .pairStatus(PairStatus.FAIL)
+                .build();
+
+        ExperimentResponse expWithCurve = ExperimentResponse.builder()
+                .id(1L)
+                .name("Exp A")
+                .date(LocalDateTime.of(2026, 4, 1, 9, 0))
+                .status(ExperimentStatus.OK)
+                .protocolName("ELISA Dose-Response")
+                .curveParameters(curveJson)
+                .usedReagentBatches(List.of())
+                .measurementPairs(List.of(outlierPair))
+                .build();
+
+        when(experimentService.getById(1L)).thenReturn(expWithCurve);
+        when(protocolService.getByName("ELISA Dose-Response")).thenReturn(sampleProtocol);
+        when(chatLanguageModel.generate(anyString())).thenReturn("AI result");
+
+        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+
+        // when
+        geminiService.analyze(new GeminiAnalysisRequest(List.of(1L), "Analyze"));
+
+        // then — verify prompt structure
+        verify(chatLanguageModel).generate(promptCaptor.capture());
+        String prompt = promptCaptor.getValue();
+
+        assertThat(prompt).contains("⚠️ OUTLIER");
+        assertThat(prompt).contains("R²=0.9987");
+        assertThat(prompt).contains("RMSE=0.0021");
+        assertThat(prompt).contains("EC50=12.340");
+        assertThat(prompt).contains("95% CI:");
+        assertThat(prompt).contains("Converged");
+        assertThat(prompt).contains("%CV=8.1%");
+        assertThat(prompt).contains("%Rec=105.2%");
+        assertThat(prompt).contains("FAIL");
+        assertThat(prompt).contains("CALIBRATION (1 pair):");
     }
 }
