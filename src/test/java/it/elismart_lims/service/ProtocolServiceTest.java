@@ -193,15 +193,15 @@ class ProtocolServiceTest {
     @Test
     void update_shouldUpdateFieldsAndReturnResponse() {
         protocol.setId(1L);
-        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0, CurveType.FOUR_PARAMETER_LOGISTIC, "ng/mL");
+        ProtocolRequest updateRequest = new ProtocolRequest("IgG v2", 7, 3, 12.0, 8.0, CurveType.FOUR_PARAMETER_LOGISTIC, "IU/mL");
         when(protocolRepository.findById(1L)).thenReturn(Optional.of(protocol));
         when(experimentService.existsByProtocolId(1L)).thenReturn(false);
-        when(protocolRepository.save(any(Protocol.class))).thenReturn(protocol);
+        when(protocolRepository.save(any(Protocol.class))).thenAnswer(inv -> inv.getArgument(0));
 
         var result = protocolService.update(1L, updateRequest);
 
         assertThat(result.name()).isEqualTo("IgG v2");
-        assertThat(result.concentrationUnit()).isEqualTo("ng/mL");
+        assertThat(result.concentrationUnit()).isEqualTo("IU/mL");
         verify(protocolRepository).save(protocol);
     }
 
