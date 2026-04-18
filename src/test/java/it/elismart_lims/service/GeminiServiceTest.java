@@ -13,6 +13,7 @@ import it.elismart_lims.exception.model.ResourceNotFoundException;
 import it.elismart_lims.model.ExperimentStatus;
 import it.elismart_lims.model.PairStatus;
 import it.elismart_lims.model.PairType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
@@ -71,7 +72,7 @@ class GeminiServiceTest {
 
     @BeforeEach
     void setUp() {
-        geminiService = new GeminiService(chatLanguageModel, experimentService, protocolService, aiInsightService, new com.fasterxml.jackson.databind.ObjectMapper());
+        geminiService = new GeminiService(chatLanguageModel, experimentService, protocolService, aiInsightService, new ObjectMapper());
 
         // Set up a test security context so resolveCurrentUsername() returns "testuser"
         SecurityContextHolder.getContext().setAuthentication(
@@ -345,8 +346,13 @@ class GeminiServiceTest {
     }
 
     /**
-     * Verifies that the prompt sent to Gemini includes per-pair signals, outlier flag,
-     * curve fit metrics (R², RMSE, EC50, CI), and convergence status.
+     * Verifies that the prompt sent to Gemini includes:
+     * <ul>
+     *   <li>per-pair signals, %CV, %Recovery, and pair status ({@code FAIL})</li>
+     *   <li>the outlier prefix ({@code ⚠️ OUTLIER}) for flagged pairs</li>
+     *   <li>curve fit metrics: R², RMSE, EC50 with 95% CI, and convergence status</li>
+     *   <li>the section header with the correct pair count ({@code CALIBRATION (1 pair):})</li>
+     * </ul>
      */
     @Test
     void analyze_promptContainsPerPairDetailAndCurveParams() {
@@ -400,7 +406,7 @@ class GeminiServiceTest {
         assertThat(prompt).contains("Converged");
         assertThat(prompt).contains("%CV=8.1%");
         assertThat(prompt).contains("%Rec=105.2%");
-        assertThat(prompt).contains("FAIL");
+        assertThat(prompt).contains("| FAIL");
         assertThat(prompt).contains("CALIBRATION (1 pair):");
     }
 }
